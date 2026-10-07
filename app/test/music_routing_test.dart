@@ -534,6 +534,40 @@ void main() {
     },
   );
 
+  testWidgets('the queue has a search button only when search is offered', (
+    tester,
+  ) async {
+    final c = StandbyController(
+      spotifyService: _SearchSpotify(),
+      systemService: _FakeSystem(),
+      autostartTicker: false,
+    );
+    Widget view({VoidCallback? onSearch}) => MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 400,
+          height: 500,
+          child: SpotifyQueueView(
+            controller: c,
+            onClose: () {},
+            onSearch: onSearch,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(view());
+    await tester.pump();
+    expect(find.byTooltip('Search Spotify'), findsNothing);
+    await tester.pumpWidget(const SizedBox()); // stops the refresh timer
+
+    var searches = 0;
+    await tester.pumpWidget(view(onSearch: () => searches++));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Search Spotify'));
+    expect(searches, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('the music card opens its queue and closes it by itself', (
     tester,
   ) async {

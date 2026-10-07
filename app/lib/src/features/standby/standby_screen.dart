@@ -638,6 +638,16 @@ class _Dashboard extends StatelessWidget {
                 controller: controller,
                 onClose: close,
                 onTouch: keepOpen,
+                // search from the queue to find a song to add
+                onSearch: () {
+                  close();
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => SpotifySearchPage(controller: controller),
+                    ),
+                  );
+                },
               )
             : null,
         onSearch: controller.spotifyConnected

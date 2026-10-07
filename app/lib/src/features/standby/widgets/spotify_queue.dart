@@ -13,6 +13,7 @@ class SpotifyQueueView extends StatefulWidget {
     required this.controller,
     required this.onClose,
     this.onTouch,
+    this.onSearch,
   });
 
   final StandbyController controller;
@@ -20,6 +21,10 @@ class SpotifyQueueView extends StatefulWidget {
 
   /// Called on every touch so the card keeps the view open while it is used.
   final VoidCallback? onTouch;
+
+  /// Opens Spotify search (to find a song to add); the header shows a search
+  /// button when this is set.
+  final VoidCallback? onSearch;
 
   @override
   State<SpotifyQueueView> createState() => _SpotifyQueueViewState();
@@ -213,6 +218,13 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   ),
                 ),
+                if (widget.onSearch != null)
+                  IconButton(
+                    tooltip: 'Search Spotify',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: widget.onSearch,
+                    icon: const Icon(Icons.search_rounded, size: 22),
+                  ),
                 IconButton(
                   tooltip: 'Refresh queue',
                   visualDensity: VisualDensity.compact,
