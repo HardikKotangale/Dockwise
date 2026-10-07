@@ -1,0 +1,55 @@
+.env
+.env.*
+!.env.example
+app/.dart_tool/
+app/.flutter-plugins-dependencies
+app/build/
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/local.properties
+app/ios/Flutter/ephemeral/
+app/ios/Pods/
+app/ios/.symlinks/
+*.log
+
+# --- Personal and local-only: never commit these ---
+# your own Spotify app (copy app/lib/src/services/spotify_config.example.dart)
+app/lib/src/services/spotify_config.dart
+# signing keys and service files
+*.keystore
+*.jks
+key.properties
+google-services.json
+GoogleService-Info.plist
+*.mobileprovision
+*.p12
+# per-developer iOS overrides
+app/ios/Flutter/Local.xcconfig
+app/ios/Flutter/Generated.xcconfig
+app/ios/Flutter/flutter_export_environment.sh
+
+# --- Build outputs and tool junk ---
+*.apk
+*.aab
+*.ipa
+*.hprof
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/android/.cxx/
+app/android/captures/
+app/android/app/debug/
+app/android/app/profile/
+app/android/app/release/
+app/ios/build/
+app/ios/**/xcuserdata/
+app/ios/.generated/
+.DS_Store
+.idea/
+*.iml
+.vscode/
+.claude/
+
+# reference images used while designing (local only)
+assets/references/

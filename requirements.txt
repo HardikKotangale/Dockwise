@@ -1,0 +1,32 @@
+# Dockwise requirements
+# =====================
+# Flutter apps do not use pip, so this is a plain checklist of what must be
+# installed. The scripts below install everything that is missing for you:
+#
+#   macOS:    ./scripts/setup_mac.sh            (add --check to only report)
+#   Windows:  .\scripts\setup_windows.ps1       (add -Check to only report)
+#
+# Versions are the ones this project is built and tested with.
+
+# ---------- both macOS and Windows ----------
+git                       # any recent version
+flutter>=3.41             # tested with 3.47.6 (stable); includes Dart >=3.11.5
+jdk==17                   # Android builds need JDK 17 (Gradle 8.14 is bundled)
+android-studio            # provides the Android SDK, platform-tools and emulator
+android-sdk-platform>=36  # install from Android Studio > SDK Manager
+android-build-tools>=36   # same place; Flutter picks the right NDK itself
+a phone or emulator       # Android 8.0+ (API 26+); USB debugging turned on
+
+# ---------- macOS only (needed only to build for iPhone) ----------
+xcode>=16                 # from the App Store; tested with Xcode 27
+cocoapods>=1.15           # brew install cocoapods  (tested with 1.17)
+apple-id-for-signing      # free Apple ID is enough; free apps expire after 7 days
+
+# ---------- Windows ----------
+# iPhone builds are not possible on Windows (Apple tools only run on a Mac).
+# Android builds, tests and everything else work.
+
+# ---------- optional ----------
+spotify-client-id         # https://developer.spotify.com/dashboard
+                          # redirect URI: dockwise://spotify-callback
+                          # put it in app/lib/src/services/spotify_config.dart
