@@ -213,7 +213,40 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> playSpotifyPlaylist(String uri, {String? deviceId}) async {
     final ok = await _spotify.playPlaylist(uri, deviceId: deviceId);
     musicError = ok ? null : _spotify.lastError;
-    if (ok) unawaited(Future.delayed(const Duration(seconds: 1), refreshMusic));
+    if (ok) _refreshSoon();
+    return ok;
+  }
+
+  Future<List<SpotifyHit>> searchSpotify(String query) async {
+    final hits = await _spotify.search(query);
+    musicError = _spotify.lastError;
+    return hits;
+  }
+
+  Future<SpotifyQueue?> spotifyQueue() async {
+    final q = await _spotify.queue();
+    musicError = _spotify.lastError;
+    return q;
+  }
+
+  /// Jump to the song [index] places down the queue (0 = the next one).
+  Future<bool> skipInQueue(int index) async {
+    final ok = await _spotify.skipNext(index + 1);
+    musicError = ok ? null : _spotify.lastError;
+    if (ok) _refreshSoon();
+    return ok;
+  }
+
+  Future<bool> playSpotifyUri(String uri) async {
+    final ok = await _spotify.playUri(uri);
+    musicError = ok ? null : _spotify.lastError;
+    if (ok) _refreshSoon();
+    return ok;
+  }
+
+  Future<bool> queueSpotifyUri(String uri) async {
+    final ok = await _spotify.addToQueue(uri);
+    musicError = ok ? null : _spotify.lastError;
     return ok;
   }
 
@@ -226,7 +259,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> playOnSpotifyDevice(String deviceId) async {
     final ok = await _spotify.transferTo(deviceId);
     musicError = ok ? null : _spotify.lastError;
-    if (ok) unawaited(Future.delayed(const Duration(seconds: 1), refreshMusic));
+    if (ok) _refreshSoon();
     return ok;
   }
 
@@ -259,31 +292,104 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
 
   // Battery: only poll while a music widget is on screen and the app is
   // visible; poll slowly when nothing is playing.
+  // After a command Spotify needs a moment to catch up: look twice, soon.
+  void _refreshSoon() {
+    unawaited(Future.delayed(const Duration(milliseconds: 400), refreshMusic));
+    unawaited(Future.delayed(const Duration(milliseconds: 1200), refreshMusic));
+  }
+
+  int _idlePolls = 0; // consecutive times Spotify said "nothing is playing"
+
   Future<void> refreshMusic() async {
     _musicTimer?.cancel();
-    if (_musicOnScreen && appVisible) {
-      // musicSource: 'auto' = Spotify account if playing, else this phone;
-      // 'spotify' = account only; anything else = that phone app only.
-      final src = settings.musicSource;
-      final fromSpotify = src == 'auto' || src == 'spotify';
-      final fromPhone = src != 'spotify';
-      final playing =
-          (fromSpotify && _spotify.isConnected
-              ? await _spotify.nowPlaying()
-              : null) ??
-          (fromPhone ? await _systemService.nowPlaying() : null);
-      if (playing != null) {
-        snapshots = IntegrationSnapshotBundle(
-          weather: snapshots.weather,
-          nowPlaying: playing,
-        );
-        notifyListeners();
+    final started = DateTime.now();
+    try {
+      if (_musicOnScreen && appVisible) {
+        // musicSource: 'auto' = Spotify account if playing, else this phone;
+        // 'spotify' = account only; anything else = that phone app only.
+        final src = settings.musicSource;
+        final fromSpotify = src == 'auto' || src == 'spotify';
+        final fromPhone = src != 'spotify';
+        // a read that hangs must not stop the polling, so each one has a limit
+        final playing =
+            (fromSpotify && _spotify.isConnected
+                ? await _spotify.nowPlaying().timeout(
+                    const Duration(seconds: 10),
+                    onTimeout: () => null,
+                  )
+                : null) ??
+            (fromPhone
+                ? await _systemService.nowPlaying().timeout(
+                    const Duration(seconds: 10),
+                    onTimeout: () => null,
+                  )
+                : null);
+        if (playing != null) {
+          _idlePolls = 0;
+          snapshots = IntegrationSnapshotBundle(
+            weather: snapshots.weather,
+            nowPlaying: playing,
+          );
+          notifyListeners();
+        } else if (fromSpotify && _spotify.isConnected && _spotify.playerIdle) {
+          // Spotify says nothing is playing anywhere. Do not keep showing the
+          // last song as if it still played; wait for two answers in a row so
+          // the moment between songs or devices does not flash "nothing".
+          if (++_idlePolls >= 2 && snapshots.nowPlaying.viaSpotifyApi) {
+            snapshots = IntegrationSnapshotBundle(
+              weather: snapshots.weather,
+              nowPlaying: IntegrationSnapshotBundle.fallback(
+                now: DateTime.now(),
+              ).nowPlaying,
+            );
+            notifyListeners();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'music refresh failed: $e',
+      ); // never let one failure end polling
+    } finally {
+      if (_autostartTicker) _scheduleMusicPoll(started);
+    }
+  }
+
+  void _scheduleMusicPoll(DateTime started) {
+    _musicTimer?.cancel();
+    final np = snapshots.nowPlaying;
+    // On screen: look every 1 s while playing (so a song changed on another
+    // device shows up fast) and every 5 s when nothing plays. Spotify has no
+    // push, so polling is the only way; 429 answers are honored in the service.
+    var wait = !_musicOnScreen
+        ? const Duration(seconds: 30)
+        : (np.isPlaying
+              ? const Duration(milliseconds: 1000)
+              : const Duration(seconds: 4));
+    // Spotify told us to slow down recently: back off for a couple of minutes
+    final slowedDown =
+        DateTime.now().difference(_spotify.lastRateLimitedAt) <
+        const Duration(minutes: 2);
+    if (slowedDown && wait < const Duration(seconds: 3)) {
+      wait = const Duration(seconds: 3);
+    }
+    if (_musicOnScreen && np.isPlaying && np.durationMs > 0) {
+      // when the song should end, look right then: natural song changes are instant
+      final left = np.durationMs - np.positionAt(DateTime.now());
+      final atEnd = Duration(milliseconds: left + 400);
+      if (left > 0 && atEnd < wait) {
+        wait = atEnd < const Duration(milliseconds: 300)
+            ? const Duration(milliseconds: 300)
+            : atEnd;
       }
     }
-    if (!_autostartTicker) return;
-    final idle = !snapshots.nowPlaying.isPlaying;
+    // count the wait from when the last look STARTED, so the time the request
+    // itself took does not add to the delay
+    final remaining = wait - DateTime.now().difference(started);
     _musicTimer = Timer(
-      Duration(seconds: !_musicOnScreen ? 30 : (idle ? 15 : 5)),
+      remaining < const Duration(milliseconds: 150)
+          ? const Duration(milliseconds: 150)
+          : remaining,
       () => unawaited(refreshMusic()),
     );
   }

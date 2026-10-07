@@ -30,9 +30,24 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
 
   StandbyController get c => widget.controller;
 
+  Timer? _poll;
+
+  // the device you just chose: shown as playing until Spotify confirms it
+  String? _pendingActive;
+  DateTime _pendingUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
   Future<void> _loadDevices() async {
     final list = await c.spotifyDevices();
-    if (mounted) setState(() => _devices = list);
+    if (!mounted) return;
+    if (_pendingActive != null) {
+      final active = list.where((d) => d.isActive).firstOrNull?.id;
+      if (active == _pendingActive || DateTime.now().isAfter(_pendingUntil)) {
+        _pendingActive = null; // confirmed, or Spotify never switched: trust it
+      } else {
+        return; // Spotify is still switching: keep showing your choice
+      }
+    }
+    setState(() => _devices = list);
   }
 
   void _load() {
@@ -44,7 +59,17 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
   void initState() {
     super.initState();
     _players = c.mediaPlayers();
-    if (c.spotifyConnected) _load();
+    if (c.spotifyConnected) {
+      _load();
+      // follow changes made elsewhere (another device, the Spotify app itself)
+      _poll = Timer.periodic(const Duration(seconds: 5), (_) => _loadDevices());
+    }
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
   }
 
   void _toast(String text) {
@@ -63,10 +88,46 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
     }
   }
 
-  Future<void> _run(Future<bool> Function() action) async {
+  Future<void> _run(
+    Future<bool> Function() action, {
+    String? makeActive,
+  }) async {
+    if (makeActive != null) {
+      _pendingActive = makeActive;
+      _pendingUntil = DateTime.now().add(const Duration(seconds: 4));
+    }
+    if (makeActive != null && _devices != null) {
+      // show your choice at once; Spotify needs a second or two to switch, and
+      // asking it again straight away would still say the old device plays
+      setState(() {
+        _devices = [
+          for (final d in _devices!)
+            SpotifyDevice(
+              d.id,
+              d.name,
+              d.type,
+              d.id == makeActive,
+              volume: d.volume,
+            ),
+        ];
+      });
+    }
     final ok = await action();
     if (!ok && mounted) _toast(c.musicError ?? 'Could not play');
-    if (mounted) unawaited(_loadDevices());
+    if (!mounted) return;
+    if (!ok) {
+      _pendingActive = null;
+      unawaited(_loadDevices()); // put the list back to what is really playing
+      return;
+    }
+    // confirm with Spotify once it has switched (twice, in case it is slow)
+    for (final ms in const [900, 2200]) {
+      unawaited(
+        Future.delayed(Duration(milliseconds: ms), () {
+          if (mounted) _loadDevices();
+        }),
+      );
+    }
   }
 
   IconData _icon(String type) => switch (type) {
@@ -189,7 +250,8 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                 trailing: d.isActive
                     ? const Icon(Icons.graphic_eq, size: 20)
                     : null,
-                onTap: () => _run(() => c.playOnSpotifyDevice(d.id)),
+                onTap: () =>
+                    _run(() => c.playOnSpotifyDevice(d.id), makeActive: d.id),
               ),
           const SizedBox(height: 12),
           const Text(
@@ -279,11 +341,23 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
   int? _pending;
   Timer? _throttle;
   Timer? _poll;
+  String? _lastSource; // "Spotify · <device>": changes when playback moves
+
+  // Playback moved to another device (the card notices within a second or two):
+  // the volume card must follow it right away, not on the next 8 s look.
+  void _onController() {
+    final now = c.snapshots.nowPlaying.source;
+    if (now == _lastSource) return;
+    _lastSource = now;
+    if (_drag == null) _refresh();
+  }
 
   @override
   void initState() {
     super.initState();
     _refresh();
+    _lastSource = c.snapshots.nowPlaying.source;
+    c.addListener(_onController);
     // follow changes made on the device itself, but never while dragging
     _poll = Timer.periodic(const Duration(seconds: 8), (_) {
       if (_drag == null) _refresh();
@@ -292,6 +366,7 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
 
   @override
   void dispose() {
+    c.removeListener(_onController);
     _poll?.cancel();
     _throttle?.cancel();
     super.dispose();
