@@ -398,6 +398,7 @@ class StandbySettings {
     this.lowBatteryAlert = true,
     this.lowBatteryLevel = 20,
     this.autoBrightness = true,
+    this.idleDimMinutes = 5,
     this.nightByLight = true,
     this.keepAwakeWhileCharging = true,
     this.use24HourTime = true,
@@ -441,6 +442,8 @@ class StandbySettings {
   final int lowBatteryLevel; // percent at or below which that prompt shows
   final bool
   autoBrightness; // follow the room light (Android); iOS auto-brightness
+  final int
+  idleDimMinutes; // dim the whole screen after this long untouched; 0 = never
   final bool nightByLight; // night look also when the room is dark
   final bool keepAwakeWhileCharging;
   final bool use24HourTime;
@@ -551,6 +554,7 @@ class StandbySettings {
     bool? lowBatteryAlert,
     int? lowBatteryLevel,
     bool? autoBrightness,
+    int? idleDimMinutes,
     bool? nightByLight,
     bool? keepAwakeWhileCharging,
     bool? use24HourTime,
@@ -593,6 +597,7 @@ class StandbySettings {
       lowBatteryAlert: lowBatteryAlert ?? this.lowBatteryAlert,
       lowBatteryLevel: lowBatteryLevel ?? this.lowBatteryLevel,
       autoBrightness: autoBrightness ?? this.autoBrightness,
+      idleDimMinutes: idleDimMinutes ?? this.idleDimMinutes,
       nightByLight: nightByLight ?? this.nightByLight,
       keepAwakeWhileCharging:
           keepAwakeWhileCharging ?? this.keepAwakeWhileCharging,
@@ -639,6 +644,7 @@ class StandbySettings {
       'lowBatteryAlert': lowBatteryAlert,
       'lowBatteryLevel': lowBatteryLevel,
       'autoBrightness': autoBrightness,
+      'idleDimMinutes': idleDimMinutes,
       'nightByLight': nightByLight,
       'keepAwakeWhileCharging': keepAwakeWhileCharging,
       'use24HourTime': use24HourTime,
@@ -706,6 +712,7 @@ class StandbySettings {
           json['lowBatteryLevel'] as int? ?? defaults.lowBatteryLevel,
       autoBrightness:
           json['autoBrightness'] as bool? ?? defaults.autoBrightness,
+      idleDimMinutes: json['idleDimMinutes'] as int? ?? defaults.idleDimMinutes,
       nightByLight: json['nightByLight'] as bool? ?? defaults.nightByLight,
       keepAwakeWhileCharging:
           json['keepAwakeWhileCharging'] as bool? ??
@@ -764,6 +771,7 @@ class StandbySettings {
         other.lowBatteryAlert == lowBatteryAlert &&
         other.lowBatteryLevel == lowBatteryLevel &&
         other.autoBrightness == autoBrightness &&
+        other.idleDimMinutes == idleDimMinutes &&
         other.nightByLight == nightByLight &&
         other.keepAwakeWhileCharging == keepAwakeWhileCharging &&
         other.use24HourTime == use24HourTime &&
@@ -808,6 +816,7 @@ class StandbySettings {
     lowBatteryAlert,
     lowBatteryLevel,
     autoBrightness,
+    idleDimMinutes,
     nightByLight,
     keepAwakeWhileCharging,
     use24HourTime,

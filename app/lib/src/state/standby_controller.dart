@@ -445,6 +445,22 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
+  // OLED care: with nobody touching the screen, dim it to about half. A bright
+  // static clock is what wears an OLED, so this matters even in daylight.
+  DateTime lastTouch = DateTime.now();
+
+  bool get idle =>
+      settings.idleDimMinutes > 0 &&
+      DateTime.now().difference(lastTouch) >=
+          Duration(minutes: settings.idleDimMinutes);
+
+  /// Any touch wakes the screen from its idle dim.
+  void touched() {
+    final wasIdle = idle;
+    lastTouch = DateTime.now();
+    if (wasIdle) notifyListeners();
+  }
+
   // Room light (Android): the screen follows it, and a dark room switches the
   // night look on. iPhone gives apps no light sensor, so there the controller
   // leaves brightness alone and iOS's own auto-brightness does the adapting.

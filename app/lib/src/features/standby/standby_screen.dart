@@ -13,6 +13,7 @@ import '../../services/weather_service.dart';
 import '../../state/standby_controller.dart';
 import 'widgets/battery_badge.dart';
 import 'widgets/clock_faces.dart';
+import 'widgets/idle_dim.dart';
 import 'widgets/integration_cards.dart';
 import 'widgets/mini_keyboard.dart';
 import 'widgets/music_sources_sheet.dart';
@@ -138,158 +139,172 @@ class _StandbyScreenState extends State<StandbyScreen> {
         return Scaffold(
           backgroundColor: Colors.black,
           // the low-battery prompt covers the whole screen, above everything
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              SafeArea(
-                minimum: const EdgeInsets.all(12),
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    // Landscape: dock on the right; portrait: dock at the bottom.
-                    final landscape = c.maxWidth >= 700;
-                    final dashboard = Stack(
-                      children: [
-                        // glide to the next burn-in position (once a minute)
-                        TweenAnimationBuilder<Offset>(
-                          tween: Tween(end: Offset(offset.dx, offset.dy)),
-                          duration: const Duration(milliseconds: 1500),
-                          curve: Curves.easeInOutCubic,
-                          builder: (context, o, child) {
-                            final moved = Transform.translate(
-                              offset: o,
-                              child: child,
-                            );
-                            return NightModePolicy.shouldTint(
-                                  _controller.now,
-                                  settings,
-                                  dark: _controller.roomDark,
-                                )
-                                ? ColorFiltered(
-                                    colorFilter: NightModePolicy.filter(
-                                      settings,
-                                    ),
-                                    child: moved,
+          // any touch wakes the screen from its idle dim
+          body: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _controller.touched(),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                SafeArea(
+                  minimum: const EdgeInsets.all(12),
+                  child: LayoutBuilder(
+                    builder: (context, c) {
+                      // Landscape: dock on the right; portrait: dock at the bottom.
+                      final landscape = c.maxWidth >= 700;
+                      final dashboard = Stack(
+                        children: [
+                          // glide to the next burn-in position (once a minute)
+                          TweenAnimationBuilder<Offset>(
+                            tween: Tween(end: Offset(offset.dx, offset.dy)),
+                            duration: const Duration(milliseconds: 1500),
+                            curve: Curves.easeInOutCubic,
+                            builder: (context, o, child) {
+                              final moved = Transform.translate(
+                                offset: o,
+                                child: child,
+                              );
+                              return NightModePolicy.shouldTint(
+                                    _controller.now,
+                                    settings,
+                                    dark: _controller.roomDark,
                                   )
-                                : moved;
-                          },
-                          // a thin strip on top is always reserved for the battery
-                          // badge, so cards never resize when it appears or hides
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 22,
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: BatteryBadge(
-                                      monitor: _battery,
-                                      lowAt: settings.lowBatteryLevel,
+                                  ? ColorFiltered(
+                                      colorFilter: NightModePolicy.filter(
+                                        settings,
+                                      ),
+                                      child: moved,
+                                    )
+                                  : moved;
+                            },
+                            // a thin strip on top is always reserved for the battery
+                            // badge, so cards never resize when it appears or hides
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  height: 22,
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: BatteryBadge(
+                                        monitor: _battery,
+                                        lowAt: settings.lowBatteryLevel,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: _Dashboard(
-                                  controller: _controller,
-                                  settings: settings,
-                                  stacked: !landscape,
-                                  openDock: _openDock,
-                                  clockPart: _clockPart,
-                                  touch: _touch,
-                                  onPinch: (mode, center) {
-                                    if (mode == settings.layoutMode) return;
-                                    // zooming into a panel keeps that panel, not always the left one
-                                    final size = MediaQuery.sizeOf(context);
-                                    final onSecond = landscape
-                                        ? center.dx > size.width / 2
-                                        : center.dy > size.height / 2;
-                                    _controller.setLayout(
-                                      mode,
-                                      soloSecond: onSecond,
-                                    );
-                                    _showHud(
-                                      mode == StandbyLayoutMode.single
-                                          ? Icons.crop_square_rounded
-                                          : Icons.vertical_split_rounded,
-                                      mode == StandbyLayoutMode.single
-                                          ? 'One panel'
-                                          : 'Two panels',
-                                    );
-                                  },
+                                Expanded(
+                                  child: _Dashboard(
+                                    controller: _controller,
+                                    settings: settings,
+                                    stacked: !landscape,
+                                    openDock: _openDock,
+                                    clockPart: _clockPart,
+                                    touch: _touch,
+                                    onPinch: (mode, center) {
+                                      if (mode == settings.layoutMode) return;
+                                      // zooming into a panel keeps that panel, not always the left one
+                                      final size = MediaQuery.sizeOf(context);
+                                      final onSecond = landscape
+                                          ? center.dx > size.width / 2
+                                          : center.dy > size.height / 2;
+                                      _controller.setLayout(
+                                        mode,
+                                        soloSecond: onSecond,
+                                      );
+                                      _showHud(
+                                        mode == StandbyLayoutMode.single
+                                            ? Icons.crop_square_rounded
+                                            : Icons.vertical_split_rounded,
+                                        mode == StandbyLayoutMode.single
+                                            ? 'One panel'
+                                            : 'Two panels',
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        if (_hud != null)
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: Center(
-                                child: AnimatedOpacity(
-                                  opacity: _hudVisible ? 1 : 0,
-                                  duration: const Duration(milliseconds: 220),
-                                  child: _Hud(
-                                    icon: _hud!.icon,
-                                    text: _hud!.text,
+                          if (_hud != null)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: Center(
+                                  child: AnimatedOpacity(
+                                    opacity: _hudVisible ? 1 : 0,
+                                    duration: const Duration(milliseconds: 220),
+                                    child: _Hud(
+                                      icon: _hud!.icon,
+                                      text: _hud!.text,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    );
-                    final build = _dockBuild;
-                    if (build == null) return dashboard;
-                    final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
-                    final dock = _Dock(
-                      title: _dockTitle,
-                      onClose: _closeDock,
-                      child: AnimatedBuilder(
-                        animation: _controller,
-                        builder: (context, _) => build(),
-                      ),
-                    );
-                    // Keyboard up in portrait: give the dock all the visible space so
-                    // what you type is never hidden behind it.
-                    if ((typing || _dockTall) && !landscape) return dock;
-                    return landscape
-                        ? Row(
-                            children: [
-                              Expanded(child: dashboard),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: (c.maxWidth * 0.42).clamp(320.0, 460.0),
-                                child: dock,
-                              ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              Expanded(child: dashboard),
-                              const SizedBox(height: 12),
-                              SizedBox(height: c.maxHeight * 0.46, child: dock),
-                            ],
-                          );
-                  },
+                        ],
+                      );
+                      final build = _dockBuild;
+                      if (build == null) return dashboard;
+                      final typing =
+                          MediaQuery.viewInsetsOf(context).bottom > 0;
+                      final dock = _Dock(
+                        title: _dockTitle,
+                        onClose: _closeDock,
+                        child: AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, _) => build(),
+                        ),
+                      );
+                      // Keyboard up in portrait: give the dock all the visible space so
+                      // what you type is never hidden behind it.
+                      if ((typing || _dockTall) && !landscape) return dock;
+                      return landscape
+                          ? Row(
+                              children: [
+                                Expanded(child: dashboard),
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: (c.maxWidth * 0.42).clamp(
+                                    320.0,
+                                    460.0,
+                                  ),
+                                  child: dock,
+                                ),
+                              ],
+                            )
+                          : Column(
+                              children: [
+                                Expanded(child: dashboard),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  height: c.maxHeight * 0.46,
+                                  child: dock,
+                                ),
+                              ],
+                            );
+                    },
+                  ),
                 ),
-              ),
-              // small rotate symbol at the bottom when the screen is not turned
-              // the way the phone is held (e.g. rotation lock on)
-              const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 4,
-                child: Center(child: OrientationHint()),
-              ),
-              Positioned.fill(
-                child: LowBatteryAlert(
-                  monitor: _battery,
-                  enabled: settings.lowBatteryAlert,
-                  lowAt: settings.lowBatteryLevel,
+                // OLED care: half brightness while nobody touches the screen
+                Positioned.fill(child: IdleDim(idle: _controller.idle)),
+                // small rotate symbol at the bottom when the screen is not turned
+                // the way the phone is held (e.g. rotation lock on)
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 4,
+                  child: Center(child: OrientationHint()),
                 ),
-              ),
-            ],
+                Positioned.fill(
+                  child: LowBatteryAlert(
+                    monitor: _battery,
+                    enabled: settings.lowBatteryAlert,
+                    lowAt: settings.lowBatteryLevel,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -1438,6 +1453,25 @@ class _AllSettings extends StatelessWidget {
                   value: settings.burnInProtection,
                   onChanged: (v) => set(settings.copyWith(burnInProtection: v)),
                   title: const Text('OLED burn-in protection'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Dim when idle'),
+                  subtitle: const Text(
+                    'Lowers the screen to about half after this long without a touch. Touch to wake.',
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final m in const [0, 2, 5, 10])
+                      ChoiceChip(
+                        label: Text(m == 0 ? 'Off' : '$m min'),
+                        selected: settings.idleDimMinutes == m,
+                        onSelected: (_) =>
+                            set(settings.copyWith(idleDimMinutes: m)),
+                      ),
+                  ],
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,

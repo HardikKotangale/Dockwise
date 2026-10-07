@@ -84,7 +84,10 @@ The music card has three small buttons in its header: **queue**, **search** and 
 **Night and battery**
 - **Auto brightness:** the screen stays on while charging and follows the room light, like Apple's StandBy: dimmer in a dark bedroom, up to the brightness you set in daylight. It reads the light sensor and eases between levels, so a passing shadow does not flicker it.
 - **Night mode:** choose your own hours, and it also turns on by itself when the room is dark. Colors fade to a dim red, amber or your accent color with no blue light, with an adjustable strength.
-- **OLED care:** slow burn-in pixel shifting once a minute, adjustable brightness.
+- **OLED care (burn-in protection):** three layers, the same ideas always-on phones and TVs use.
+  - *Orbiting:* once a minute the whole screen glides to a new spot on a slow orbit that never repeats, spreading every edge and every digit across the safe area instead of sitting on the same pixels.
+  - *Dim when idle:* after 2, 5 (default) or 10 minutes without a touch, the screen drops to about half brightness. A touch wakes it at once. A bright, static clock is what wears an OLED, so this matters most.
+  - *Room-light brightness:* in a dark room the screen is far dimmer (see Auto brightness), which cuts wear further.
 - **Battery badge:** a tiny percentage in the top-right corner, shown only when the battery is not full on the charger (grey on battery, green charging, red when low).
 - **Low-battery prompt:** at a level you choose (5-50%, default 20%) and not charging, a full-screen "Charge your phone" prompt appears until you plug in. It can be turned off in settings.
 

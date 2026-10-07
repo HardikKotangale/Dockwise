@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../domain/standby_models.dart';
 
 class OffsetSnapshot {
@@ -30,11 +32,17 @@ class BurnInProtection {
       last.hour != now.hour ||
       last.minute != now.minute;
 
+  /// Where the whole screen sits at this [tick] (one tick a minute): a slow
+  /// orbit. Sine waves with irrational steps never repeat, so unlike a fixed
+  /// grid of positions every edge and every glyph is spread across the whole
+  /// safe area (10 x 8 points either way; the screen margin is 12) over the
+  /// days, instead of sitting on the same few pixels.
   static OffsetSnapshot offsetForTick(int tick, StandbySettings settings) {
     if (!settings.burnInProtection) return OffsetSnapshot.zero;
-    final index = tick % 9;
-    final dx = ((index % 3) - 1) * 8.0;
-    final dy = ((index ~/ 3) - 1) * 6.0;
-    return OffsetSnapshot(dx, dy);
+    final t = tick.toDouble();
+    return OffsetSnapshot(
+      10 * math.sin(t * 0.7236),
+      8 * math.sin(t * 1.1180 + 1.0),
+    );
   }
 }
