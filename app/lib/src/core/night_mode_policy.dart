@@ -16,18 +16,23 @@ class NightModePolicy {
 
   /// Night look: colors fade toward a dim warm red with no blue light (easy on
   /// the eyes in a dark room). [strength] 0 = a little, 1 = fully red.
+  /// How much of a pixel's brightness goes to red, green and blue for the
+  /// chosen night tint. "Theme color" follows the accent color you pick in
+  /// Settings > Theme, so changing that color changes the night look too.
+  static List<double> tintOf(StandbySettings settings) =>
+      switch (settings.nightTint) {
+        'amber' => const [0.95, 0.45, 0.0],
+        'theme' => [
+          settings.appAccentInk.r,
+          settings.appAccentInk.g,
+          settings.appAccentInk.b,
+        ],
+        _ => const [0.85, 0.14, 0.0],
+      };
+
   static ColorFilter filter(StandbySettings settings) {
     final strength = settings.nightTintIntensity;
-    // how much of each pixel's brightness goes to r, g, b
-    final toColor = switch (settings.nightTint) {
-      'amber' => const [0.95, 0.45, 0.0],
-      'theme' => [
-        settings.theme.clockColor.r,
-        settings.theme.clockColor.g,
-        settings.theme.clockColor.b,
-      ],
-      _ => const [0.85, 0.14, 0.0],
-    };
+    final toColor = tintOf(settings);
     final s = (0.5 + 0.5 * strength).clamp(
       0.0,
       1.0,
