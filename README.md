@@ -20,7 +20,7 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
   <img src="docs/screenshots/settings-dock.png" width="60%" alt="Live-preview settings dock">
 </p>
 
-*Screenshots are from an Android phone. Cities shown are placeholders.*
+*Screenshots from an Android phone.*
 
 ## Spotify and music
 
@@ -36,7 +36,7 @@ Music settings: volume of the playing device, which player the card follows, sig
   <img src="docs/screenshots/music-settings.png" width="85%" alt="Music settings with Spotify volume, devices and sign out">
 </p>
 
-*These two images are rendered from the app's own music widgets with a sample song and generic device names, so no personal Spotify details are shown.*
+*Sample song and device names.*
 
 ## Features
 
@@ -84,7 +84,7 @@ Music settings: volume of the playing device, which player the card follows, sig
   <img src="docs/low-battery-prompt.gif" width="46%" alt="Low-battery prompt">
 </p>
 
-*The weather and low-battery animations are rendered from the app's own widgets with sample data and a placeholder city.*
+*Weather and low-battery animations use sample data.*
 
 ## Platforms
 

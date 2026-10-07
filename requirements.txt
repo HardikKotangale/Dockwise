@@ -15,7 +15,7 @@ jdk==17                   # Android builds need JDK 17 (Gradle 8.14 is bundled)
 android-studio            # provides the Android SDK, platform-tools and emulator
 android-sdk-platform>=36  # install from Android Studio > SDK Manager
 android-build-tools>=36   # same place; Flutter picks the right NDK itself
-a phone or emulator       # Android 8.0+ (API 26+); USB debugging turned on
+android-device            # Android 8.0+ phone with USB debugging on, or an Android Studio emulator
 
 # ---------- macOS only (needed only to build for iPhone) ----------
 xcode>=16                 # from the App Store; tested with Xcode 27
