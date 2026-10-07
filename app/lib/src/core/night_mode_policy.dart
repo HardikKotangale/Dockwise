@@ -5,8 +5,14 @@ import '../domain/standby_models.dart';
 class NightModePolicy {
   const NightModePolicy._();
 
-  static bool shouldTint(DateTime now, StandbySettings settings) {
+  /// [dark]: the room is dark right now (from the light sensor, Android).
+  static bool shouldTint(
+    DateTime now,
+    StandbySettings settings, {
+    bool dark = false,
+  }) {
     if (!settings.nightModeEnabled) return false;
+    if (dark && settings.nightByLight) return true;
     final m = now.hour * 60 + now.minute;
     final start = settings.nightStartMin, end = settings.nightEndMin;
     if (start == end) return false;

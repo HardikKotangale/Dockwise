@@ -397,6 +397,8 @@ class StandbySettings {
     this.burnInProtection = true,
     this.lowBatteryAlert = true,
     this.lowBatteryLevel = 20,
+    this.autoBrightness = true,
+    this.nightByLight = true,
     this.keepAwakeWhileCharging = true,
     this.use24HourTime = true,
     this.worldZone = '',
@@ -437,6 +439,9 @@ class StandbySettings {
   final bool burnInProtection;
   final bool lowBatteryAlert; // low and not charging: ask to charge the phone
   final int lowBatteryLevel; // percent at or below which that prompt shows
+  final bool
+  autoBrightness; // follow the room light (Android); iOS auto-brightness
+  final bool nightByLight; // night look also when the room is dark
   final bool keepAwakeWhileCharging;
   final bool use24HourTime;
 
@@ -545,6 +550,8 @@ class StandbySettings {
     bool? burnInProtection,
     bool? lowBatteryAlert,
     int? lowBatteryLevel,
+    bool? autoBrightness,
+    bool? nightByLight,
     bool? keepAwakeWhileCharging,
     bool? use24HourTime,
     String? worldZone,
@@ -585,6 +592,8 @@ class StandbySettings {
       burnInProtection: burnInProtection ?? this.burnInProtection,
       lowBatteryAlert: lowBatteryAlert ?? this.lowBatteryAlert,
       lowBatteryLevel: lowBatteryLevel ?? this.lowBatteryLevel,
+      autoBrightness: autoBrightness ?? this.autoBrightness,
+      nightByLight: nightByLight ?? this.nightByLight,
       keepAwakeWhileCharging:
           keepAwakeWhileCharging ?? this.keepAwakeWhileCharging,
       use24HourTime: use24HourTime ?? this.use24HourTime,
@@ -629,6 +638,8 @@ class StandbySettings {
       'burnInProtection': burnInProtection,
       'lowBatteryAlert': lowBatteryAlert,
       'lowBatteryLevel': lowBatteryLevel,
+      'autoBrightness': autoBrightness,
+      'nightByLight': nightByLight,
       'keepAwakeWhileCharging': keepAwakeWhileCharging,
       'use24HourTime': use24HourTime,
       'worldZone': worldZone,
@@ -693,6 +704,9 @@ class StandbySettings {
           json['lowBatteryAlert'] as bool? ?? defaults.lowBatteryAlert,
       lowBatteryLevel:
           json['lowBatteryLevel'] as int? ?? defaults.lowBatteryLevel,
+      autoBrightness:
+          json['autoBrightness'] as bool? ?? defaults.autoBrightness,
+      nightByLight: json['nightByLight'] as bool? ?? defaults.nightByLight,
       keepAwakeWhileCharging:
           json['keepAwakeWhileCharging'] as bool? ??
           defaults.keepAwakeWhileCharging,
@@ -749,6 +763,8 @@ class StandbySettings {
         other.burnInProtection == burnInProtection &&
         other.lowBatteryAlert == lowBatteryAlert &&
         other.lowBatteryLevel == lowBatteryLevel &&
+        other.autoBrightness == autoBrightness &&
+        other.nightByLight == nightByLight &&
         other.keepAwakeWhileCharging == keepAwakeWhileCharging &&
         other.use24HourTime == use24HourTime &&
         other.worldZone == worldZone &&
@@ -791,6 +807,8 @@ class StandbySettings {
     burnInProtection,
     lowBatteryAlert,
     lowBatteryLevel,
+    autoBrightness,
+    nightByLight,
     keepAwakeWhileCharging,
     use24HourTime,
     worldZone,

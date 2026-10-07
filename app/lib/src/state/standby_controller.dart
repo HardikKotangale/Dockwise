@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/burn_in_protection.dart';
 import '../core/clock_cadence.dart';
+import '../core/room_light.dart';
 import '../data/settings_repository.dart';
 import '../domain/standby_models.dart';
 import '../services/spotify_service.dart';
@@ -59,6 +61,10 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     if (_autostartTicker) {
       _scheduleNextTick();
       unawaited(refreshMusic());
+      // look at the room light every couple of seconds while the app is on screen
+      _lightTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        if (appVisible) unawaited(pollLight());
+      });
     }
     notifyListeners();
   }
@@ -439,6 +445,34 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
+  // Room light (Android): the screen follows it, and a dark room switches the
+  // night look on. iPhone gives apps no light sensor, so there the controller
+  // leaves brightness alone and iOS's own auto-brightness does the adapting.
+  Timer? _lightTimer;
+  double?
+  _luxLog; // smoothed log10(lux + 1), so a passing shadow does not flicker
+  double _lastBrightness = -1;
+  bool roomDark = false;
+
+  Future<void> pollLight() async {
+    if (!settings.autoBrightness) return;
+    final lux = await _systemService.ambientLux();
+    if (lux == null) return; // no readable light sensor on this device
+    final l = math.log(lux.clamp(0, 100000) + 1) / math.ln10;
+    _luxLog = _luxLog == null ? l : _luxLog! + 0.4 * (l - _luxLog!);
+    final smooth = math.pow(10, _luxLog!).toDouble() - 1;
+    final target = roomBrightness(smooth, settings.brightness);
+    if ((target - _lastBrightness).abs() > 0.03) {
+      _lastBrightness = target;
+      await _systemService.setBrightness(target);
+    }
+    final dark = isDarkRoom(smooth, wasDark: roomDark);
+    if (dark != roomDark) {
+      roomDark = dark;
+      notifyListeners();
+    }
+  }
+
   // Auto-start settings last sent to the Android watcher (only re-sent on change).
   (bool, double, bool, bool)? _autoSent;
 
@@ -460,7 +494,13 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     ]);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     await _systemService.setKeepAwake(settings.keepAwakeWhileCharging);
-    await _systemService.setBrightness(settings.brightness);
+    if (settings.autoBrightness) {
+      _lastBrightness = -1; // the next light reading applies it afresh
+      unawaited(pollLight());
+    } else {
+      await _systemService.setBrightness(settings.brightness);
+      roomDark = false;
+    }
     final auto = (
       settings.autoStart,
       settings.autoLeanDeg,
@@ -519,6 +559,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     _timer?.cancel();
     _musicTimer?.cancel();
     _weatherTimer?.cancel();
+    _lightTimer?.cancel();
     super.dispose();
   }
 }

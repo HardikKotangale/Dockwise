@@ -61,8 +61,39 @@ class MainActivity : FlutterActivity() {
         if (intent.getBooleanExtra("auto", false)) launchedByAuto = true
     }
 
+    // Room light in lux. The sensor is only listened to while the app is on screen
+    // and is started by the first request.
+    private var lightListener: SensorEventListener? = null
+    private var lastLux: Float? = null
+
+    private fun ambientLux(): Double? {
+        if (lightListener == null) {
+            val sm = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            val sensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT) ?: return null
+            val l = object : SensorEventListener {
+                override fun onSensorChanged(e: SensorEvent) { lastLux = e.values[0] }
+                override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+            }
+            sm.registerListener(l, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            lightListener = l
+        }
+        return lastLux?.toDouble()
+    }
+
+    private fun stopLight() {
+        lightListener?.let { (getSystemService(Context.SENSOR_SERVICE) as SensorManager).unregisterListener(it) }
+        lightListener = null
+        lastLux = null
+    }
+
+    override fun onPause() {
+        stopLight() // off screen: stop listening; the next request starts it again
+        super.onPause()
+    }
+
     override fun onDestroy() {
         runCatching { unregisterReceiver(exitReceiver) }
+        stopLight()
         stopProbe()
         super.onDestroy()
     }
@@ -198,6 +229,7 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "deviceModel" -> result.success(android.os.Build.MODEL)
+                "ambientLux" -> result.success(ambientLux()) // null: no light sensor/reading yet
                 "launchApp" -> {
                     val pkg = getArgument<String>(call.arguments, "package")
                     val intent = pkg?.let { packageManager.getLaunchIntentForPackage(it) }

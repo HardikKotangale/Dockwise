@@ -162,6 +162,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                             return NightModePolicy.shouldTint(
                                   _controller.now,
                                   settings,
+                                  dark: _controller.roomDark,
                                 )
                                 ? ColorFiltered(
                                     colorFilter: NightModePolicy.filter(
@@ -1327,8 +1328,19 @@ class _AllSettings extends StatelessWidget {
             title: 'Display & battery',
             child: Column(
               children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: settings.autoBrightness,
+                  onChanged: (v) => set(settings.copyWith(autoBrightness: v)),
+                  title: const Text('Auto brightness'),
+                  subtitle: Text(
+                    defaultTargetPlatform == TargetPlatform.iOS
+                        ? "Follows the room light through iOS's own auto-brightness"
+                        : 'Follows the room light: dimmer in a dark room, up to the level below',
+                  ),
+                ),
                 _SliderRow(
-                  label: 'Dim',
+                  label: settings.autoBrightness ? 'Brightest' : 'Dim',
                   value: settings.brightness,
                   min: 0.08,
                   max: 1,
@@ -1351,6 +1363,17 @@ class _AllSettings extends StatelessWidget {
                   ),
                 ),
                 if (settings.nightModeEnabled) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: settings.nightByLight,
+                    onChanged: (v) => set(settings.copyWith(nightByLight: v)),
+                    title: const Text('Also when the room is dark'),
+                    subtitle: Text(
+                      defaultTargetPlatform == TargetPlatform.iOS
+                          ? 'Needs a room light sensor, which iPhone does not share with apps'
+                          : 'Uses the light sensor, in addition to the hours below',
+                    ),
+                  ),
                   Wrap(
                     spacing: 8,
                     children: [
