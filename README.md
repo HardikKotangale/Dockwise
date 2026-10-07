@@ -9,7 +9,7 @@ Dockwise turns a charging phone into a bedside display: big readable clocks, liv
 The look is inspired by iOS StandBy, but the layouts, themes, controls and motion are original.
 
 <p align="center">
-  <img src="docs/screenshots/frame-date.png" width="49%" alt="Frame clock and date card">
+  <img src="docs/screenshots/frame-fullscreen.png" width="49%" alt="Frame clock filling the whole screen">
   <img src="docs/screenshots/night-mode.png" width="49%" alt="Night mode, dim red">
 </p>
 <p align="center">
@@ -24,13 +24,31 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
 
 ## Spotify and music
 
-Tap the speaker icon on the music card to open the volume bar for the device that is playing (a speaker, a Mac, the phone...). It closes by itself after a few seconds.
+The music card has three small buttons in its header: **queue**, **search** and **volume**.
+
+<p align="center">
+  <img src="docs/screenshots/spotify-card-buttons.png" width="85%" alt="Music card with queue, search and volume buttons">
+</p>
+
+**Search.** Tap the magnifier to search Spotify. You type on the app's own keyboard, so the phone's keyboard never covers the screen. Songs, albums and playlists show up as a list while you type. Tap a result to play it, or tap **+** on a song to add it to the queue.
+
+<p align="center">
+  <img src="docs/screenshots/spotify-search.png" width="85%" alt="Spotify search with a list of songs, albums and playlists">
+</p>
+
+**Queue.** Tap the queue button and the card turns into Spotify's queue list: what is playing now and what comes next. Tap a song to jump to it. The list has its own **search button** at the top, so you can find a song and add it without leaving the queue. It refreshes by itself, and closes after a while without a touch.
+
+<p align="center">
+  <img src="docs/screenshots/spotify-queue.png" width="85%" alt="Queue list with a search button, now playing and next in queue">
+</p>
+
+**Volume.** Tap the speaker icon to open a volume bar for the device that is playing (a speaker, a Mac, the phone...). It closes by itself after a few seconds.
 
 <p align="center">
   <img src="docs/screenshots/music-card-volume.png" width="85%" alt="Music card with the Spotify volume bar open">
 </p>
 
-Music settings: volume of the playing device, which player the card follows, sign in and out of Spotify, the device to play on, and your playlists.
+**Music settings.** The volume of the playing device, which player the card follows, sign in and out of Spotify, the device to play on (your choice shows at once), and your playlists.
 
 <p align="center">
   <img src="docs/screenshots/music-settings.png" width="85%" alt="Music settings with Spotify volume, devices and sign out">
@@ -41,7 +59,7 @@ Music settings: volume of the playing device, which player the card follows, sig
 ## Features
 
 **Clocks**
-- Styles: digital, analog, frame (condensed digits inside a fading ring of 60 ticks), flip (one card per digit, with a seconds card), mono, float, text and world clock.
+- Styles: digital, analog, frame (condensed digits inside a fading ring of 60 ticks that runs around the whole panel, so in one-panel mode it fills the screen), flip (one card per digit, with a seconds card), mono, float, text and world clock.
 - Color per part (hours, minutes, colon, label, ticks), ready-made presets such as "Red & white" and "Night red", and an app accent that is separate from the clock look.
 - World clock with worldwide city search and an on-screen keyboard. If the second city is on another date, its label shows the day and date.
 - 12/24-hour time, optional seconds, adjustable size, no per-second layout jumps.
@@ -54,17 +72,23 @@ Music settings: volume of the playing device, which player the card follows, sig
 **Spotify**
 - Sign in with Spotify and control playback on any device: a Mac, a speaker, a TV or the phone itself (Spotify Premium is needed for control).
 - Pick the playing device, start a playlist, and set the volume of that device from the music card or Music settings.
+- **Search** from the music card (magnifier icon): type on the app's own keyboard and see songs, albums and playlists. Tap one to play it, or tap "+" on a song to add it to the queue.
+- **Queue** from the music card (queue icon): the card turns into Spotify's queue list, with what is playing now and what is next, right in the card. Tap a song to jump to it. The list has its own search button to find and add songs. It closes by itself after a while.
 - Sign out and sign in again with a different account at any time.
 
 **Layout and gestures**
+- **Fits any screen:** Dockwise reads the screen size once at start and lays everything out on a standard phone size, then scales the whole interface to the real screen. An iPhone 15, an iPhone 17 Pro Max and a tablet show the same composition at their own size, in portrait and landscape.
 - One or two panels. Pinch with two fingers: spread = one panel (the one you spread on), pinch together = two panels, back in the original order. One-finger swipes change the card.
 - Tap any panel to open a settings dock whose changes preview live behind it.
 
 **Night and battery**
-- **Night mode:** choose your own hours; colors fade to a dim red, amber or your theme color with no blue light, with an adjustable strength.
+- **Night mode:** choose your own hours; colors fade to a dim red, amber or your accent color with no blue light, with an adjustable strength.
 - **OLED care:** slow burn-in pixel shifting once a minute, adjustable brightness.
 - **Battery badge:** a tiny percentage in the top-right corner, shown only when the battery is not full on the charger (grey on battery, green charging, red when low).
 - **Low-battery prompt:** at a level you choose (5-50%, default 20%) and not charging, a full-screen "Charge your phone" prompt appears until you plug in. It can be turned off in settings.
+
+**Rotation hint**
+- If the screen is not turned the way you are holding the phone (for example iPhone rotation lock is on), a small rotate symbol appears at the bottom edge. It uses the phone's gravity sensor, and tapping it turns Dockwise to landscape or portrait. It stays hidden when the screen already matches.
 
 **Auto-start (Android only)**
 - Opens Dockwise by itself when the phone is charging and propped up in landscape, and closes it when you unplug. Details below.
@@ -95,6 +119,8 @@ Music settings: volume of the playing device, which player the card follows, sig
 | Night mode, burn-in shift, brightness, keep awake | Yes | Yes |
 | Spotify account control and volume | Yes | Yes |
 | Battery badge and low-battery prompt | Yes | Yes |
+| Spotify search and queue | Yes | Yes |
+| Rotation hint (works with rotation lock on) | Yes | Yes |
 | Show and control music from other apps on the phone | Yes | No (iOS does not allow it) |
 | Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) |
 
@@ -108,6 +134,7 @@ When enabled, a small foreground service watches the charger. While charging, it
 |---|---|---|
 | Both | Location, only while the app is open | Local weather and your city name |
 | Both | Internet | Weather (Open-Meteo, BigDataCloud) and Spotify |
+| Both | Motion sensor (no prompt needed) | The rotation hint reads the gravity direction |
 | Android | Notification access (optional) | Reading what other apps are playing |
 | Android | Display over other apps, full-screen notifications, foreground service, boot completed, wake lock | Auto-start and keeping the tilt sensor alive while charging |
 | iPhone | None beyond location | |

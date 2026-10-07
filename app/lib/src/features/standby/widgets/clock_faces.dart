@@ -105,6 +105,15 @@ class ClockFace extends StatelessWidget {
     // Every style fills its panel (portrait or landscape); the Size slider
     // shrinks it to a share of that, so it works for all styles alike.
     final share = settings.fontScale.clamp(0.4, 1.0);
+    if (settings.clockStyle == ClockStyle.frame) {
+      // the frame is a rectangle that fills the whole panel (the whole screen
+      // in one-panel mode), so it is not scaled from a fixed size
+      return FractionallySizedBox(
+        widthFactor: share,
+        heightFactor: share,
+        child: face,
+      );
+    }
     return FractionallySizedBox(
       widthFactor: share,
       heightFactor: share,
@@ -148,7 +157,6 @@ class DigitalClockFace extends StatelessWidget {
               settings.fontWeight / 900,
             ),
             letterSpacing: 0,
-            shadows: _glow(theme.clockAccent, settings.glowIntensity),
           ),
         ),
         if (t.suffix != null)
@@ -161,6 +169,7 @@ class DigitalClockFace extends StatelessWidget {
                 t.suffix!,
                 style: TextStyle(
                   color: settings.detailInk,
+                  shadows: _glow(settings.detailInk, settings.glowIntensity),
                   fontSize: size * 0.26,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
@@ -188,71 +197,153 @@ class FrameClockFace extends StatelessWidget {
   final StandbySettings settings;
   final PartTap? onPartTap;
 
-  static const _side = 300.0;
+  // Used when the face is given no size (e.g. a tiny preview): a square.
+  static const _fallback = 300.0;
 
   @override
   Widget build(BuildContext context) {
     final t = _clockText(time, settings);
     // Apple shows 8:13, not 08:13
     final text = t.text.replaceFirst(RegExp(r'^0(?=\d)'), '');
-    return SizedBox.square(
-      dimension: _side,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // only the tick border reacts to taps (see _FramePainter.hitTest),
-          // not the empty middle of the frame
-          GestureDetector(
-            behavior: HitTestBehavior.deferToChild,
-            onTap: onPartTap == null ? null : () => onPartTap!(ClockPart.label),
-            child: CustomPaint(
-              size: const Size.square(_side),
-              painter: _FramePainter(
-                second: time.second,
-                ink: settings.ticksInk,
-                scale: settings.tickScale,
-              ),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.hasBoundedWidth ? c.maxWidth : _fallback;
+        final h = c.hasBoundedHeight ? c.maxHeight : _fallback;
+        final box = Size(w, h);
+        // ticks, corners and margins grow with the panel's shorter side
+        final unit = (math.min(w, h) / 300).clamp(0.2, 4.0);
+        final tick = frameTickSize(settings.tickScale);
+        final margin = tick.length * unit + 34 * unit;
+        // a wide panel (landscape, one panel) puts AM/PM on the right
+        final ratio = (w - 2 * margin) / (h - 2 * margin);
+        final wide = ratio > 1.25;
+        // a tall panel (portrait, one panel) stacks hours over minutes, so the
+        // digits can grow to fill the height instead of floating in empty space
+        final tall = ratio < 0.7;
+        final timeText = _TimeText(
+          text: text,
+          settings: settings,
+          onPartTap: onPartTap,
+          solidColon: true,
+          style: const TextStyle(
+            fontFamily: 'BebasNeue',
+            fontSize: 225,
+            // a tight line box: digits have no descenders, so the usual spare
+            // space above and below would only make them smaller
+            height: 0.8,
+          ),
+        );
+        Widget suffixText(double size) => _tap(
+          onPartTap,
+          ClockPart.detail,
+          Text(
+            t.suffix!,
+            style: TextStyle(
+              fontFamily: 'BebasNeue',
+              color: settings.detailInk,
+              shadows: _glow(settings.detailInk, settings.glowIntensity),
+              fontSize: size,
             ),
           ),
-          // always inside the ticks, however wide the time is (e.g. 10:09 PM)
-          SizedBox(
-            width: _side - 58,
-            height: _side - 70,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TimeText(
-                    text: text,
-                    settings: settings,
-                    onPartTap: onPartTap,
-                    solidColon: true,
-                    style: const TextStyle(
-                      fontFamily: 'BebasNeue',
-                      fontSize: 225,
-                      height: 0.95,
-                    ),
+        );
+        final parts = text.split(':');
+        Widget stacked(String digits, Color ink, ClockPart part) => _tap(
+          onPartTap,
+          part,
+          Text(
+            digits,
+            style: TextStyle(
+              fontFamily: 'BebasNeue',
+              fontSize: 225,
+              height: 0.8,
+              color: ink,
+              shadows: _glow(ink, settings.glowIntensity),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        );
+        return SizedBox(
+          width: w,
+          height: h,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // only the tick border reacts to taps (see _FramePainter.hitTest),
+              // not the empty middle of the frame
+              GestureDetector(
+                behavior: HitTestBehavior.deferToChild,
+                onTap: onPartTap == null
+                    ? null
+                    : () => onPartTap!(ClockPart.label),
+                child: CustomPaint(
+                  size: box,
+                  painter: _FramePainter(
+                    second: time.second,
+                    ink: settings.ticksInk,
+                    scale: settings.tickScale,
+                    box: box,
+                    unit: unit,
                   ),
-                  if (t.suffix != null)
-                    _tap(
-                      onPartTap,
-                      ClockPart.detail,
-                      Text(
-                        t.suffix!,
-                        style: TextStyle(
-                          fontFamily: 'BebasNeue',
-                          color: settings.detailInk,
-                          fontSize: 50,
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
+              // the time is scaled up or down to fill the space inside the
+              // ticks, however wide the panel or the time (e.g. 10:09 PM)
+              // a fixed inner size, so the time is scaled UP to fill it as well as
+              // down to fit it
+              SizedBox(
+                width: math.max(1, w - 2 * margin),
+                height: math.max(1, h - 2 * margin),
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: tall && parts.length == 2
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            stacked(
+                              parts[0],
+                              settings.hoursInk,
+                              ClockPart.hours,
+                            ),
+                            const SizedBox(height: 10),
+                            stacked(
+                              parts[1],
+                              settings.minutesInk,
+                              ClockPart.minutes,
+                            ),
+                            if (t.suffix != null) ...[
+                              const SizedBox(height: 14),
+                              suffixText(50),
+                            ],
+                          ],
+                        )
+                      : wide && t.suffix != null
+                      // wide panel: AM/PM beside the digits, so the digits can
+                      // use the full height instead of leaving the sides empty
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            timeText,
+                            const SizedBox(width: 14),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: suffixText(76),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            timeText,
+                            if (t.suffix != null) suffixText(50),
+                          ],
+                        ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -278,11 +369,15 @@ class _FramePainter extends CustomPainter {
     required this.second,
     required this.ink,
     required this.scale,
+    required this.box,
+    required this.unit,
   });
 
   final int second; // 0..59: the brightest tick
   final Color ink;
   final double scale; // tick size multiplier
+  final Size box; // the panel the frame fills
+  final double unit; // 1 at 300 px: ticks, corners and margins grow with it
 
   // Rounded square, drawn clockwise from the top centre.
   static Path _border(Rect r, double radius) {
@@ -314,31 +409,38 @@ class _FramePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height).deflate(6);
-    final metric = _border(rect, size.width * 0.16).computeMetrics().first;
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height).deflate(6 * unit);
+    final metric = _border(
+      rect,
+      math.min(size.width, size.height) * 0.16,
+    ).computeMetrics().first;
     final tick = frameTickSize(scale);
+    final length = tick.length * unit;
     final paint = Paint()
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = tick.width;
+      ..strokeWidth = tick.width * unit;
     for (var i = 0; i < 60; i++) {
       final t = metric.getTangentForOffset(metric.length * i / 60)!;
       final inward = Offset(-t.vector.dy, t.vector.dx); // clockwise path
       paint.color = ink.withValues(alpha: frameTickBrightness(i, second));
-      canvas.drawLine(t.position, t.position + inward * tick.length, paint);
+      canvas.drawLine(t.position, t.position + inward * length, paint);
     }
   }
 
   // Tappable only on the tick strip, not the interior.
   @override
   bool? hitTest(Offset position) {
-    const side = FrameClockFace._side;
-    const outer = Rect.fromLTWH(0, 0, side, side);
-    return outer.contains(position) && !outer.deflate(32).contains(position);
+    final outer = Offset.zero & box;
+    final strip = (frameTickSize(scale).length + 18) * unit;
+    return outer.contains(position) && !outer.deflate(strip).contains(position);
   }
 
   @override
   bool shouldRepaint(_FramePainter old) =>
-      old.second != second || old.ink != ink || old.scale != scale;
+      old.second != second ||
+      old.ink != ink ||
+      old.scale != scale ||
+      old.box != box;
 }
 
 /// Apple "Float": big bubbly numerals, hours over minutes, one pastel per digit.
@@ -404,6 +506,7 @@ class FloatClockFace extends StatelessWidget {
               t.suffix!,
               style: TextStyle(
                 color: settings.detailInk,
+                shadows: _glow(settings.detailInk, settings.glowIntensity),
                 fontSize: 30,
                 fontWeight: FontWeight.w800,
               ),
@@ -465,6 +568,7 @@ class FlipClockFace extends StatelessWidget {
     final parts = t.text.split(':');
     final colon = TextStyle(
       color: settings.colonInk,
+      shadows: _glow(settings.colonInk, settings.glowIntensity),
       fontSize: 86,
       fontWeight: FontWeight.w900,
     );
@@ -523,6 +627,10 @@ class FlipClockFace extends StatelessWidget {
                     t.suffix!,
                     style: TextStyle(
                       color: settings.detailInk,
+                      shadows: _glow(
+                        settings.detailInk,
+                        settings.glowIntensity,
+                      ),
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
                     ),
@@ -612,6 +720,7 @@ class _FlipTileState extends State<_FlipTile>
             value,
             style: TextStyle(
               color: digits,
+              shadows: _glow(digits, widget.settings.glowIntensity),
               fontSize: 92,
               fontWeight: FontWeight.w900,
               height: 1,
@@ -857,6 +966,10 @@ class WorldClockFace extends StatelessWidget {
                     c.suffix!,
                     style: TextStyle(
                       color: settings.detailInk,
+                      shadows: _glow(
+                        settings.detailInk,
+                        settings.glowIntensity,
+                      ),
                       fontSize: 30,
                       fontWeight: FontWeight.w800,
                     ),
@@ -996,11 +1109,22 @@ class _AnalogClockPainter extends CustomPainter {
     Paint p,
   ) {
     final angle = turn * math.pi * 2;
-    canvas.drawLine(
-      center,
-      center + Offset(math.sin(angle) * length, -math.cos(angle) * length),
-      p,
-    );
+    final end =
+        center + Offset(math.sin(angle) * length, -math.cos(angle) * length);
+    final g = settings.glowIntensity;
+    if (g > 0.01) {
+      // a soft halo in the hand's own color, under the hand
+      canvas.drawLine(
+        center,
+        end,
+        Paint()
+          ..color = p.color.withValues(alpha: g)
+          ..strokeWidth = p.strokeWidth + 8 * g
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3 + 9 * g),
+      );
+    }
+    canvas.drawLine(center, end, p);
   }
 
   @override
@@ -1027,7 +1151,7 @@ TextSpan _timeSpans(
   if (parts.length < 2) return TextSpan(text: text, style: style);
   TextSpan span(String t, Color c, ClockPart part) => TextSpan(
     text: t,
-    style: TextStyle(color: c),
+    style: TextStyle(color: c, shadows: _glow(c, settings.glowIntensity)),
     recognizer: taps?[part],
   );
   return TextSpan(
@@ -1144,6 +1268,7 @@ TextStyle _textStyle(StandbySettings settings, double size) {
     fontWeight: FontWeight.w900,
     height: 0.95,
     letterSpacing: 0,
+    shadows: _glow(settings.hoursInk, settings.glowIntensity),
   );
 }
 

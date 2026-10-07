@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/screen_fit.dart';
 import 'domain/standby_models.dart';
 import 'services/standby_system_service.dart';
 import 'features/standby/standby_screen.dart';
@@ -10,16 +11,21 @@ class StandbyProApp extends StatelessWidget {
     this.initialSettings,
     this.systemService,
     this.battery,
+    this.fitScreen = false,
   });
 
   final StandbySettings? initialSettings;
   final StandbySystemService? systemService; // tests pass a fake
   final BatteryMonitor? battery; // tests pass a fake
 
+  /// Scale the whole app to the screen size (see [ScreenFit]). On in the real
+  /// app; off by default so tests keep their exact layouts.
+  final bool fitScreen;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Standby Pro',
+      title: 'Dockwise',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,
       darkTheme: ThemeData(
@@ -48,6 +54,7 @@ class StandbyProApp extends StatelessWidget {
           ),
         ),
       ),
+      builder: fitScreen ? (context, child) => ScreenFit(child: child!) : null,
       home: StandbyScreen(
         initialSettings: initialSettings,
         systemService: systemService,

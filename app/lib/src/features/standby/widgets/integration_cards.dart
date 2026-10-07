@@ -414,6 +414,8 @@ class MusicCard extends StatefulWidget {
     required this.onCommand,
     this.onSeek,
     this.volumeBar,
+    this.onSearch,
+    this.queueView,
   });
 
   final NowPlayingSnapshot snapshot;
@@ -427,6 +429,13 @@ class MusicCard extends StatefulWidget {
   /// open while touched); null = this source has no volume control here.
   final Widget Function(VoidCallback keepOpen)? volumeBar;
 
+  /// Opens Spotify search; null when Spotify is not connected.
+  final VoidCallback? onSearch;
+
+  /// The play queue shown inside the card (built with callbacks to close it and
+  /// to keep it open while touched); null when Spotify is not connected.
+  final Widget Function(VoidCallback close, VoidCallback keepOpen)? queueView;
+
   @override
   State<MusicCard> createState() => _MusicCardState();
 }
@@ -436,8 +445,24 @@ class _MusicCardState extends State<MusicCard> {
   double? _scrub; // 0..1 while the bar is held; null otherwise
   bool _showVolume = false;
   Timer? _hideVolume;
+  bool _showQueue = false;
+  Timer? _hideQueue;
 
   // The volume bar closes by itself a few seconds after the last touch.
+  // The queue closes by itself after a while without a touch (it is an
+  // ambient display, so it goes back to the now-playing view on its own).
+  void _keepQueueOpen() {
+    _hideQueue?.cancel();
+    _hideQueue = Timer(const Duration(seconds: 20), () {
+      if (mounted) setState(() => _showQueue = false);
+    });
+  }
+
+  void _closeQueue() {
+    _hideQueue?.cancel();
+    setState(() => _showQueue = false);
+  }
+
   void _keepVolumeOpen() {
     _hideVolume?.cancel();
     _hideVolume = Timer(const Duration(seconds: 4), () {
@@ -477,6 +502,7 @@ class _MusicCardState extends State<MusicCard> {
   @override
   void dispose() {
     _hideVolume?.cancel();
+    _hideQueue?.cancel();
     _tick?.cancel();
     super.dispose();
   }
@@ -681,6 +707,41 @@ class _MusicCardState extends State<MusicCard> {
                             ),
                           ),
                         ),
+                        if (widget.queueView != null)
+                          IconButton(
+                            tooltip: 'Up next',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 36,
+                              height: 36,
+                            ),
+                            onPressed: () {
+                              setState(() => _showQueue = true);
+                              _keepQueueOpen();
+                            },
+                            icon: const Icon(
+                              Icons.queue_music_rounded,
+                              size: 22,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        if (widget.onSearch != null)
+                          IconButton(
+                            tooltip: 'Search Spotify',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 36,
+                              height: 36,
+                            ),
+                            onPressed: widget.onSearch,
+                            icon: const Icon(
+                              Icons.search_rounded,
+                              size: 22,
+                              color: Colors.white70,
+                            ),
+                          ),
                         if (widget.volumeBar != null)
                           IconButton(
                             tooltip: 'Volume',
@@ -770,6 +831,10 @@ class _MusicCardState extends State<MusicCard> {
                 ],
               ),
             ),
+            if (widget.queueView != null && _showQueue)
+              Positioned.fill(
+                child: widget.queueView!(_closeQueue, _keepQueueOpen),
+              ),
             if (widget.volumeBar != null)
               Positioned(
                 left: pad,

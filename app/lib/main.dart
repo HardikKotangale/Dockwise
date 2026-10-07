@@ -2,5 +2,5 @@ import 'package:flutter/material.dart';
 import 'src/app.dart';
 
 void main() {
-  runApp(const StandbyProApp());
+  runApp(const StandbyProApp(fitScreen: true));
 }

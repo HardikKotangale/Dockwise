@@ -25,6 +25,29 @@ class SpotifyDevice {
   final bool isActive;
 }
 
+/// One search result: a song, an album or a playlist.
+class SpotifyHit {
+  const SpotifyHit(
+    this.uri,
+    this.title,
+    this.subtitle,
+    this.kind,
+    this.imageUrl,
+  );
+  final String uri;
+  final String title;
+  final String subtitle; // artists, or the playlist owner
+  final String kind; // 'track', 'album' or 'playlist'
+  final String? imageUrl;
+}
+
+/// The play queue: the current song and what comes next.
+class SpotifyQueue {
+  const SpotifyQueue(this.now, this.next);
+  final SpotifyHit? now;
+  final List<SpotifyHit> next;
+}
+
 class SpotifyPlaylist {
   const SpotifyPlaylist(this.uri, this.name, this.imageUrl);
   final String uri;
@@ -112,21 +135,28 @@ class SpotifyService {
   }
 
   /// Null when nothing is playing on any device or the call failed.
+  /// True when Spotify last said nothing is playing anywhere (as opposed to an
+  /// error or a wait for the rate limit, where we know nothing new).
+  bool playerIdle = false;
+
   Future<NowPlayingSnapshot?> nowPlaying() async {
-    final res = await _call('GET', '/me/player');
+    // additional_types: without it a podcast episode comes back as "nothing"
+    final res = await _call('GET', '/me/player?additional_types=episode');
+    playerIdle = res != null && res.statusCode == 204;
     if (res == null || res.statusCode != 200) return null;
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     final item = json['item'] as Map<String, dynamic>?;
     if (item == null) return null;
-    final images = (item['album']?['images'] as List?) ?? const [];
+    final images =
+        (item['album']?['images'] as List?) ??
+        (item['images'] as List?) ?? // podcast episodes carry their own
+        const [];
     final duration = (item['duration_ms'] as num?) ?? 0;
     final progress = (json['progress_ms'] as num?) ?? 0;
     final device = json['device']?['name'] as String? ?? 'Spotify';
     return NowPlayingSnapshot(
       title: item['name'] as String? ?? '',
-      artist: ((item['artists'] as List?) ?? const [])
-          .map((a) => a['name'])
-          .join(', '),
+      artist: _artistsOf(item),
       source: 'Spotify · $device',
       progress: duration == 0
           ? 0
@@ -267,15 +297,138 @@ class SpotifyService {
   }
 
   /// Starts a playlist on [deviceId], else the active device, else any device.
-  Future<bool> playPlaylist(String uri, {String? deviceId}) async {
+  Future<bool> playPlaylist(String uri, {String? deviceId}) =>
+      playUri(uri, deviceId: deviceId);
+
+  /// Plays a song, an album or a playlist. A song plays by itself; an album or
+  /// playlist plays from its start.
+  Future<bool> playUri(String uri, {String? deviceId}) async {
     final id = deviceId ?? await _fallbackDevice();
     final res = await _call(
       'PUT',
       id == null ? '/me/player/play' : '/me/player/play?device_id=$id',
-      body: jsonEncode({'context_uri': uri}),
+      body: jsonEncode(
+        uri.startsWith('spotify:track:')
+            ? {
+                'uris': [uri],
+              }
+            : {'context_uri': uri},
+      ),
     );
     return _ok(res);
   }
+
+  /// Adds a song to the end of the play queue.
+  Future<bool> addToQueue(String uri) async {
+    final id = await _fallbackDevice();
+    final q =
+        'uri=${Uri.encodeQueryComponent(uri)}${id == null ? '' : '&device_id=$id'}';
+    return _ok(await _call('POST', '/me/player/queue?$q'));
+  }
+
+  // a small image is plenty for a list row
+  static String? _imageOf(Object? images) {
+    final list = (images as List?)?.whereType<Map<String, dynamic>>().toList();
+    if (list == null || list.isEmpty) return null;
+    return (list.length > 1 ? list[list.length - 2] : list.first)['url']
+        as String?;
+  }
+
+  // artists of a song or album; a podcast episode has its show instead
+  static String _artistsOf(Map<String, dynamic> m) {
+    final names = ((m['artists'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((x) => x['name'] as String? ?? '')
+        .where((n) => n.isNotEmpty)
+        .join(', ');
+    return names.isNotEmpty
+        ? names
+        : (m['show'] as Map?)?['name'] as String? ?? '';
+  }
+
+  static SpotifyHit? _queueItem(Object? raw) {
+    if (raw is! Map<String, dynamic> || raw['uri'] is! String) return null;
+    return SpotifyHit(
+      raw['uri'] as String,
+      raw['name'] as String? ?? '',
+      _artistsOf(raw),
+      'track',
+      _imageOf((raw['album'] as Map?)?['images'] ?? raw['images']),
+    );
+  }
+
+  /// What is playing now and what is coming up (Spotify's "Queue" screen).
+  Future<SpotifyQueue?> queue() async {
+    final res = await _call('GET', '/me/player/queue');
+    if (!_ok(res)) return null;
+    final json = jsonDecode(res!.body) as Map<String, dynamic>;
+    return SpotifyQueue(_queueItem(json['currently_playing']), [
+      for (final q in (json['queue'] as List?) ?? const [])
+        if (_queueItem(q) != null) _queueItem(q)!,
+    ]);
+  }
+
+  /// Skips forward [times] songs (jumping to a song further down the queue).
+  Future<bool> skipNext(int times) async {
+    for (var i = 0; i < times; i++) {
+      if (!_ok(await _call('POST', '/me/player/next'))) return false;
+      if (i < times - 1) {
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
+    }
+    return true;
+  }
+
+  /// Songs, albums and playlists matching [query]. Spotify allows at most 10
+  /// results per type for apps in development mode, so we ask for 5 of each.
+  Future<List<SpotifyHit>> search(String query) async {
+    final q = query.trim();
+    if (q.length < 2) return const [];
+    final res = await _call(
+      'GET',
+      '/search?q=${Uri.encodeQueryComponent(q)}&type=track,album,playlist&limit=5',
+    );
+    if (!_ok(res)) return const [];
+    final json = jsonDecode(res!.body) as Map<String, dynamic>;
+    List<Map<String, dynamic>> items(
+      String key,
+    ) => (((json[key] as Map?)?['items'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>() // Spotify can return null entries
+        .toList();
+    return [
+      for (final t in items('tracks'))
+        SpotifyHit(
+          t['uri'] as String,
+          t['name'] as String? ?? '',
+          _artistsOf(t),
+          'track',
+          _imageOf((t['album'] as Map?)?['images']),
+        ),
+      for (final a in items('albums'))
+        SpotifyHit(
+          a['uri'] as String,
+          a['name'] as String? ?? '',
+          _artistsOf(a),
+          'album',
+          _imageOf(a['images']),
+        ),
+      for (final p in items('playlists'))
+        SpotifyHit(
+          p['uri'] as String,
+          p['name'] as String? ?? '',
+          (p['owner'] as Map?)?['display_name'] as String? ?? '',
+          'playlist',
+          _imageOf(p['images']),
+        ),
+    ];
+  }
+
+  // Spotify answers 429 "too many requests" with how long to wait; until then
+  // we send nothing, so polling faster never gets us blocked for long.
+  DateTime _blockedUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// When Spotify last told us to slow down; the card then polls less often.
+  DateTime lastRateLimitedAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<http.Response?> _call(
     String method,
@@ -283,6 +436,7 @@ class SpotifyService {
     String? body,
   }) async {
     if (!isConnected) return null;
+    if (DateTime.now().isBefore(_blockedUntil)) return null;
     try {
       if (_access == null || DateTime.now().isAfter(_expires)) {
         if (!await _token({
@@ -296,7 +450,18 @@ class SpotifyService {
         ..headers['Authorization'] = 'Bearer $_access'
         ..headers['Content-Type'] = 'application/json';
       if (body != null) request.body = body;
-      return await http.Response.fromStream(await _http.send(request));
+      // a request that hangs must not freeze the card, so give up after a while
+      final res = await http.Response.fromStream(
+        await _http.send(request).timeout(const Duration(seconds: 8)),
+      );
+      if (res.statusCode == 429) {
+        final wait = int.tryParse(res.headers['retry-after'] ?? '') ?? 5;
+        _blockedUntil = DateTime.now().add(
+          Duration(seconds: wait.clamp(1, 60)),
+        );
+        lastRateLimitedAt = DateTime.now();
+      }
+      return res;
     } catch (_) {
       return null;
     }

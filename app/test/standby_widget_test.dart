@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -7,8 +9,10 @@ import 'package:standby_pro/src/services/city_search.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:standby_pro/src/app.dart';
 import 'package:standby_pro/src/core/clock_cadence.dart';
+import 'package:standby_pro/src/core/night_mode_policy.dart';
 import 'package:standby_pro/src/core/pinch_layout.dart';
 import 'package:standby_pro/src/features/standby/widgets/battery_badge.dart';
+import 'package:standby_pro/src/features/standby/widgets/orientation_hint.dart';
 import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
 import 'package:standby_pro/src/features/standby/widgets/clock_faces.dart';
@@ -1223,6 +1227,60 @@ void main() {
     );
   });
 
+  testWidgets(
+    'the frame fills a wide panel and the time fits inside the ticks',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Future<void> pumpIn(Size panel) => tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox.fromSize(
+                size: panel,
+                child: ClockFace(
+                  time: DateTime(2026, 10, 6, 10, 9, 30),
+                  settings: const StandbySettings(clockStyle: ClockStyle.frame),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // one panel = the whole screen, landscape
+      await pumpIn(const Size(900, 400));
+      final wide = tester.getRect(find.byType(FrameClockFace));
+      expect(
+        wide.width,
+        closeTo(900, 1),
+      ); // the rectangle takes the whole width...
+      expect(wide.height, closeTo(400, 1)); // ...and the whole height
+      var digits = tester.getRect(find.byType(RichText).first);
+      expect(
+        wide.deflate(14).contains(digits.topLeft),
+        isTrue,
+      ); // inside the ticks
+      expect(wide.deflate(14).contains(digits.bottomRight), isTrue);
+      final wideText = digits.width;
+
+      // a smaller panel: the time scales down with it
+      await pumpIn(const Size(450, 200));
+      digits = tester.getRect(find.byType(RichText).first);
+      expect(digits.width, lessThan(wideText));
+      final small = tester.getRect(find.byType(FrameClockFace));
+      expect(small.deflate(7).contains(digits.topLeft), isTrue);
+      expect(small.deflate(7).contains(digits.bottomRight), isTrue);
+
+      // portrait panel too
+      await pumpIn(const Size(400, 800));
+      final tall = tester.getRect(find.byType(FrameClockFace));
+      expect(tall.size, const Size(400, 800));
+    },
+  );
+
   testWidgets('the frame draws the time in the middle of a tick border', (
     tester,
   ) async {
@@ -1832,5 +1890,194 @@ void main() {
       expect(find.text('Charge your phone'), findsNothing);
       await finish(t);
     });
+  });
+
+  group('orientation hint', () {
+    test('gravity decides how the phone is held', () {
+      expect(classifyHeld(0.3, 9.7, 0.5), HeldOrientation.portrait);
+      expect(classifyHeld(9.7, 0.3, 0.5), HeldOrientation.landscapeLeft);
+      expect(classifyHeld(-9.7, 0.3, 0.5), HeldOrientation.landscapeRight);
+      expect(
+        classifyHeld(0.1, 0.2, 9.8),
+        HeldOrientation.unknown,
+      ); // flat on a table
+      expect(
+        classifyHeld(0.3, -9.7, 0.5),
+        HeldOrientation.unknown,
+      ); // upside down
+      expect(
+        classifyHeld(6.0, 6.5, 2.0),
+        HeldOrientation.unknown,
+      ); // diagonal, unclear
+    });
+
+    Future<StreamController<(double, double, double)>> mount(
+      WidgetTester tester, {
+      required Size screen,
+      required List<DeviceOrientation> turned,
+    }) async {
+      tester.view.physicalSize = screen;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final readings = StreamController<(double, double, double)>();
+      addTearDown(readings.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: OrientationHint(
+              readings: readings.stream,
+              onRotate: turned.add,
+            ),
+          ),
+        ),
+      );
+      return readings;
+    }
+
+    testWidgets('portrait screen, phone held sideways: suggests landscape', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+      );
+      r.add((9.7, 0.3, 0.5)); // held landscape (left)
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byTooltip('Rotate to landscape'), findsOneWidget);
+      final opacity = tester
+          .widget<AnimatedOpacity>(find.byType(AnimatedOpacity))
+          .opacity;
+      expect(opacity, 0); // not yet: the phone has to be held that way a moment
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        1,
+      );
+      await tester.tap(find.byTooltip('Rotate to landscape'));
+      expect(turned, [DeviceOrientation.landscapeLeft]);
+    });
+
+    testWidgets('landscape screen, phone held upright: suggests portrait', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(800, 400),
+        turned: turned,
+      );
+      r.add((0.2, 9.7, 0.5));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byTooltip('Rotate to portrait'));
+      expect(turned, [DeviceOrientation.portraitUp]);
+    });
+
+    testWidgets(
+      'no symbol when the screen already matches, or the phone is flat',
+      (tester) async {
+        final turned = <DeviceOrientation>[];
+        final r = await mount(
+          tester,
+          screen: const Size(400, 800),
+          turned: turned,
+        );
+        r.add((0.2, 9.7, 0.5)); // held upright on a portrait screen
+        await tester.pump(const Duration(milliseconds: 1500));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(
+          tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+          0,
+        );
+        r.add((0.1, 0.2, 9.8)); // flat on the table
+        await tester.pump(const Duration(milliseconds: 1500));
+        expect(
+          tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+          0,
+        );
+        await tester.tap(find.byType(OrientationHint), warnIfMissed: false);
+        expect(turned, isEmpty); // hidden, so a tap does nothing
+      },
+    );
+  });
+
+  group('glow', () {
+    Future<List<Shadow>> shadowsOf(
+      WidgetTester tester,
+      ClockStyle style,
+      double glow,
+    ) async {
+      await tester.pumpWidget(
+        host(
+          ClockFace(
+            time: DateTime(2026, 10, 6, 10, 9, 41),
+            settings: StandbySettings(
+              clockStyle: style,
+              use24HourTime: true,
+              glowIntensity: glow,
+              hoursColor: 0xFF0A84FF, // a picked blue
+            ),
+          ),
+        ),
+      );
+      if (style == ClockStyle.flip) {
+        final t = tester.widget<Text>(find.text('1').first);
+        return t.style!.shadows ?? const [];
+      }
+      // the span holding the hours ('10')
+      TextSpan? hours;
+      for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
+        rich.text.visitChildren((span) {
+          if (span is TextSpan && span.text == '10') hours = span;
+          return true;
+        });
+      }
+      return hours!.style!.shadows ?? const [];
+    }
+
+    testWidgets('glows in the picked color on every text-based style', (
+      t,
+    ) async {
+      for (final style in [
+        ClockStyle.digital,
+        ClockStyle.frame,
+        ClockStyle.mono,
+        ClockStyle.flip,
+      ]) {
+        final glow = await shadowsOf(t, style, 0.6);
+        expect(glow, isNotEmpty, reason: '$style should glow');
+        expect(
+          glow.first.color.b,
+          greaterThan(glow.first.color.r),
+        ); // the picked blue
+      }
+    });
+
+    testWidgets('no glow at zero', (t) async {
+      for (final style in [ClockStyle.digital, ClockStyle.flip]) {
+        expect(await shadowsOf(t, style, 0), isEmpty);
+      }
+    });
+  });
+
+  test('night tint "Theme color" follows the accent color you pick', () {
+    const blue = StandbySettings(nightTint: 'theme', appAccent: 0xFF0A84FF);
+    final t = NightModePolicy.tintOf(blue);
+    expect(t[2], greaterThan(t[0])); // blue wins, not red
+    const green = StandbySettings(nightTint: 'theme', appAccent: 0xFF30D158);
+    final g = NightModePolicy.tintOf(green);
+    expect(g[1], greaterThan(g[0]));
+    // red and amber keep their own looks
+    expect(
+      NightModePolicy.tintOf(const StandbySettings(nightTint: 'red'))[0],
+      0.85,
+    );
+    expect(
+      NightModePolicy.tintOf(const StandbySettings(nightTint: 'amber'))[1],
+      0.45,
+    );
   });
 }

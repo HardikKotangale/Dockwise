@@ -16,6 +16,9 @@ import 'widgets/clock_faces.dart';
 import 'widgets/integration_cards.dart';
 import 'widgets/mini_keyboard.dart';
 import 'widgets/music_sources_sheet.dart';
+import 'widgets/orientation_hint.dart';
+import 'widgets/spotify_queue.dart';
+import 'widgets/spotify_search.dart';
 
 const _cardColor = Color(0xFF1C1C1E); // iOS secondary system background
 const _swipeVelocity = 300.0; // px/s: below this a drag is not a swipe
@@ -269,6 +272,14 @@ class _StandbyScreenState extends State<StandbyScreen> {
                           );
                   },
                 ),
+              ),
+              // small rotate symbol at the bottom when the screen is not turned
+              // the way the phone is held (e.g. rotation lock on)
+              const Positioned(
+                left: 0,
+                right: 0,
+                bottom: 4,
+                child: Center(child: OrientationHint()),
               ),
               Positioned.fill(
                 child: LowBatteryAlert(
@@ -621,6 +632,32 @@ class _Dashboard extends StatelessWidget {
       StandbyWidgetType.music => MusicCard(
         snapshot: controller.snapshots.nowPlaying,
         settings: settings,
+        // search is offered whenever Spotify is connected, even if nothing plays yet
+        queueView: controller.spotifyConnected
+            ? (close, keepOpen) => SpotifyQueueView(
+                controller: controller,
+                onClose: close,
+                onTouch: keepOpen,
+                // search from the queue to find a song to add
+                onSearch: () {
+                  close();
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => SpotifySearchPage(controller: controller),
+                    ),
+                  );
+                },
+              )
+            : null,
+        onSearch: controller.spotifyConnected
+            ? () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  fullscreenDialog: true,
+                  builder: (_) => SpotifySearchPage(controller: controller),
+                ),
+              )
+            : null,
         // Spotify volume only when the song is controlled through the Spotify account
         volumeBar:
             controller.snapshots.nowPlaying.viaSpotifyApi &&
@@ -1320,7 +1357,7 @@ class _AllSettings extends StatelessWidget {
                       for (final t in const [
                         ('red', 'Red'),
                         ('amber', 'Amber'),
-                        ('theme', 'Theme color'),
+                        ('theme', 'Accent color'),
                       ])
                         ChoiceChip(
                           label: Text(t.$2),
