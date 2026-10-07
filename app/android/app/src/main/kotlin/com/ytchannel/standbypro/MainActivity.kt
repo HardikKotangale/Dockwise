@@ -61,6 +61,23 @@ class MainActivity : FlutterActivity() {
         if (intent.getBooleanExtra("auto", false)) launchedByAuto = true
     }
 
+    // Battery level straight from Android's own battery broadcast, which the
+    // system refreshes on every 1% change. (The "battery property" other
+    // packages read is cached or slow on some phones, so the percentage lagged.)
+    private fun batteryInfo(): Map<String, Any>? {
+        val i = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?: return null
+        val level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+        if (level < 0 || scale <= 0) return null
+        return mapOf(
+            "level" to level * 100 / scale,
+            "charging" to (i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0),
+            "full" to (i.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ==
+                android.os.BatteryManager.BATTERY_STATUS_FULL),
+        )
+    }
+
     // Room light in lux. The sensor is only listened to while the app is on screen
     // and is started by the first request.
     private var lightListener: SensorEventListener? = null
@@ -230,6 +247,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "deviceModel" -> result.success(android.os.Build.MODEL)
                 "ambientLux" -> result.success(ambientLux()) // null: no light sensor/reading yet
+                "batteryInfo" -> result.success(batteryInfo())
                 "launchApp" -> {
                     val pkg = getArgument<String>(call.arguments, "package")
                     val intent = pkg?.let { packageManager.getLaunchIntentForPackage(it) }
