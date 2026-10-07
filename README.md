@@ -24,13 +24,31 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
 
 ## Spotify and music
 
-Tap the speaker icon on the music card to open the volume bar for the device that is playing (a speaker, a Mac, the phone...). It closes by itself after a few seconds.
+The music card has three small buttons in its header: **queue**, **search** and **volume**.
+
+<p align="center">
+  <img src="docs/screenshots/spotify-card-buttons.png" width="85%" alt="Music card with queue, search and volume buttons">
+</p>
+
+**Search.** Tap the magnifier to search Spotify. You type on the app's own keyboard, so the phone's keyboard never covers the screen. Songs, albums and playlists show up as a list while you type. Tap a result to play it, or tap **+** on a song to add it to the queue.
+
+<p align="center">
+  <img src="docs/screenshots/spotify-search.png" width="85%" alt="Spotify search with a list of songs, albums and playlists">
+</p>
+
+**Queue.** Tap the queue button and the card turns into Spotify's queue list: what is playing now and what comes next. Tap a song to jump to it. The list has its own **search button** at the top, so you can find a song and add it without leaving the queue. It refreshes by itself, and closes after a while without a touch.
+
+<p align="center">
+  <img src="docs/screenshots/spotify-queue.png" width="85%" alt="Queue list with a search button, now playing and next in queue">
+</p>
+
+**Volume.** Tap the speaker icon to open a volume bar for the device that is playing (a speaker, a Mac, the phone...). It closes by itself after a few seconds.
 
 <p align="center">
   <img src="docs/screenshots/music-card-volume.png" width="85%" alt="Music card with the Spotify volume bar open">
 </p>
 
-Music settings: volume of the playing device, which player the card follows, sign in and out of Spotify, the device to play on, and your playlists.
+**Music settings.** The volume of the playing device, which player the card follows, sign in and out of Spotify, the device to play on (your choice shows at once), and your playlists.
 
 <p align="center">
   <img src="docs/screenshots/music-settings.png" width="85%" alt="Music settings with Spotify volume, devices and sign out">
@@ -55,7 +73,7 @@ Music settings: volume of the playing device, which player the card follows, sig
 - Sign in with Spotify and control playback on any device: a Mac, a speaker, a TV or the phone itself (Spotify Premium is needed for control).
 - Pick the playing device, start a playlist, and set the volume of that device from the music card or Music settings.
 - **Search** from the music card (magnifier icon): type on the app's own keyboard and see songs, albums and playlists. Tap one to play it, or tap "+" on a song to add it to the queue.
-- **Queue** from the music card (queue icon): the card turns into Spotify's queue view, with what is playing now and what is next, right in the card. Tap a song to jump to it. It closes by itself after a while.
+- **Queue** from the music card (queue icon): the card turns into Spotify's queue list, with what is playing now and what is next, right in the card. Tap a song to jump to it. The list has its own search button to find and add songs. It closes by itself after a while.
 - Sign out and sign in again with a different account at any time.
 
 **Layout and gestures**
