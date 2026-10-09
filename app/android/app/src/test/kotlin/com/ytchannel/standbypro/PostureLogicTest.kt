@@ -113,4 +113,57 @@ class PostureLogicTest {
         assertFalse(l.active)
         assertNotNull(PostureLogic.reading(g, 0.0, 0.0))
     }
+
+    // ---- Regression tests replaying the TLC counterexamples in spec/ ----
+
+    // spec/results/PostureLogic_gaps.txt: one good sample, then NO samples for
+    // a while, then another good sample. The old code compared the two
+    // timestamps, decided "held for 1.5 s" and became active, although the
+    // posture was never observed during the gap.
+    @Test fun aHoleInTheDataIsNotEvidenceThatThePostureWasHeld() {
+        val l = PostureLogic()
+        val (x, y, z) = landscape(70.0)
+        assertFalse(l.onSample(x, y, z, 0))
+        assertFalse(l.onSample(x, y, z, 2000)) // 2 s later, nothing in between
+        // and it still starts normally once the data is continuous again
+        assertTrue(hold(l, landscape(70.0), 2.0, 2200).first)
+    }
+
+    // spec/results/PostureLogic_gaps_exit.txt: the same flaw on the exit side:
+    // two "lost" samples with a hole between them turned an active posture off.
+    @Test fun aHoleInTheDataIsNotEvidenceThatThePostureWasLost() {
+        val l = PostureLogic()
+        val (active, t) = hold(l, landscape(70.0), 2.0, 0)
+        assertTrue(active)
+        val flat = Triple(0.0, 0.0, g)
+        assertTrue(l.onSample(flat.first, flat.second, flat.third, t)) // first "lost" sample
+        // 5 s of silence, then another "lost" sample
+        assertTrue(l.onSample(flat.first, flat.second, flat.third, t + 5000))
+    }
+
+    // the gap rule must not break ordinary sampling: a missed sample or two
+    @Test fun aSingleMissedSampleIsTolerated() {
+        val l = PostureLogic()
+        val (x, y, z) = landscape(70.0)
+        var t = 0L
+        var out = false
+        while (t <= 2000) {
+            if (t != 600L) out = l.onSample(x, y, z, t) // one sample lost at 600 ms
+            t += 200
+        }
+        assertTrue(out)
+    }
+
+    // a free-fall sample is still a sample: it proves the sensor is alive
+    @Test fun freeFallSamplesCountAsDataForTheGapRule() {
+        val l = PostureLogic()
+        val (x, y, z) = landscape(70.0)
+        var t = 0L
+        var out = false
+        while (t <= 2000) {
+            out = if (t in 600..800) l.onSample(0.1, 0.1, 0.1, t) else l.onSample(x, y, z, t)
+            t += 200
+        }
+        assertTrue(out)
+    }
 }
