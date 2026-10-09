@@ -132,7 +132,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 
 ### Android auto-start
 
-When enabled, a small foreground service watches the charger. While charging, it reads the gravity sensor at a low rate and opens Dockwise once the phone has been propped up (default 40° or more from flat) in landscape for 1.5 seconds. It closes the app 4 seconds after unplugging, but only if it opened itself. To launch from the background it uses "Display over other apps" and a full-screen notification over the lock screen. In the app go to Settings > All settings > Auto-start; a checklist there shows what still needs to be allowed (overlay, notifications, battery set to Unrestricted).
+When enabled, a small foreground service watches the charger. While charging, it reads the gravity sensor at a low rate and opens Dockwise once the phone has been propped up (default 40° or more from flat) in landscape for 1.5 seconds. It closes the app as soon as you unplug, but only if it opened itself and you have not taken over the screen (opened it yourself, or pressed Home). To launch from the background it uses "Display over other apps" and a full-screen notification over the lock screen. In the app go to Settings > All settings > Auto-start; a checklist there shows what still needs to be allowed (overlay, notifications, battery set to Unrestricted).
 
 ## Permissions
 
@@ -240,6 +240,7 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 - `app/android/.../standbypro`: auto-start service, posture (tilt) logic, media session bridge.
 - `app/ios/Runner`: small Swift bridge for keep-awake and brightness.
 - `scripts`: one-command setup for macOS and Windows. `requirements.txt` lists everything the project needs.
+- `spec`: formal models (PlusCal, checked with the TLC model checker) of the posture detection and the auto-launch logic, with the bugs they found. See [spec/README.md](spec/README.md).
 - `docs`: screenshots and animations used in this README.
 
 ## License
