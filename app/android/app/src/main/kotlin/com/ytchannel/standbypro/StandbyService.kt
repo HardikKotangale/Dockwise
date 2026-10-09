@@ -58,7 +58,9 @@ class StandbyService : Service(), SensorEventListener {
     private val logic = PostureLogic()
     private var sensorManager: SensorManager? = null
     private var charging = false
-    private var wasActive = false
+    private val session = AutoSession.shared // see spec/AutoLaunch.tla
+    private var launchTask: Runnable? = null // the 700 ms delayed startActivity
+    private var watchdog: Runnable? = null // notices a launch Android silently refused
     private var exitOnUnplug = true
     private var usingGravity = true
     private val filtered = FloatArray(3)
@@ -103,6 +105,7 @@ class StandbyService : Service(), SensorEventListener {
         } else {
             registerReceiver(power, filter)
         }
+        session.serviceStarted() // forget what an earlier service instance knew
         // already plugged in when the service starts?
         val battery = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         setCharging((battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0)
@@ -118,13 +121,14 @@ class StandbyService : Service(), SensorEventListener {
     private fun setCharging(on: Boolean) {
         if (on == charging) return
         charging = on
+        val closeApp = session.setCharging(on) // also cancels a queued launch
         if (on) {
             startSensors()
         } else {
             stopSensors()
             logic.reset()
-            wasActive = false
-            if (exitOnUnplug) sendBroadcast(Intent(ACTION_EXIT).setPackage(packageName))
+            cancelPendingLaunch()
+            if (exitOnUnplug && closeApp) sendBroadcast(Intent(ACTION_EXIT).setPackage(packageName))
         }
     }
 
@@ -160,11 +164,17 @@ class StandbyService : Service(), SensorEventListener {
             x = filtered[0]; y = filtered[1]; z = filtered[2]
         }
         val active = logic.onSample(x.toDouble(), y.toDouble(), z.toDouble(), SystemClock.elapsedRealtime())
-        if (active && !wasActive && charging) openApp()
-        wasActive = active
+        if (session.onPosture(active)) openApp() // edge: became active, while charging
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private fun cancelPendingLaunch() {
+        launchTask?.let(main::removeCallbacks)
+        launchTask = null
+        watchdog?.let(main::removeCallbacks)
+        watchdog = null
+    }
 
     private fun appIntent() = Intent(this, MainActivity::class.java).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or
@@ -189,9 +199,23 @@ class StandbyService : Service(), SensorEventListener {
                         WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                     PixelFormat.TRANSLUCENT))
                 // the overlay must be on screen before Android counts us as visible
-                main.postDelayed({
+                session.launchQueued()
+                val task = Runnable {
+                    launchTask = null
+                    if (!session.launchDue()) return@Runnable // unplugged meanwhile: do nothing
                     try { startActivity(appIntent()) } catch (_: Exception) { notifyToOpen() }
-                }, 700)
+                    // Android can refuse a background launch WITHOUT any error. If the
+                    // screen has not appeared 3 s later, offer the notification instead
+                    // (TLC: spec/results/AutoLaunch_live_original.txt).
+                    val w = Runnable {
+                        watchdog = null
+                        if (session.watchdogDue()) notifyToOpen()
+                    }
+                    watchdog = w
+                    main.postDelayed(w, 3000)
+                }
+                launchTask = task
+                main.postDelayed(task, 700)
                 main.postDelayed({ runCatching { wm.removeView(dot) } }, 2500)
                 return
             } catch (_: Exception) {
@@ -228,6 +252,8 @@ class StandbyService : Service(), SensorEventListener {
 
     override fun onDestroy() {
         running = false
+        cancelPendingLaunch()
+        session.serviceStarted()
         stopSensors()
         runCatching { unregisterReceiver(power) }
         super.onDestroy()

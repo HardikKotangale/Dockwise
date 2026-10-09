@@ -32,12 +32,14 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "standby_pro/system"
 
-    // Auto-start: opened by the charger watcher (not by the user)?
-    private var launchedByAuto = false
+    // Auto-start: who opened this screen (the watcher or the user) and who has it
+    // now is decided in AutoSession, shared with the charger watcher
+    // (spec/AutoLaunch.tla is the model of it).
+    private val session = AutoSession.shared
     private val exitReceiver = object : BroadcastReceiver() {
         // phone unplugged: close, but only a screen the watcher opened
         override fun onReceive(c: Context, i: Intent) {
-            if (launchedByAuto) finishAndRemoveTask()
+            if (session.launchedByAuto) finishAndRemoveTask()
         }
     }
 
@@ -47,7 +49,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        launchedByAuto = intent?.getBooleanExtra("auto", false) == true
+        session.activityCreated(intent?.getBooleanExtra("auto", false) == true)
         val filter = IntentFilter(StandbyService.ACTION_EXIT)
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(exitReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -58,7 +60,18 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra("auto", false)) launchedByAuto = true
+        session.activityNewIntent(intent.getBooleanExtra("auto", false))
+    }
+
+    override fun onResume() {
+        super.onResume()
+        session.activityShown()
+    }
+
+    // Home or Recents: the user is using the phone, so an unplug must not close this
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        session.userLeft()
     }
 
     // Battery level straight from Android's own battery broadcast, which the
@@ -104,12 +117,14 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onPause() {
+        session.activityHidden()
         stopLight() // off screen: stop listening; the next request starts it again
         super.onPause()
     }
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(exitReceiver) }
+        session.activityDestroyed()
         stopLight()
         stopProbe()
         super.onDestroy()
