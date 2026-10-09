@@ -3,11 +3,31 @@ import 'dart:math' as math;
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show MethodChannel, MissingPluginException, PlatformException;
 
 /// What the screen needs to know about the battery.
 typedef BatteryReading = ({int level, bool charging, bool full});
 
 Future<BatteryReading?> readBattery() async {
+  // Android: ask the system's own battery broadcast, which is fresh to the
+  // percent. (The plugin reads a property that lags on some phones.)
+  try {
+    final m = await const MethodChannel(
+      'standby_pro/system',
+    ).invokeMapMethod<String, Object?>('batteryInfo');
+    if (m != null) {
+      return (
+        level: m['level'] as int,
+        charging: m['charging'] as bool,
+        full: m['full'] as bool,
+      );
+    }
+  } on MissingPluginException {
+    // not Android: fall through to the plugin
+  } on PlatformException {
+    // fall through
+  }
   try {
     final b = Battery();
     final level = await b.batteryLevel;
@@ -26,13 +46,13 @@ Future<BatteryReading?> readBattery() async {
 }
 
 /// One shared, light poll of the battery for the badge and the low-battery
-/// prompt. The level moves slowly, so a read every 20 s is plenty (plugging in
+/// prompt. The level moves slowly, so a read every 10 s is plenty (plugging in
 /// shows within seconds).
 class BatteryMonitor extends ChangeNotifier {
   BatteryMonitor({Future<BatteryReading?> Function()? read, Duration? every})
     : _read = read ?? readBattery {
     refresh();
-    _poll = Timer.periodic(every ?? const Duration(seconds: 20), (_) {
+    _poll = Timer.periodic(every ?? const Duration(seconds: 10), (_) {
       refresh();
     });
   }

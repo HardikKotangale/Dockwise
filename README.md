@@ -82,8 +82,12 @@ The music card has three small buttons in its header: **queue**, **search** and 
 - Tap any panel to open a settings dock whose changes preview live behind it.
 
 **Night and battery**
-- **Night mode:** choose your own hours; colors fade to a dim red, amber or your accent color with no blue light, with an adjustable strength.
-- **OLED care:** slow burn-in pixel shifting once a minute, adjustable brightness.
+- **Auto brightness:** the screen stays on while charging and follows the room light, like Apple's StandBy: dimmer in a dark bedroom, up to the brightness you set in daylight. It reads the light sensor and eases between levels, so a passing shadow does not flicker it.
+- **Night mode:** choose your own hours, and it also turns on by itself when the room is dark. Colors fade to a dim red, amber or your accent color with no blue light, with an adjustable strength.
+- **OLED care (burn-in protection):** three layers, the same ideas always-on phones and TVs use.
+  - *Orbiting:* once a minute the whole screen glides to a new spot on a slow orbit that never repeats, spreading every edge and every digit across the safe area instead of sitting on the same pixels.
+  - *Dim when idle:* after 2, 5 (default) or 10 minutes without a touch, the screen drops to about half brightness. A touch wakes it at once. A bright, static clock is what wears an OLED, so this matters most.
+  - *Room-light brightness:* in a dark room the screen is far dimmer (see Auto brightness), which cuts wear further.
 - **Battery badge:** a tiny percentage in the top-right corner, shown only when the battery is not full on the charger (grey on battery, green charging, red when low).
 - **Low-battery prompt:** at a level you choose (5-50%, default 20%) and not charging, a full-screen "Charge your phone" prompt appears until you plug in. It can be turned off in settings.
 
@@ -116,7 +120,9 @@ The music card has three small buttons in its header: **queue**, **search** and 
 |---|---|---|
 | All clock styles, themes, presets, layouts, pinch | Yes | Yes |
 | Weather, calendar, world clock | Yes | Yes |
-| Night mode, burn-in shift, brightness, keep awake | Yes | Yes |
+| Night mode, burn-in shift, keep awake | Yes | Yes |
+| Brightness that follows the room light | Yes, with the light sensor | Through iOS's own auto-brightness (iPhone does not let apps read the sensor) |
+| Night look when the room is dark | Yes | No (hours only) |
 | Spotify account control and volume | Yes | Yes |
 | Battery badge and low-battery prompt | Yes | Yes |
 | Spotify search and queue | Yes | Yes |
@@ -126,7 +132,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 
 ### Android auto-start
 
-When enabled, a small foreground service watches the charger. While charging, it reads the gravity sensor at a low rate and opens Dockwise once the phone has been propped up (default 40° or more from flat) in landscape for 1.5 seconds. It closes the app 4 seconds after unplugging, but only if it opened itself. To launch from the background it uses "Display over other apps" and a full-screen notification over the lock screen. In the app go to Settings > All settings > Auto-start; a checklist there shows what still needs to be allowed (overlay, notifications, battery set to Unrestricted).
+When enabled, a small foreground service watches the charger. While charging, it reads the gravity sensor at a low rate and opens Dockwise once the phone has been propped up (default 40° or more from flat) in landscape for 1.5 seconds. It closes the app as soon as you unplug, but only if it opened itself and you have not taken over the screen (opened it yourself, or pressed Home). To launch from the background it uses "Display over other apps" and a full-screen notification over the lock screen. In the app go to Settings > All settings > Auto-start; a checklist there shows what still needs to be allowed (overlay, notifications, battery set to Unrestricted).
 
 ## Permissions
 
@@ -135,6 +141,7 @@ When enabled, a small foreground service watches the charger. While charging, it
 | Both | Location, only while the app is open | Local weather and your city name |
 | Both | Internet | Weather (Open-Meteo, BigDataCloud) and Spotify |
 | Both | Motion sensor (no prompt needed) | The rotation hint reads the gravity direction |
+| Android | Light sensor (no prompt needed) | Auto brightness and the dark-room night look |
 | Android | Notification access (optional) | Reading what other apps are playing |
 | Android | Display over other apps, full-screen notifications, foreground service, boot completed, wake lock | Auto-start and keeping the tilt sensor alive while charging |
 | iPhone | None beyond location | |
@@ -233,6 +240,7 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 - `app/android/.../standbypro`: auto-start service, posture (tilt) logic, media session bridge.
 - `app/ios/Runner`: small Swift bridge for keep-awake and brightness.
 - `scripts`: one-command setup for macOS and Windows. `requirements.txt` lists everything the project needs.
+- `spec`: formal models (PlusCal, checked with the TLC model checker) of the posture detection and the auto-launch logic, with the bugs they found. See [spec/README.md](spec/README.md).
 - `docs`: screenshots and animations used in this README.
 
 ## License

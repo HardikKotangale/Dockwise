@@ -1,0 +1,70 @@
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 124 and seed -8646486156707553154 with 1 worker on 14 cores with 5461MB heap and 64MB offheap memory [pid: 23749] (Mac OS X 26.6.2 aarch64, Homebrew 17.0.17 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/hardik/StandBy Android/standby-pro/spec/AutoLaunch.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Naturals.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/TLC.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Sequences.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/FiniteSets.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module AutoLaunch
+Starting... (2026-10-09 17:23:25)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-09 17:23:25.
+Progress(4) at 2026-10-09 17:23:25: 10 states generated, 6 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 6 total distinct states at (2026-10-09 17:23:25)
+Error: Temporal properties were violated.
+
+Error: The following behavior constitutes a counter-example:
+
+State 1: <Initial predicate>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = FALSE
+/\ charging = FALSE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = FALSE
+
+State 2: <World line 153, col 13 to line 155, col 132 of module AutoLaunch>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = FALSE
+/\ charging = TRUE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = FALSE
+
+State 3: <World line 173, col 13 to line 185, col 106 of module AutoLaunch>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = TRUE
+/\ charging = TRUE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = TRUE
+
+State 4: <World line 186, col 13 to line 211, col 72 of module AutoLaunch>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = FALSE
+/\ charging = TRUE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = TRUE
+
+State 5: Stuttering
+Finished checking temporal properties in 00s at 2026-10-09 17:23:25
+10 states generated, 6 distinct states found, 0 states left on queue.
+Finished in 00s at (2026-10-09 17:23:25)

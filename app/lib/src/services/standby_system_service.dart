@@ -24,6 +24,18 @@ class StandbySystemService {
     return _invokeBool('setKeepAwake', {'enabled': enabled});
   }
 
+  /// Room light in lux, or null when this device has no light sensor we can
+  /// read (iPhone does not let apps read it) or it has not reported yet.
+  Future<double?> ambientLux() async {
+    try {
+      return (await _channel.invokeMethod<num>('ambientLux'))?.toDouble();
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
   Future<bool> setBrightness(double value) async {
     return _invokeBool('setBrightness', {'value': value.clamp(0.05, 1.0)});
   }

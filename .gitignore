@@ -53,3 +53,8 @@ app/ios/.generated/
 
 # reference images used while designing (local only)
 assets/references/
+
+# TLC model checker scratch files (the results/ logs are kept on purpose)
+spec/*.old
+spec/states/
+spec/*_TTrace_*

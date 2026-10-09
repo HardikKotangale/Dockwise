@@ -20,6 +20,11 @@ class PostureLogic(var config: Config = Config()) {
         val enterDwellMs: Long = 1500, // must hold the posture this long to start
         val exitDwellMs: Long = 4000, // ...and lose it this long to stop
         val hysteresisDeg: Double = 10.0, // easier to stay than to start
+        // Samples arrive about every 200 ms. A silence longer than this is a hole in
+        // the data: neither "held" nor "lost" is known, so the dwell timers restart.
+        // (TLC found that without this, two samples with a hole between them could
+        // satisfy a dwell: spec/PostureLogic.tla, spec/results/PostureLogic_gaps.txt.)
+        val maxGapMs: Long = 500,
     )
 
     data class Reading(val leanDeg: Double, val rollDeg: Double)
@@ -29,6 +34,7 @@ class PostureLogic(var config: Config = Config()) {
         private set
     private var goodSince: Long? = null
     private var badSince: Long? = null
+    private var lastSampleMs: Long? = null
 
     companion object {
         /** Angles for one gravity sample; null in free fall (no usable "down"). */
@@ -52,6 +58,14 @@ class PostureLogic(var config: Config = Config()) {
 
     /** Feed one sample; returns whether the posture is active. */
     fun onSample(gx: Double, gy: Double, gz: Double, nowMs: Long): Boolean {
+        // a hole in the data is not evidence either way: start the timers over.
+        // (Every sample counts as data here, including free-fall ones.)
+        val last = lastSampleMs
+        lastSampleMs = nowMs
+        if (last != null && nowMs - last > config.maxGapMs) {
+            goodSince = null
+            badSince = null
+        }
         val r = reading(gx, gy, gz) ?: return active // free fall: ignore
         if (matches(r, relax = active)) {
             badSince = null
@@ -76,5 +90,6 @@ class PostureLogic(var config: Config = Config()) {
         active = false
         goodSince = null
         badSince = null
+        lastSampleMs = null
     }
 }

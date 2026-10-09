@@ -32,12 +32,14 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "standby_pro/system"
 
-    // Auto-start: opened by the charger watcher (not by the user)?
-    private var launchedByAuto = false
+    // Auto-start: who opened this screen (the watcher or the user) and who has it
+    // now is decided in AutoSession, shared with the charger watcher
+    // (spec/AutoLaunch.tla is the model of it).
+    private val session = AutoSession.shared
     private val exitReceiver = object : BroadcastReceiver() {
         // phone unplugged: close, but only a screen the watcher opened
         override fun onReceive(c: Context, i: Intent) {
-            if (launchedByAuto) finishAndRemoveTask()
+            if (session.launchedByAuto) finishAndRemoveTask()
         }
     }
 
@@ -47,7 +49,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        launchedByAuto = intent?.getBooleanExtra("auto", false) == true
+        session.activityCreated(intent?.getBooleanExtra("auto", false) == true)
         val filter = IntentFilter(StandbyService.ACTION_EXIT)
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(exitReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -58,11 +60,72 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra("auto", false)) launchedByAuto = true
+        session.activityNewIntent(intent.getBooleanExtra("auto", false))
+    }
+
+    override fun onResume() {
+        super.onResume()
+        session.activityShown()
+    }
+
+    // Home or Recents: the user is using the phone, so an unplug must not close this
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        session.userLeft()
+    }
+
+    // Battery level straight from Android's own battery broadcast, which the
+    // system refreshes on every 1% change. (The "battery property" other
+    // packages read is cached or slow on some phones, so the percentage lagged.)
+    private fun batteryInfo(): Map<String, Any>? {
+        val i = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?: return null
+        val level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+        if (level < 0 || scale <= 0) return null
+        return mapOf(
+            "level" to level * 100 / scale,
+            "charging" to (i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0),
+            "full" to (i.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ==
+                android.os.BatteryManager.BATTERY_STATUS_FULL),
+        )
+    }
+
+    // Room light in lux. The sensor is only listened to while the app is on screen
+    // and is started by the first request.
+    private var lightListener: SensorEventListener? = null
+    private var lastLux: Float? = null
+
+    private fun ambientLux(): Double? {
+        if (lightListener == null) {
+            val sm = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            val sensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT) ?: return null
+            val l = object : SensorEventListener {
+                override fun onSensorChanged(e: SensorEvent) { lastLux = e.values[0] }
+                override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+            }
+            sm.registerListener(l, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            lightListener = l
+        }
+        return lastLux?.toDouble()
+    }
+
+    private fun stopLight() {
+        lightListener?.let { (getSystemService(Context.SENSOR_SERVICE) as SensorManager).unregisterListener(it) }
+        lightListener = null
+        lastLux = null
+    }
+
+    override fun onPause() {
+        session.activityHidden()
+        stopLight() // off screen: stop listening; the next request starts it again
+        super.onPause()
     }
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(exitReceiver) }
+        session.activityDestroyed()
+        stopLight()
         stopProbe()
         super.onDestroy()
     }
@@ -198,6 +261,8 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "deviceModel" -> result.success(android.os.Build.MODEL)
+                "ambientLux" -> result.success(ambientLux()) // null: no light sensor/reading yet
+                "batteryInfo" -> result.success(batteryInfo())
                 "launchApp" -> {
                     val pkg = getArgument<String>(call.arguments, "package")
                     val intent = pkg?.let { packageManager.getLaunchIntentForPackage(it) }
