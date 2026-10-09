@@ -1,0 +1,114 @@
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 32 and seed 3163418028283772234 with 1 worker on 14 cores with 5461MB heap and 64MB offheap memory [pid: 23692] (Mac OS X 26.6.2 aarch64, Homebrew 17.0.17 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/hardik/StandBy Android/standby-pro/spec/PostureLogic.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Integers.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/TLC.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Naturals.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Sequences.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/FiniteSets.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module PostureLogic
+Starting... (2026-10-09 17:23:19)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-09 17:23:19.
+Error: Invariant EnterSound is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ active = FALSE
+/\ goodAge = -1
+/\ badAge = -1
+/\ activatedWith = -1
+/\ pc = <<"Tick">>
+/\ exitedWith = -1
+/\ dt = 1
+/\ hLen = -1
+/\ obs = "none"
+/\ gLen = -1
+/\ wasActive = FALSE
+
+State 2: <Tick line 164, col 9 to line 183, col 38 of module PostureLogic>
+/\ active = FALSE
+/\ goodAge = -1
+/\ badAge = -1
+/\ activatedWith = -1
+/\ pc = <<"OnSample">>
+/\ exitedWith = -1
+/\ dt = 1
+/\ hLen = -1
+/\ obs = "match"
+/\ gLen = -1
+/\ wasActive = FALSE
+
+State 3: <OnSample line 185, col 13 to line 212, col 77 of module PostureLogic>
+/\ active = FALSE
+/\ goodAge = 0
+/\ badAge = -1
+/\ activatedWith = -1
+/\ pc = <<"Ghost">>
+/\ exitedWith = -1
+/\ dt = 1
+/\ hLen = -1
+/\ obs = "match"
+/\ gLen = -1
+/\ wasActive = FALSE
+
+State 4: <Ghost line 214, col 10 to line 234, col 71 of module PostureLogic>
+/\ active = FALSE
+/\ goodAge = 0
+/\ badAge = -1
+/\ activatedWith = -1
+/\ pc = <<"Tick">>
+/\ exitedWith = -1
+/\ dt = 1
+/\ hLen = -1
+/\ obs = "match"
+/\ gLen = 0
+/\ wasActive = FALSE
+
+State 5: <Tick line 164, col 9 to line 183, col 38 of module PostureLogic>
+/\ active = FALSE
+/\ goodAge = 3
+/\ badAge = -1
+/\ activatedWith = -1
+/\ pc = <<"OnSample">>
+/\ exitedWith = -1
+/\ dt = 3
+/\ hLen = -1
+/\ obs = "match"
+/\ gLen = 0
+/\ wasActive = FALSE
+
+State 6: <OnSample line 185, col 13 to line 212, col 77 of module PostureLogic>
+/\ active = TRUE
+/\ goodAge = 3
+/\ badAge = -1
+/\ activatedWith = -1
+/\ pc = <<"Ghost">>
+/\ exitedWith = -1
+/\ dt = 3
+/\ hLen = -1
+/\ obs = "match"
+/\ gLen = 0
+/\ wasActive = FALSE
+
+State 7: <Ghost line 214, col 10 to line 234, col 71 of module PostureLogic>
+/\ active = TRUE
+/\ goodAge = 3
+/\ badAge = -1
+/\ activatedWith = 0
+/\ pc = <<"Tick">>
+/\ exitedWith = -1
+/\ dt = 3
+/\ hLen = -1
+/\ obs = "match"
+/\ gLen = 0
+/\ wasActive = FALSE
+
+499 states generated, 126 distinct states found, 27 states left on queue.
+The depth of the complete state graph search is 7.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 17 and the 95th percentile is 1).
+Finished in 00s at (2026-10-09 17:23:19)

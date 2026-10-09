@@ -1,0 +1,76 @@
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 32 and seed -1923661423481245873 with 1 worker on 14 cores with 5461MB heap and 64MB offheap memory [pid: 23726] (Mac OS X 26.6.2 aarch64, Homebrew 17.0.17 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/hardik/StandBy Android/standby-pro/spec/AutoLaunch.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Naturals.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/TLC.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/Sequences.tla
+Parsing file /private/var/folders/1w/k_x2hcl5111cxbwqxkf_vkn00000gn/T/FiniteSets.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module AutoLaunch
+Starting... (2026-10-09 17:23:22)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-09 17:23:23.
+Error: Invariant UnplugLeavesNothingAutoOpened is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = FALSE
+/\ charging = FALSE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = FALSE
+
+State 2: <World line 153, col 13 to line 155, col 132 of module AutoLaunch>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = FALSE
+/\ charging = TRUE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = FALSE
+
+State 3: <World line 173, col 13 to line 185, col 106 of module AutoLaunch>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = TRUE
+/\ charging = TRUE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = TRUE
+
+State 4: <World line 156, col 13 to line 172, col 33 of module AutoLaunch>
+/\ appTask = FALSE
+/\ launchedByAuto = FALSE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = TRUE
+/\ charging = FALSE
+/\ notified = FALSE
+/\ visible = FALSE
+/\ userOwned = FALSE
+/\ wasActive = FALSE
+
+State 5: <World line 186, col 13 to line 211, col 72 of module AutoLaunch>
+/\ appTask = TRUE
+/\ launchedByAuto = TRUE
+/\ closedWhileUserVisible = FALSE
+/\ pendingLaunch = FALSE
+/\ charging = FALSE
+/\ notified = FALSE
+/\ visible = TRUE
+/\ userOwned = FALSE
+/\ wasActive = FALSE
+
+16 states generated, 11 distinct states found, 5 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 2 (minimum is 1, the maximum 4 and the 95th percentile is 4).
+Finished in 00s at (2026-10-09 17:23:23)
