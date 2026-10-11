@@ -1916,6 +1916,8 @@ void main() {
       required Size screen,
       required List<DeviceOrientation> turned,
       bool mirror = false,
+      HeldOrientation? side,
+      bool auto = false,
     }) async {
       tester.view.physicalSize = screen;
       tester.view.devicePixelRatio = 1;
@@ -1929,6 +1931,8 @@ void main() {
               readings: readings.stream,
               onRotate: turned.add,
               mirrorLandscape: mirror,
+              screenSide: () async => side,
+              auto: auto,
             ),
           ),
         ),
@@ -1978,6 +1982,63 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.byTooltip('Rotate to landscape'));
       expect(turned, [DeviceOrientation.landscapeRight]);
+    });
+
+    testWidgets(
+      'flipped 180 degrees with the screen locked: offers to flip it',
+      (tester) async {
+        final turned = <DeviceOrientation>[];
+        final r = await mount(
+          tester,
+          screen: const Size(800, 400), // landscape screen
+          turned: turned,
+          side: HeldOrientation.landscapeLeft, // screen is turned this way...
+        );
+        r.add((-9.7, 0.3, 0.5)); // ...but the phone is now held the other way
+        await tester.pump(const Duration(milliseconds: 1500));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byTooltip('Flip the screen'));
+        expect(turned, [DeviceOrientation.landscapeRight]);
+      },
+    );
+
+    testWidgets('screen already matches the way the phone is held: no prompt', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(800, 400),
+        turned: turned,
+        side: HeldOrientation.landscapeLeft,
+      );
+      r.add((9.7, 0.3, 0.5));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byTooltip('Flip the screen'), findsNothing);
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        0,
+      );
+    });
+
+    testWidgets('auto: turning the phone sideways turns the screen, once', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+        auto: true,
+      );
+      r.add((9.7, 0.3, 0.5));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(turned, [DeviceOrientation.landscapeLeft]);
+      // the screen has not followed (a stubborn system): it does not retry
+      await tester.pump(const Duration(seconds: 5));
+      expect(turned.length, 1);
     });
 
     testWidgets('landscape screen, phone held upright: suggests portrait', (

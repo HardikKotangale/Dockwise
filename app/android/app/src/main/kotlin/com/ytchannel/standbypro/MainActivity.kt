@@ -261,6 +261,14 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "deviceModel" -> result.success(android.os.Build.MODEL)
+                // which way the screen is turned now: ROTATION_90 = top of the phone to the left
+                "screenSide" -> result.success(
+                    @Suppress("DEPRECATION") when (windowManager.defaultDisplay.rotation) {
+                        android.view.Surface.ROTATION_90 -> "landscapeLeft"
+                        android.view.Surface.ROTATION_270 -> "landscapeRight"
+                        else -> "portrait"
+                    }
+                )
                 "ambientLux" -> result.success(ambientLux()) // null: no light sensor/reading yet
                 "batteryInfo" -> result.success(batteryInfo())
                 "launchApp" -> {

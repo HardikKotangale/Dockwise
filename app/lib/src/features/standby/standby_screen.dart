@@ -304,7 +304,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                   left: 0,
                   right: 0,
                   bottom: 4,
-                  child: Center(child: OrientationHint()),
+                  child: Center(child: OrientationHint(auto: true)),
                 ),
                 Positioned.fill(
                   child: LowBatteryAlert(

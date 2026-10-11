@@ -27,6 +27,15 @@ import UIKit
       case "setBrightness":
         UIScreen.main.brightness = CGFloat((args?["value"] as? Double) ?? 0.7)
         result(true)
+      case "screenSide":
+        // iOS names landscapes by the home-button side; answer by where the TOP of
+        // the phone is (what the motion sensor sees): landscapeRight = top to the left
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        switch scene?.interfaceOrientation {
+        case .landscapeRight: result("landscapeLeft")
+        case .landscapeLeft: result("landscapeRight")
+        default: result("portrait")
+        }
       case "deviceModel":
         result(UIDevice.current.model)  // e.g. "iPhone"; used to prefer this phone in Spotify
       default:
