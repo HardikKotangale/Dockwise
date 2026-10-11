@@ -899,6 +899,7 @@ class NowPlayingSnapshot {
     this.positionMs = 0,
     this.durationMs = 0,
     this.viaSpotifyApi = false,
+    this.viaYtm = false,
     this.fetchedAt,
   });
 
@@ -918,6 +919,7 @@ class NowPlayingSnapshot {
     positionMs: ms,
     durationMs: durationMs,
     viaSpotifyApi: viaSpotifyApi,
+    viaYtm: viaYtm,
     fetchedAt: DateTime.now(),
   );
 
@@ -931,6 +933,9 @@ class NowPlayingSnapshot {
 
   /// True when read from the Spotify Web API (commands must go there too).
   final bool viaSpotifyApi;
+
+  /// True when read from YouTube Music on a computer (commands go there too).
+  final bool viaYtm;
 
   final int positionMs;
   final int durationMs;

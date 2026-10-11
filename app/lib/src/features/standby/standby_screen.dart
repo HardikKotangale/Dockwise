@@ -736,6 +736,14 @@ class _Dashboard extends StatelessWidget {
       StandbyWidgetType.music => MusicCard(
         snapshot: controller.snapshots.nowPlaying,
         settings: settings,
+        sources: [
+          (id: 'auto', label: 'Auto'),
+          if (controller.spotifyConnected) (id: 'spotify', label: 'Spotify'),
+          if (controller.ytmConfigured)
+            (id: 'ytm', label: 'YouTube Music (Mac)'),
+        ],
+        currentSource: settings.musicSource,
+        onSource: controller.setMusicSource,
         // search is offered whenever Spotify is connected, even if nothing plays yet
         queueView: controller.spotifyConnected
             ? (close, keepOpen) => SpotifyQueueView(
@@ -763,9 +771,10 @@ class _Dashboard extends StatelessWidget {
               )
             : null,
         // Spotify volume only when the song is controlled through the Spotify account
-        volumeBar:
-            controller.snapshots.nowPlaying.viaSpotifyApi &&
-                controller.spotifyConnected
+        volumeBar: controller.snapshots.nowPlaying.viaYtm
+            ? (keepOpen) => YtmVolume(controller: controller, onTouch: keepOpen)
+            : controller.snapshots.nowPlaying.viaSpotifyApi &&
+                  controller.spotifyConnected
             ? (keepOpen) => SpotifyVolume(
                 controller: controller,
                 compact: true,

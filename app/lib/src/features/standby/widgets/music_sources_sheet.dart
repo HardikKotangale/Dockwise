@@ -179,6 +179,12 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                   selected: source == 'spotify',
                   onSelected: (_) => pick('spotify'),
                 ),
+              if (c.ytmConfigured)
+                ChoiceChip(
+                  label: const Text('YouTube Music (Mac)'),
+                  selected: source == 'ytm',
+                  onSelected: (_) => pick('ytm'),
+                ),
               for (final p
                   in snap.data ?? const <({String package, String app})>[])
                 ChoiceChip(
@@ -286,6 +292,8 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
             ),
           ),
         ],
+        const Divider(height: 32),
+        _YtmSection(controller: c, onChanged: () => setState(() {})),
         // reading other apps' music needs Android's notification access
         if (defaultTargetPlatform != TargetPlatform.iOS) ...[
           const Divider(height: 32),
@@ -592,6 +600,212 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// YouTube Music playing on a Mac, through the desktop app's API Server plugin.
+class _YtmSection extends StatefulWidget {
+  const _YtmSection({required this.controller, required this.onChanged});
+
+  final StandbyController controller;
+  final VoidCallback onChanged;
+
+  @override
+  State<_YtmSection> createState() => _YtmSectionState();
+}
+
+class _YtmSectionState extends State<_YtmSection> {
+  late final _address = TextEditingController(
+    text: widget.controller.ytmAddress,
+  );
+  bool _busy = false;
+  String? _status; // what happened on the last Connect
+  bool _ok = false;
+
+  StandbyController get c => widget.controller;
+
+  @override
+  void dispose() {
+    _address.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connect() async {
+    if (_address.text.trim().isEmpty) return;
+    setState(() {
+      _busy = true;
+      _status = 'Connecting. If your Mac asks, choose Allow.';
+      _ok = false;
+    });
+    await c.setYtmAddress(_address.text);
+    final ok = await c.checkYtm();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _ok = ok;
+      _status = ok
+          ? 'Connected. Pick "YouTube Music (Mac)" above, or leave it on Auto.'
+          : (c.ytmError ?? 'Could not connect');
+    });
+    widget.onChanged();
+  }
+
+  Future<void> _forget() async {
+    await c.setYtmAddress('');
+    if (!mounted) return;
+    _address.clear();
+    setState(() {
+      _status = null;
+      _ok = false;
+    });
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const heading = TextStyle(fontWeight: FontWeight.w700, fontSize: 17);
+    final saved = c.ytmConfigured;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text('YouTube Music on your Mac', style: heading),
+            ),
+            if (saved)
+              TextButton(onPressed: _forget, child: const Text('Forget')),
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'YouTube Music has no remote of its own, so Dockwise talks to the free '
+          'YouTube Music desktop app (Pear Desktop) on your Mac. '
+          'On the Mac: install it, then turn on the "API Server" plugin in its '
+          'settings. Both devices must be on the same Wi-Fi.',
+          style: TextStyle(color: Colors.white60, fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _address,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          enableSuggestions: false,
+          textInputAction: TextInputAction.go,
+          onSubmitted: (_) => _connect(),
+          decoration: InputDecoration(
+            hintText: 'Mac address, e.g. 192.168.1.20 or my-mac.local',
+            hintStyle: const TextStyle(color: Colors.white38),
+            prefixIcon: const Icon(
+              Icons.laptop_mac_rounded,
+              color: Colors.white54,
+            ),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            FilledButton(
+              onPressed: _busy ? null : _connect,
+              child: Text(saved ? 'Reconnect' : 'Connect'),
+            ),
+            if (_busy)
+              const Padding(
+                padding: EdgeInsets.only(left: 14),
+                child: SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
+        if (_status != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _status!,
+              style: TextStyle(
+                fontSize: 13,
+                color: _ok ? const Color(0xFF30D158) : Colors.white70,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Volume of YouTube Music on the Mac, as a speaker-to-speaker slider.
+class YtmVolume extends StatefulWidget {
+  const YtmVolume({super.key, required this.controller, this.onTouch});
+
+  final StandbyController controller;
+
+  /// called while it is being used, so a card can keep it on screen
+  final VoidCallback? onTouch;
+
+  @override
+  State<YtmVolume> createState() => _YtmVolumeState();
+}
+
+class _YtmVolumeState extends State<YtmVolume> {
+  double _value = 50;
+  Timer? _send;
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.ytmVolume().then((v) {
+      if (mounted && v != null && !_dragging) {
+        setState(() => _value = v.toDouble());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _send?.cancel();
+    super.dispose();
+  }
+
+  void _changed(double v) {
+    widget.onTouch?.call();
+    setState(() => _value = v);
+    // throttled, so it follows the finger without flooding the Mac
+    _send ??= Timer(const Duration(milliseconds: 150), () {
+      _send = null;
+      widget.controller.setYtmVolume(_value.round());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.volume_mute_rounded, size: 20, color: Colors.white70),
+        Expanded(
+          child: Slider(
+            value: _value.clamp(0, 100),
+            min: 0,
+            max: 100,
+            onChangeStart: (_) => _dragging = true,
+            onChanged: _changed,
+            onChangeEnd: (v) {
+              _dragging = false;
+              widget.controller.setYtmVolume(v.round());
+            },
+          ),
+        ),
+        const Icon(Icons.volume_up_rounded, size: 20, color: Colors.white70),
+      ],
     );
   }
 }

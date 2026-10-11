@@ -431,7 +431,16 @@ class MusicCard extends StatefulWidget {
     this.volumeBar,
     this.onSearch,
     this.queueView,
+    this.sources = const [],
+    this.currentSource = 'auto',
+    this.onSource,
   });
+
+  /// Where the song can come from (Auto, Spotify, YouTube Music...). With two
+  /// or more, the card's source label becomes a menu to switch between them.
+  final List<({String id, String label})> sources;
+  final String currentSource;
+  final ValueChanged<String>? onSource;
 
   final NowPlayingSnapshot snapshot;
   final StandbySettings settings;
@@ -637,6 +646,84 @@ class _MusicCardState extends State<MusicCard> {
     );
   }
 
+  // "Spotify · Mac" etc. With more than one source it is a menu, like an
+  // iOS context menu, to switch where the music comes from.
+  Widget _sourceLabel() {
+    final text = Text(
+      snapshot.isControllable ? snapshot.source : 'Nothing playing',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: Colors.white70,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.1,
+      ),
+    );
+    if (widget.sources.length < 2 || widget.onSource == null) return text;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: PopupMenuButton<String>(
+        tooltip: 'Music source',
+        onOpened: _keepQueueOpen,
+        onSelected: (id) {
+          tick();
+          widget.onSource!(id);
+        },
+        color: const Color(0xF22C2C2E),
+        elevation: 12,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        itemBuilder: (context) => [
+          for (final o in widget.sources)
+            PopupMenuItem<String>(
+              value: o.id,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 24,
+                    child: o.id == widget.currentSource
+                        ? const Icon(Icons.check_rounded, size: 18)
+                        : null,
+                  ),
+                  Text(
+                    o.label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: text),
+                const Icon(
+                  Icons.expand_more_rounded,
+                  size: 18,
+                  color: Colors.white70,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -708,20 +795,7 @@ class _MusicCardState extends State<MusicCard> {
                           color: Colors.white70,
                         ),
                         const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            snapshot.isControllable
-                                ? snapshot.source
-                                : 'Nothing playing',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                        Expanded(child: _sourceLabel()),
                         if (widget.queueView != null)
                           IconButton(
                             tooltip: 'Up next',

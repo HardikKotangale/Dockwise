@@ -11,6 +11,7 @@ import '../domain/standby_models.dart';
 import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
+import '../services/ytm_desktop_service.dart';
 
 class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   StandbyController({
@@ -19,6 +20,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     SettingsRepository? settingsRepository,
     StandbySystemService? systemService,
     SpotifyService? spotifyService,
+    YtmDesktopService? ytmService,
     WeatherService? weatherService,
     bool autostartTicker = true,
   }) : settings = initialSettings ?? const StandbySettings(),
@@ -27,6 +29,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
        _settingsRepository = settingsRepository,
        _systemService = systemService ?? StandbySystemService(),
        _spotify = spotifyService ?? SpotifyService(),
+       _ytm = ytmService ?? YtmDesktopService(),
        _weatherService = weatherService ?? WeatherService(),
        _autostartTicker = autostartTicker,
        now = DateTime.now();
@@ -43,6 +46,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   final StandbySystemService _systemService;
   final WeatherService _weatherService;
   final SpotifyService _spotify;
+  final YtmDesktopService _ytm;
   final bool _autostartTicker;
   Timer? _timer;
   Timer? _musicTimer;
@@ -57,6 +61,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     await _applySystemSettings();
     unawaited(refreshWeather());
     await _spotify.load();
+    await _ytm.load();
     _spotify.phoneName = await _systemService.deviceModel();
     if (_autostartTicker) {
       _scheduleNextTick();
@@ -291,6 +296,38 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // YouTube Music on a computer (needs its desktop app with the API Server plugin)
+  bool get ytmConfigured => _ytm.isConfigured;
+  String get ytmAddress => _ytm.address;
+  String? get ytmError => _ytm.lastError;
+
+  Future<void> setYtmAddress(String value) async {
+    await _ytm.setAddress(value);
+    notifyListeners();
+    if (_ytm.isConfigured) unawaited(refreshMusic());
+  }
+
+  Future<bool> checkYtm() async {
+    final ok = await _ytm.check();
+    notifyListeners();
+    if (ok) unawaited(refreshMusic());
+    return ok;
+  }
+
+  Future<int?> ytmVolume() => _ytm.volume();
+  Future<bool> setYtmVolume(int percent) => _ytm.setVolume(percent);
+
+  /// Where the music card gets its song: 'auto', 'spotify', 'ytm' or a phone app.
+  Future<void> setMusicSource(String source) {
+    snapshots = IntegrationSnapshotBundle(
+      weather: snapshots.weather,
+      nowPlaying: IntegrationSnapshotBundle.fallback(
+        now: DateTime.now(),
+      ).nowPlaying,
+    );
+    return updateSettings(settings.copyWith(musicSource: source));
+  }
+
   bool get _musicOnScreen =>
       settings.leftWidget == StandbyWidgetType.music ||
       (settings.layoutMode == StandbyLayoutMode.duo &&
@@ -315,11 +352,18 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         // 'spotify' = account only; anything else = that phone app only.
         final src = settings.musicSource;
         final fromSpotify = src == 'auto' || src == 'spotify';
-        final fromPhone = src != 'spotify';
+        final fromYtm = (src == 'auto' || src == 'ytm') && _ytm.isConfigured;
+        final fromPhone = src != 'spotify' && src != 'ytm';
         // a read that hangs must not stop the polling, so each one has a limit
         final playing =
             (fromSpotify && _spotify.isConnected
                 ? await _spotify.nowPlaying().timeout(
+                    const Duration(seconds: 10),
+                    onTimeout: () => null,
+                  )
+                : null) ??
+            (fromYtm
+                ? await _ytm.nowPlaying().timeout(
                     const Duration(seconds: 10),
                     onTimeout: () => null,
                   )
@@ -337,6 +381,18 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
             nowPlaying: playing,
           );
           notifyListeners();
+        } else if (fromYtm && snapshots.nowPlaying.viaYtm) {
+          // the Mac stopped, closed the player or went away: do not keep a
+          // stale song on screen
+          if (++_idlePolls >= 2) {
+            snapshots = IntegrationSnapshotBundle(
+              weather: snapshots.weather,
+              nowPlaying: IntegrationSnapshotBundle.fallback(
+                now: DateTime.now(),
+              ).nowPlaying,
+            );
+            notifyListeners();
+          }
         } else if (fromSpotify && _spotify.isConnected && _spotify.playerIdle) {
           // Spotify says nothing is playing anywhere. Do not keep showing the
           // last song as if it still played; wait for two answers in a row so
@@ -410,12 +466,16 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       nowPlaying: now.withPosition(target),
     );
     notifyListeners();
-    final ok = now.viaSpotifyApi
+    final ok = now.viaYtm
+        ? await _ytm.seekTo(target)
+        : now.viaSpotifyApi
         ? await _spotify.seekTo(target)
         : await _systemService.seekTo(target);
     musicError = ok
         ? null
-        : (now.viaSpotifyApi
+        : (now.viaYtm
+              ? _ytm.lastError
+              : now.viaSpotifyApi
               ? _spotify.lastError
               : 'Grant Notification access in Music sources');
     unawaited(Future.delayed(const Duration(milliseconds: 450), refreshMusic));
@@ -426,7 +486,10 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> sendMediaCommand(String command) async {
     final now = snapshots.nowPlaying;
     final bool ok;
-    if (now.viaSpotifyApi) {
+    if (now.viaYtm) {
+      ok = await _ytm.command(command);
+      musicError = ok ? null : _ytm.lastError;
+    } else if (now.viaSpotifyApi) {
       ok = await _spotify.command(
         command,
         isPlaying: now.isPlaying,
@@ -542,7 +605,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     }
     final src = settings.musicSource;
     await _systemService.setPreferredPlayer(
-      src == 'auto' || src == 'spotify' ? '' : src,
+      src == 'auto' || src == 'spotify' || src == 'ytm' ? '' : src,
     );
   }
 
