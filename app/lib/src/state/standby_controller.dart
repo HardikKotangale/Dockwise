@@ -502,12 +502,20 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     landscapeOnly: settings.autoLandscapeOnly,
   );
 
+  bool _orientationsSet = false;
+
   Future<void> _applySystemSettings() async {
-    await SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.portraitUp,
-    ]);
+    // Only once: this runs on every settings change (a clock style swipe...), and
+    // setting the orientations again would undo a rotation made with the rotate
+    // symbol while the phone's rotation is locked.
+    if (!_orientationsSet) {
+      _orientationsSet = true;
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+        DeviceOrientation.portraitUp,
+      ]);
+    }
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     await _systemService.setKeepAwake(settings.keepAwakeWhileCharging);
     if (settings.autoBrightness) {
