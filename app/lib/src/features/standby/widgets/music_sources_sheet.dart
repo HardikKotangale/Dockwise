@@ -140,7 +140,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
 
   @override
   Widget build(BuildContext context) {
-    const heading = TextStyle(fontWeight: FontWeight.w900, fontSize: 17);
+    const heading = TextStyle(fontWeight: FontWeight.w700, fontSize: 17);
     final source = c.settings.musicSource;
     void pick(String value) =>
         c.updateSettings(c.settings.copyWith(musicSource: value));
@@ -223,7 +223,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
               const Expanded(
                 child: Text(
                   'Play on',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
               IconButton(
@@ -256,7 +256,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
           const SizedBox(height: 12),
           const Text(
             'Playlists',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           FutureBuilder<List<SpotifyPlaylist>>(
             future: _playlists,
@@ -499,7 +499,7 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
                   textAlign: TextAlign.end,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -545,14 +545,14 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
                             : 'Volume · ${d.name}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                     if (!locked)
                       Text(
                         '$level%',
                         style: const TextStyle(
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700,
                           fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),

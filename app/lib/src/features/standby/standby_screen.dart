@@ -1,3 +1,4 @@
+import '../../core/apple.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
@@ -73,6 +74,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
   // Which clock part was tapped on screen; the Clock dock jumps to its color.
   final _clockPart = ValueNotifier<ClockPart?>(null);
   final _touch = _Touch();
+  final _dockKey = GlobalKey<SpringDockState>();
   // a short dark pop-up confirming a layout change ("One panel")
   ({IconData icon, String text})? _hud;
   bool _hudVisible = false;
@@ -209,6 +211,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                       final onSecond = landscape
                                           ? center.dx > size.width / 2
                                           : center.dy > size.height / 2;
+                                      tick();
                                       _controller.setLayout(
                                         mode,
                                         soloSecond: onSecond,
@@ -231,9 +234,8 @@ class _StandbyScreenState extends State<StandbyScreen> {
                             Positioned.fill(
                               child: IgnorePointer(
                                 child: Center(
-                                  child: AnimatedOpacity(
-                                    opacity: _hudVisible ? 1 : 0,
-                                    duration: const Duration(milliseconds: 220),
+                                  child: Materialize(
+                                    visible: _hudVisible,
                                     child: _Hud(
                                       icon: _hud!.icon,
                                       text: _hud!.text,
@@ -248,39 +250,47 @@ class _StandbyScreenState extends State<StandbyScreen> {
                       if (build == null) return dashboard;
                       final typing =
                           MediaQuery.viewInsetsOf(context).bottom > 0;
-                      final dock = _Dock(
-                        title: _dockTitle,
-                        onClose: _closeDock,
-                        child: AnimatedBuilder(
-                          animation: _controller,
-                          builder: (context, _) => build(),
-                        ),
-                      );
                       // Keyboard up in portrait: give the dock all the visible space so
                       // what you type is never hidden behind it.
-                      if ((typing || _dockTall) && !landscape) return dock;
+                      final full = (typing || _dockTall) && !landscape;
+                      final gap = full ? 0.0 : 12.0;
+                      final panelExtent = full
+                          ? c.maxHeight
+                          : landscape
+                          ? (c.maxWidth * 0.42).clamp(320.0, 460.0)
+                          : c.maxHeight * 0.46;
+                      final dock = SpringDock(
+                        key: _dockKey,
+                        axis: landscape ? Axis.horizontal : Axis.vertical,
+                        extent: panelExtent + gap,
+                        onClosed: _closeDock,
+                        builder: (context, handle) => Padding(
+                          padding: landscape
+                              ? EdgeInsets.only(left: gap)
+                              : EdgeInsets.only(top: gap),
+                          child: _Dock(
+                            title: _dockTitle,
+                            handle: handle,
+                            horizontal: landscape,
+                            child: AnimatedBuilder(
+                              animation: _controller,
+                              builder: (context, _) => build(),
+                            ),
+                          ),
+                        ),
+                      );
+                      if (full) return dock;
                       return landscape
                           ? Row(
                               children: [
                                 Expanded(child: dashboard),
-                                const SizedBox(width: 12),
-                                SizedBox(
-                                  width: (c.maxWidth * 0.42).clamp(
-                                    320.0,
-                                    460.0,
-                                  ),
-                                  child: dock,
-                                ),
+                                dock,
                               ],
                             )
                           : Column(
                               children: [
                                 Expanded(child: dashboard),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  height: c.maxHeight * 0.46,
-                                  child: dock,
-                                ),
+                                dock,
                               ],
                             );
                     },
@@ -312,7 +322,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
   }
 }
 
-/// Dark, rounded pop-up (like the iOS volume HUD) confirming a layout change.
+/// Rounded glass pop-up (like the iOS volume HUD) confirming a layout change.
 class _Hud extends StatelessWidget {
   const _Hud({required this.icon, required this.text});
 
@@ -321,28 +331,28 @@ class _Hud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xF21C1C1E),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 30)],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 34, color: Colors.white),
-          const SizedBox(width: 14),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+    return Glass(
+      radius: 26,
+      blur: 24,
+      opacity: 0.72,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 30, color: Colors.white),
+            const SizedBox(width: 14),
+            Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.3,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -351,46 +361,87 @@ class _Hud extends StatelessWidget {
 class _Dock extends StatelessWidget {
   const _Dock({
     required this.title,
-    required this.onClose,
+    required this.handle,
+    required this.horizontal,
     required this.child,
   });
 
   final String title;
-  final VoidCallback onClose;
+  final SpringDockHandle handle;
+  final bool horizontal; // landscape: slides sideways
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    // Material (not a decorated box) so list tiles can paint ink inside.
-    return Material(
-      color: _cardColor,
-      borderRadius: BorderRadius.circular(28),
-      clipBehavior: Clip.antiAlias,
+    // The header is what you grab to move the panel: dragging the content
+    // itself would fight with scrolling.
+    final header = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragUpdate: horizontal
+          ? (d) => handle.dragUpdate(d.delta.dx)
+          : null,
+      onHorizontalDragEnd: horizontal
+          ? (d) => handle.dragEnd(d.primaryVelocity ?? 0)
+          : null,
+      onVerticalDragUpdate: horizontal
+          ? null
+          : (d) => handle.dragUpdate(d.delta.dy),
+      onVerticalDragEnd: horizontal
+          ? null
+          : (d) => handle.dragEnd(d.primaryVelocity ?? 0),
       child: Column(
         children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
+            padding: const EdgeInsets.fromLTRB(20, 4, 8, 0),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                      height: 1.2,
                     ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Done',
-                  onPressed: onClose,
-                  icon: const Icon(Icons.close),
+                  onPressed: handle.dismiss,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    foregroundColor: Colors.white70,
+                  ),
+                  icon: const Icon(Icons.close, size: 20),
                 ),
               ],
             ),
           ),
-          Expanded(child: child),
         ],
+      ),
+    );
+    // Material (not a decorated box) so list tiles can paint ink inside.
+    return Glass(
+      radius: 28,
+      opacity: 0.94,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            header,
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
@@ -583,47 +634,50 @@ class _Dashboard extends StatelessWidget {
         : _card(context, type);
     return SizedBox.expand(
       child: RepaintBoundary(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _open(type),
-          onHorizontalDragEnd: (d) => _swiped(
-            context,
-            Axis.horizontal,
-            d.primaryVelocity ?? 0,
-            type,
-            isLeft,
-          ),
-          onVerticalDragEnd: (d) => _swiped(
-            context,
-            Axis.vertical,
-            d.primaryVelocity ?? 0,
-            type,
-            isLeft,
-          ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: isClock
-                  ? (settings.theme.panelColor ?? Colors.transparent)
-                  : _cardColor,
-              borderRadius: BorderRadius.circular(32),
+        child: Pressable(
+          scale: 0.985,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _open(type),
+            onHorizontalDragEnd: (d) => _swiped(
+              context,
+              Axis.horizontal,
+              d.primaryVelocity ?? 0,
+              type,
+              isLeft,
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(32),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                layoutBuilder: (current, previous) => Stack(
-                  fit: StackFit.expand,
-                  children: [...previous, ?current],
-                ),
-                child: KeyedSubtree(
-                  key: ValueKey(
-                    '${type.name}-${isClock
-                        ? settings.clockStyle.name
-                        : type == StandbyWidgetType.calendar
-                        ? settings.calendarStyle.name
-                        : ''}',
+            onVerticalDragEnd: (d) => _swiped(
+              context,
+              Axis.vertical,
+              d.primaryVelocity ?? 0,
+              type,
+              isLeft,
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: isClock
+                    ? (settings.theme.panelColor ?? Colors.transparent)
+                    : _cardColor,
+                borderRadius: BorderRadius.circular(32),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  layoutBuilder: (current, previous) => Stack(
+                    fit: StackFit.expand,
+                    children: [...previous, ?current],
                   ),
-                  child: content,
+                  child: KeyedSubtree(
+                    key: ValueKey(
+                      '${type.name}-${isClock
+                          ? settings.clockStyle.name
+                          : type == StandbyWidgetType.calendar
+                          ? settings.calendarStyle.name
+                          : ''}',
+                    ),
+                    child: content,
+                  ),
                 ),
               ),
             ),
@@ -748,8 +802,9 @@ class _Section extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w700,
             fontSize: nested ? 15 : 19,
+            letterSpacing: nested ? -0.1 : -0.35,
             color: nested ? Colors.white70 : Colors.white,
           ),
         ),
@@ -902,7 +957,7 @@ class _ClockBodyState extends State<_ClockBody> {
           child: Column(
             children: [
               if (style.showsDigits)
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.use24HourTime,
                   onChanged: (v) => set(settings.copyWith(use24HourTime: v)),
@@ -910,7 +965,7 @@ class _ClockBodyState extends State<_ClockBody> {
                 ),
               // only styles that can show seconds (digits or a second hand)
               if (style.supportsSeconds)
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.showSeconds,
                   onChanged: (v) => set(settings.copyWith(showSeconds: v)),
@@ -957,7 +1012,7 @@ class _CityRow extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: const Text(
         'Second city',
-        style: TextStyle(fontWeight: FontWeight.w800),
+        style: TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(name),
       trailing: const Icon(Icons.chevron_right),
@@ -1189,7 +1244,7 @@ class _WeatherSettings extends StatelessWidget {
           style: TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 8),
-        SwitchListTile(
+        SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           value: settings.fahrenheit,
           onChanged: (v) =>
@@ -1322,7 +1377,7 @@ class _AllSettings extends StatelessWidget {
           ),
           _Section(
             title: 'Weather',
-            child: SwitchListTile(
+            child: SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               value: settings.fahrenheit,
               onChanged: (v) => set(settings.copyWith(fahrenheit: v)),
@@ -1343,7 +1398,7 @@ class _AllSettings extends StatelessWidget {
             title: 'Display & battery',
             child: Column(
               children: [
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.autoBrightness,
                   onChanged: (v) => set(settings.copyWith(autoBrightness: v)),
@@ -1368,7 +1423,7 @@ class _AllSettings extends StatelessWidget {
                   max: 0.9,
                   onChanged: (v) => set(settings.copyWith(glowIntensity: v)),
                 ),
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.nightModeEnabled,
                   onChanged: (v) => set(settings.copyWith(nightModeEnabled: v)),
@@ -1378,7 +1433,7 @@ class _AllSettings extends StatelessWidget {
                   ),
                 ),
                 if (settings.nightModeEnabled) ...[
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
                     value: settings.nightByLight,
                     onChanged: (v) => set(settings.copyWith(nightByLight: v)),
@@ -1419,7 +1474,7 @@ class _AllSettings extends StatelessWidget {
                         ).format(context),
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       onTap: () async {
@@ -1448,7 +1503,7 @@ class _AllSettings extends StatelessWidget {
                         set(settings.copyWith(nightTintIntensity: v)),
                   ),
                 ],
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.burnInProtection,
                   onChanged: (v) => set(settings.copyWith(burnInProtection: v)),
@@ -1473,7 +1528,7 @@ class _AllSettings extends StatelessWidget {
                       ),
                   ],
                 ),
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.lowBatteryAlert,
                   onChanged: (v) => set(settings.copyWith(lowBatteryAlert: v)),
@@ -1512,12 +1567,12 @@ class _AllSettings extends StatelessWidget {
                         child: Text(
                           '${settings.lowBatteryLevel}%',
                           textAlign: TextAlign.end,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
                   ),
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.keepAwakeWhileCharging,
                   onChanged: (v) =>
@@ -1588,7 +1643,7 @@ class _ClockColors extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 10,
@@ -1723,7 +1778,7 @@ class _AutoStartSectionState extends State<_AutoStartSection> {
     final now = _now;
     return Column(
       children: [
-        SwitchListTile(
+        SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           value: s.autoStart,
           onChanged: (v) => set(s.copyWith(autoStart: v)),
@@ -1744,14 +1799,14 @@ class _AutoStartSectionState extends State<_AutoStartSection> {
               style: const TextStyle(color: Colors.white54, fontSize: 13),
             ),
           ),
-          SwitchListTile(
+          SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             value: s.autoLandscapeOnly,
             onChanged: (v) => set(s.copyWith(autoLandscapeOnly: v)),
             title: const Text('Landscape only'),
             subtitle: const Text('Turn on its side, like a bedside clock'),
           ),
-          SwitchListTile(
+          SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             value: s.autoExitOnUnplug,
             onChanged: (v) => set(s.copyWith(autoExitOnUnplug: v)),
@@ -1792,7 +1847,7 @@ class _AutoStartSectionState extends State<_AutoStartSection> {
           const SizedBox(height: 4),
           const Text(
             'Needed so it can open by itself',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           if (st != null) ...[
             _need(
@@ -1932,35 +1987,43 @@ class _PreviewTile extends StatelessWidget {
       button: true,
       selected: selected,
       label: name,
-      child: GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 96,
-          child: Column(
-            children: [
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                  color: selected ? Colors.white : Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 4),
-              DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: selected ? const Color(0xFF0A84FF) : Colors.white24,
-                    width: selected ? 3 : 1,
+      child: Pressable(
+        scale: 0.94,
+        child: GestureDetector(
+          onTap: () {
+            tick();
+            onTap();
+          },
+          child: SizedBox(
+            width: 96,
+            child: Column(
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? Colors.white : Colors.white70,
                   ),
                 ),
-                child: _MiniClock(settings: settings),
-              ),
-            ],
+                const SizedBox(height: 4),
+                DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF0A84FF)
+                          : Colors.white24,
+                      width: selected ? 3 : 1,
+                    ),
+                  ),
+                  child: _MiniClock(settings: settings),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2041,7 +2104,7 @@ class _EnumPicker<T> extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

@@ -1,3 +1,4 @@
+import '../../../core/apple.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
@@ -271,7 +272,7 @@ class CalendarCard extends StatelessWidget {
           style: TextStyle(
             color: settings.appAccentInk,
             fontSize: (unit / 10).clamp(16.0, 30.0),
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
             letterSpacing: 2,
           ),
         ),
@@ -319,7 +320,7 @@ class CalendarCard extends StatelessWidget {
                 style: TextStyle(
                   color: settings.appAccentInk,
                   fontSize: headerSize,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -394,7 +395,7 @@ class CalendarCard extends StatelessWidget {
               style: TextStyle(
                 color: today ? Colors.black : Colors.white,
                 fontSize: (size * 0.46).clamp(10.0, 24.0),
-                fontWeight: today ? FontWeight.w800 : FontWeight.w500,
+                fontWeight: today ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ),
@@ -606,7 +607,7 @@ class _MusicCardState extends State<MusicCard> {
                         style: scrubbing
                             ? _timeStyle.copyWith(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               )
                             : _timeStyle,
@@ -774,6 +775,7 @@ class _MusicCardState extends State<MusicCard> {
                       color: Colors.white,
                       fontSize: (unit / 12).clamp(18.0, 32.0),
                       fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   Text(
@@ -793,35 +795,35 @@ class _MusicCardState extends State<MusicCard> {
                     children: [
                       if (!compact)
                         _TransportButton(
-                          icon: Icons.replay_10,
+                          icon: Icons.replay_10_rounded,
                           label: 'Back 10 seconds',
                           size: button,
                           onPressed: () => onCommand('back10'),
                         ),
                       _TransportButton(
-                        icon: Icons.skip_previous,
+                        icon: Icons.skip_previous_rounded,
                         label: 'Previous',
                         size: button,
                         onPressed: () => onCommand('previous'),
                       ),
                       _TransportButton(
                         icon: snapshot.isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
                         label: snapshot.isPlaying ? 'Pause' : 'Play',
                         size: button * 1.2,
                         filled: true,
                         onPressed: () => onCommand('playPause'),
                       ),
                       _TransportButton(
-                        icon: Icons.skip_next,
+                        icon: Icons.skip_next_rounded,
                         label: 'Next',
                         size: button,
                         onPressed: () => onCommand('next'),
                       ),
                       if (!compact)
                         _TransportButton(
-                          icon: Icons.forward_10,
+                          icon: Icons.forward_10_rounded,
                           label: 'Forward 10 seconds',
                           size: button,
                           onPressed: () => onCommand('forward10'),
@@ -842,9 +844,8 @@ class _MusicCardState extends State<MusicCard> {
                 top: pad - 6,
                 child: IgnorePointer(
                   ignoring: !_showVolume,
-                  child: AnimatedOpacity(
-                    opacity: _showVolume ? 1 : 0,
-                    duration: const Duration(milliseconds: 180),
+                  child: Materialize(
+                    visible: _showVolume,
                     child: _showVolume
                         ? widget.volumeBar!(_keepVolumeOpen)
                         : const SizedBox(height: 48),
@@ -887,18 +888,21 @@ class _TransportButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: label,
-      child: Material(
-        color: filled ? Colors.white : Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
-          child: SizedBox.square(
-            dimension: size,
-            child: Icon(
-              icon,
-              size: size * 0.55,
-              color: filled ? Colors.black : Colors.white,
+      child: Pressable(
+        scale: 0.88,
+        child: Material(
+          color: filled ? Colors.white : Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: SizedBox.square(
+              dimension: size,
+              child: Icon(
+                icon,
+                size: size * 0.55,
+                color: filled ? Colors.black : Colors.white,
+              ),
             ),
           ),
         ),

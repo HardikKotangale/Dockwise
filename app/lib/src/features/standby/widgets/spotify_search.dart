@@ -129,7 +129,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
         ),
         const Text(
           'Search Spotify',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ],
     ),
@@ -245,7 +245,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
                   style: const TextStyle(
                     color: Colors.white54,
                     fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: 0.6,
                   ),
                 ),
