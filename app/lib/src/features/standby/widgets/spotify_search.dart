@@ -125,11 +125,15 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
         IconButton(
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
         ),
         const Text(
           'Search Spotify',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.4,
+          ),
         ),
       ],
     ),
@@ -245,7 +249,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
                   style: const TextStyle(
                     color: Colors.white54,
                     fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: 0.6,
                   ),
                 ),
@@ -327,10 +331,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
                 if (_keyboard)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    child: SizedBox(
-                      height: box.maxHeight * 0.34,
-                      child: _keys(),
-                    ),
+                    child: _keys(),
                   ),
               ],
             );

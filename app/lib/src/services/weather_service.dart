@@ -21,6 +21,25 @@ class WeatherService {
     final position = await _position();
     final lat = position.latitude.toStringAsFixed(3);
     final lon = position.longitude.toStringAsFixed(3);
+    return _fetch(lat, lon, city: await _cityName(lat, lon));
+  }
+
+  /// Weather for a chosen city (the second city), by its coordinates.
+  Future<WeatherSnapshot> fetchForCity({
+    required String city,
+    required double latitude,
+    required double longitude,
+  }) => _fetch(
+    latitude.toStringAsFixed(3),
+    longitude.toStringAsFixed(3),
+    city: city,
+  );
+
+  Future<WeatherSnapshot> _fetch(
+    String lat,
+    String lon, {
+    required String city,
+  }) async {
     try {
       final forecast = await _client
           .get(
@@ -28,8 +47,9 @@ class WeatherService {
               'latitude': lat,
               'longitude': lon,
               'current': 'temperature_2m,weather_code,is_day',
-              'daily': 'temperature_2m_max,temperature_2m_min',
-              'forecast_days': '1',
+              'hourly': 'temperature_2m,weather_code,is_day',
+              'daily': 'weather_code,temperature_2m_max,temperature_2m_min',
+              'forecast_days': '7',
               'timezone': 'auto',
             }),
           )
@@ -37,22 +57,9 @@ class WeatherService {
       if (forecast.statusCode != 200) {
         throw const WeatherException(WeatherProblem.offline);
       }
-      final body = jsonDecode(forecast.body) as Map<String, dynamic>;
-      final current = body['current'] as Map<String, dynamic>;
-      final daily = body['daily'] as Map<String, dynamic>;
-      final code = (current['weather_code'] as num?)?.round();
-      final temp = (current['temperature_2m'] as num).round();
-      return WeatherSnapshot(
-        city: await _cityName(lat, lon),
-        condition: conditionForCode(code),
-        temperatureCelsius: temp,
-        highCelsius: ((daily['temperature_2m_max'] as List).first as num)
-            .round(),
-        lowCelsius: ((daily['temperature_2m_min'] as List).first as num)
-            .round(),
-        updatedAt: DateTime.now(),
-        code: code,
-        isDay: (current['is_day'] as num?) != 0,
+      return parseForecast(
+        jsonDecode(forecast.body) as Map<String, dynamic>,
+        city: city,
       );
     } on WeatherException {
       rethrow;
@@ -131,4 +138,71 @@ String conditionForCode(int? code) {
   if (code == 85 || code == 86) return 'Snow showers';
   if (code >= 95) return 'Thunderstorm';
   return 'Weather';
+}
+
+/// Reads an Open-Meteo forecast answer (current, hourly and daily) into a
+/// [WeatherSnapshot]. Times are the place's own local times.
+WeatherSnapshot parseForecast(
+  Map<String, dynamic> body, {
+  required String city,
+}) {
+  final current = body['current'] as Map<String, dynamic>;
+  final daily = body['daily'] as Map<String, dynamic>;
+  final code = (current['weather_code'] as num?)?.round();
+  final highs = (daily['temperature_2m_max'] as List).cast<num>();
+  final lows = (daily['temperature_2m_min'] as List).cast<num>();
+  final dates = (daily['time'] as List?)?.cast<String>() ?? const [];
+  final codes = (daily['weather_code'] as List?) ?? const [];
+  final days = [
+    for (
+      var i = 0;
+      i < dates.length && i < highs.length && i < lows.length;
+      i++
+    )
+      ForecastDay(
+        date: DateTime.parse(dates[i]),
+        code: i < codes.length ? (codes[i] as num?)?.round() : null,
+        highCelsius: highs[i].round(),
+        lowCelsius: lows[i].round(),
+      ),
+  ];
+  // the next hours, starting with the current one
+  final hours = <ForecastHour>[];
+  final hourly = body['hourly'] as Map<String, dynamic>?;
+  if (hourly != null) {
+    final times = (hourly['time'] as List).cast<String>();
+    final temps = (hourly['temperature_2m'] as List).cast<num>();
+    final hcodes = (hourly['weather_code'] as List?) ?? const [];
+    final isDay = (hourly['is_day'] as List?) ?? const [];
+    final nowText = current['time'] as String?;
+    final now = nowText == null ? null : DateTime.tryParse(nowText);
+    for (var i = 0; i < times.length && i < temps.length; i++) {
+      final t = DateTime.parse(times[i]);
+      if (now != null &&
+          t.isBefore(DateTime(now.year, now.month, now.day, now.hour))) {
+        continue;
+      }
+      hours.add(
+        ForecastHour(
+          time: t,
+          code: i < hcodes.length ? (hcodes[i] as num?)?.round() : null,
+          temperatureCelsius: temps[i].round(),
+          isDay: i < isDay.length ? (isDay[i] as num?) != 0 : true,
+        ),
+      );
+      if (hours.length == 12) break;
+    }
+  }
+  return WeatherSnapshot(
+    city: city,
+    condition: conditionForCode(code),
+    temperatureCelsius: (current['temperature_2m'] as num).round(),
+    highCelsius: highs.first.round(),
+    lowCelsius: lows.first.round(),
+    updatedAt: DateTime.now(),
+    code: code,
+    isDay: (current['is_day'] as num?) != 0,
+    days: days,
+    hours: hours,
+  );
 }

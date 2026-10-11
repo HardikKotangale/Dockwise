@@ -1,25 +1,28 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:standby_pro/src/services/city_search.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:standby_pro/src/app.dart';
 import 'package:standby_pro/src/core/clock_cadence.dart';
 import 'package:standby_pro/src/core/night_mode_policy.dart';
 import 'package:standby_pro/src/core/pinch_layout.dart';
-import 'package:standby_pro/src/features/standby/widgets/battery_badge.dart';
-import 'package:standby_pro/src/features/standby/widgets/orientation_hint.dart';
 import 'package:standby_pro/src/domain/standby_models.dart';
-import 'package:standby_pro/src/state/standby_controller.dart';
+import 'package:standby_pro/src/features/standby/widgets/battery_badge.dart';
 import 'package:standby_pro/src/features/standby/widgets/clock_faces.dart';
 import 'package:standby_pro/src/features/standby/widgets/integration_cards.dart';
+import 'package:standby_pro/src/features/standby/widgets/orientation_hint.dart';
+import 'package:standby_pro/src/features/standby/widgets/summary_card.dart';
 import 'package:standby_pro/src/features/standby/widgets/weather_scene.dart';
-import 'package:intl/intl.dart';
+import 'package:standby_pro/src/services/city_search.dart';
+import 'package:standby_pro/src/services/spotify_service.dart'
+    show SpotifyDevice;
 import 'package:standby_pro/src/services/weather_service.dart';
+import 'package:standby_pro/src/state/standby_controller.dart';
 
 void main() {
   testWidgets('renders the StandBy screen with duo widgets and customization', (
@@ -102,6 +105,143 @@ void main() {
     );
     expect(find.text('OLED burn-in protection'), findsOneWidget);
   });
+
+  testWidgets(
+    'with one panel, All settings offers one widget, not left and right',
+    (tester) async {
+      await tester.pumpWidget(
+        const StandbyProApp(
+          initialSettings: StandbySettings(
+            layoutMode: StandbyLayoutMode.single,
+            leftWidget: StandbyWidgetType.weather,
+          ),
+        ),
+      );
+      await tester.tap(find.textContaining('Loading weather'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Widget'), findsOneWidget);
+      expect(find.text('Left widget'), findsNothing);
+      expect(find.text('Right widget'), findsNothing);
+    },
+  );
+
+  testWidgets('the Animations switch is there and turns the motion off', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const StandbyProApp(initialSettings: StandbySettings()),
+    );
+    await tester.tap(find.textContaining('Loading weather'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All settings'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Animations'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Animations'), findsOneWidget);
+    expect(const StandbySettings().animations, isTrue);
+    expect(
+      StandbySettings.fromJson(
+        const StandbySettings(animations: false).toJson(),
+      ).animations,
+      isFalse,
+    );
+  });
+
+  testWidgets(
+    'Float sits side by side in a wide panel and stacks in a tall one',
+    (tester) async {
+      Future<List<Offset>> digitsIn(Size panel) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: SizedBox.fromSize(
+                size: panel,
+                child: ClockFace(
+                  time: DateTime(2026, 1, 1, 10, 9),
+                  settings: const StandbySettings(
+                    clockStyle: ClockStyle.float,
+                    use24HourTime: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final texts = find.byType(Text);
+        return [
+          for (var i = 0; i < 4; i++) tester.getCenter(texts.at(i)),
+        ]; // 1, 0, 0, 9
+      }
+
+      final wide = await digitsIn(const Size(800, 300));
+      expect(wide[2].dx, greaterThan(wide[0].dx + 20)); // minutes to the right
+      expect((wide[2].dy - wide[0].dy).abs(), lessThan(5)); // on the same line
+      final tall = await digitsIn(const Size(300, 700));
+      expect(
+        tall[2].dy,
+        greaterThan(tall[0].dy + 20),
+      ); // minutes below the hours
+      expect((tall[2].dx - tall[0].dx).abs(), lessThan(5));
+    },
+  );
+
+  testWidgets(
+    'tapping the music source lists devices and plays on the one you pick',
+    (tester) async {
+      String? played;
+      String? source;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 420,
+              child: MusicCard(
+                snapshot: const NowPlayingSnapshot(
+                  title: 'Song',
+                  artist: 'Artist',
+                  source: 'Spotify · iPhone',
+                  progress: 0.1,
+                  isPlaying: true,
+                  isControllable: true,
+                  durationMs: 200000,
+                  positionMs: 20000,
+                ),
+                settings: const StandbySettings(),
+                onCommand: (_) async => true,
+                currentSource: 'auto',
+                onSource: (id) => source = id,
+                loadDevices: () async => const [
+                  SpotifyDevice('a1', 'iPhone', 'Smartphone', true),
+                  SpotifyDevice('m1', 'MacBook Pro', 'Computer', false),
+                ],
+                onDevice: (id) => played = id,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Spotify · iPhone'));
+      await tester.pumpAndSettle();
+      expect(find.text('MacBook Pro'), findsOneWidget);
+      await tester.tap(find.text('MacBook Pro'));
+      await tester.pumpAndSettle();
+      expect(played, 'm1');
+      expect(source, isNull);
+
+      await tester.tap(find.text('Spotify · iPhone'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Auto'));
+      await tester.pumpAndSettle();
+      expect(source, 'auto');
+    },
+  );
 
   testWidgets('world clock shows exactly two times, 12-hour with AM/PM', (
     tester,
@@ -323,7 +463,7 @@ void main() {
     await tester.tap(find.text('Tap to add a city'));
     await tester.pumpAndSettle();
 
-    final screen = const Rect.fromLTWH(0, 0, 400, 800);
+    const screen = Rect.fromLTWH(0, 0, 400, 800);
     expect(screen.contains(tester.getCenter(find.text('q'))), isTrue);
     expect(find.byType(TextField), findsOneWidget);
     expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
@@ -471,6 +611,23 @@ void main() {
     );
   });
 
+  // every span of every RichText under the clock (the digits are separate texts)
+  List<TextSpan> clockSpans(WidgetTester tester) {
+    final spans = <TextSpan>[];
+    for (final r in tester.widgetList<RichText>(
+      find.descendant(
+        of: find.byType(ClockFace),
+        matching: find.byType(RichText),
+      ),
+    )) {
+      r.text.visitChildren((s) {
+        if (s is TextSpan && s.text != null) spans.add(s);
+        return true;
+      });
+    }
+    return spans;
+  }
+
   testWidgets('two-color clock paints hours white and minutes blue', (
     tester,
   ) async {
@@ -487,12 +644,7 @@ void main() {
       ),
     );
 
-    final root = tester.widget<RichText>(find.byType(RichText).first).text;
-    final spans = <TextSpan>[];
-    root.visitChildren((s) {
-      if (s is TextSpan && s.text != null) spans.add(s);
-      return true;
-    });
+    final spans = clockSpans(tester);
     Color? colorOf(String text) =>
         spans.firstWhere((s) => s.text == text).style?.color;
 
@@ -510,14 +662,10 @@ void main() {
       ),
     );
 
-    final root = tester.widget<RichText>(find.byType(RichText).first).text;
-    final colors = <Color?>{};
-    root.visitChildren((s) {
-      if (s is TextSpan && (s.text == '10' || s.text == '25')) {
-        colors.add(s.style?.color);
-      }
-      return true;
-    });
+    final colors = <Color?>{
+      for (final s in clockSpans(tester))
+        if (s.text == '10' || s.text == '25') s.style?.color,
+    };
     expect(colors, hasLength(1));
   });
 
@@ -573,7 +721,10 @@ void main() {
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     final hours = spans.firstWhere((s) => s.text == two(now.hour));
-    final minutes = spans.firstWhere((s) => s.text == two(now.minute));
+    // at 01:01 hours and minutes read the same: the minutes are the second match
+    final minutes = spans
+        .where((s) => s.text == two(now.minute))
+        .elementAt(now.hour == now.minute ? 1 : 0);
     expect(hours.style?.color, const Color(0xFFFFFFFF)); // white offered
     expect(minutes.style?.color, const Color(0xFF0A84FF));
     expect(clockPalette.first.argb, 0xFFFFFFFF); // white is the first swatch
@@ -749,18 +900,19 @@ void main() {
       ),
     );
     await tester.pump();
-    final clock = find.byType(RichText).first;
-    final box = tester.getRect(clock);
-
-    // tap the left end (hours digits): dock opens with Hours highlighted
-    await tester.tapAt(Offset(box.left + box.width * 0.12, box.center.dy));
+    final clockText = find.descendant(
+      of: find.byType(ClockFace),
+      matching: find.byType(RichText),
+    );
+    // portrait: the hours sit over the minutes, each its own text
+    // tap the hours: the dock opens with Hours highlighted
+    await tester.tapAt(tester.getCenter(clockText.first));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('row-hours-active')), findsOneWidget);
     expect(find.byKey(const ValueKey('row-minutes-active')), findsNothing);
 
-    // tap the right end (minutes digits): highlight moves to Minutes
-    final box2 = tester.getRect(find.byType(RichText).first);
-    await tester.tapAt(Offset(box2.left + box2.width * 0.9, box2.center.dy));
+    // tap the minutes: the highlight moves to Minutes
+    await tester.tapAt(tester.getCenter(clockText.at(2)));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('row-minutes-active')), findsOneWidget);
     expect(find.byKey(const ValueKey('row-hours-active')), findsNothing);
@@ -829,7 +981,11 @@ void main() {
         const Color(0xFFFFFFFF),
       );
       expect(
-        spans.firstWhere((s) => s.text == two(now.minute)).style?.color,
+        spans
+            .where((s) => s.text == two(now.minute))
+            .elementAt(now.hour == now.minute ? 1 : 0)
+            .style
+            ?.color,
         const Color(0xFFFF453A),
       );
     },
@@ -1322,8 +1478,6 @@ void main() {
     for (final t in ['Style', 'Presets', 'Clock colors', 'Options']) {
       expect(find.text(t), findsOneWidget, reason: t);
     }
-    // a divider line between the sections
-    expect(find.byType(Divider), findsAtLeastNWidgets(4));
   });
 
   testWidgets(
@@ -1582,9 +1736,12 @@ void main() {
     await b.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.textContaining('Loading weather'), findsNothing); // one panel
-    expect(find.text('One panel'), findsOneWidget); // dark pop-up
+    expect(find.text('One panel'), findsNothing); // no pop-up any more
     expect(find.byType(SnackBar), findsNothing); // not a light snackbar
+    await tester.pump(
+      const Duration(milliseconds: 1500),
+    ); // the panel folds away
+    expect(find.textContaining('Loading weather'), findsNothing); // one panel
 
     // pinch together: back to TWO panels; the pinch must not swipe a card
     await tester.pump(const Duration(seconds: 2));
@@ -1596,8 +1753,8 @@ void main() {
     await e.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Two panels'), findsNothing);
     expect(find.textContaining('Loading weather'), findsOneWidget);
-    expect(find.text('Two panels'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2)); // let the pop-up timer end
   });
 
@@ -1623,12 +1780,12 @@ void main() {
     await b.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('One panel'), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
     expect(
       find.textContaining('Loading weather'),
       findsOneWidget,
     ); // weather stays
-    expect(find.text('One panel'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
 
     // pinch back out: the clock is on the left again, weather on the right
     final d = await tester.startGesture(Offset(c.width * 0.15, y), pointer: 3);
@@ -1638,7 +1795,7 @@ void main() {
     await d.up();
     await e.up();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 1500));
     final weather = tester.getCenter(find.textContaining('Loading weather'));
     expect(weather.dx, greaterThan(c.width / 2)); // back on the right
     await tester.pump(const Duration(seconds: 2));
@@ -1665,6 +1822,107 @@ void main() {
     expect(find.text('One panel'), findsNothing);
     expect(find.text('Two panels'), findsNothing);
   });
+
+  testWidgets(
+    'the Summary panel shows two clocks, the date, weather and music',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 420);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final commands = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 880,
+              height: 400,
+              child: SummaryCard(
+                now: DateTime(2026, 10, 11, 14, 5),
+                settings: const StandbySettings(
+                  worldZone: 'Asia/Tokyo',
+                  worldCity: 'Tokyo',
+                ),
+                weather: const ColoredBox(color: Colors.blue),
+                music: MusicCard(
+                  snapshot: const NowPlayingSnapshot(
+                    title: 'Blinding Lights',
+                    artist: 'The Weeknd',
+                    source: 'Spotify · MacBook Pro',
+                    progress: 0.3,
+                    isPlaying: true,
+                    isControllable: true,
+                    durationMs: 200000,
+                    positionMs: 60000,
+                  ),
+                  settings: const StandbySettings(),
+                  onCommand: (c) async {
+                    commands.add(c);
+                    return true;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('SUNDAY'), findsOneWidget);
+      expect(find.text('11'), findsOneWidget);
+      expect(find.textContaining('Tokyo'), findsOneWidget);
+      expect(find.text('Blinding Lights'), findsOneWidget);
+      await tester.tap(find.byTooltip('Next'));
+      await tester.tap(find.byTooltip('Pause'));
+      expect(commands, ['next', 'playPause']);
+    },
+  );
+
+  testWidgets(
+    'the Summary panel fits phones in portrait and landscape without overflow',
+    (tester) async {
+      for (final size in const [
+        Size(360, 640),
+        Size(390, 800),
+        Size(820, 380),
+        Size(700, 360),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox.fromSize(
+                  size: size,
+                  child: SummaryCard(
+                    now: DateTime(2026, 10, 11, 14, 5),
+                    settings: const StandbySettings(
+                      worldZone: 'Asia/Tokyo',
+                      worldCity: 'Tokyo',
+                    ),
+                    weather: const ColoredBox(color: Colors.blue),
+                    music: MusicCard(
+                      snapshot: const NowPlayingSnapshot(
+                        title: 'A fairly long song title that keeps going',
+                        artist: 'An artist with a long name too',
+                        source: 'Spotify',
+                        progress: 0.3,
+                        isPlaying: false,
+                        isControllable: true,
+                        durationMs: 200000,
+                        positionMs: 60000,
+                      ),
+                      settings: const StandbySettings(),
+                      onCommand: (_) async => true,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: '$size');
+      }
+    },
+  );
 
   testWidgets('the flip clock shows a seconds tile when seconds are on', (
     tester,
@@ -1915,6 +2173,9 @@ void main() {
       WidgetTester tester, {
       required Size screen,
       required List<DeviceOrientation> turned,
+      bool mirror = false,
+      HeldOrientation? side,
+      bool auto = false,
     }) async {
       tester.view.physicalSize = screen;
       tester.view.devicePixelRatio = 1;
@@ -1927,6 +2188,9 @@ void main() {
             body: OrientationHint(
               readings: readings.stream,
               onRotate: turned.add,
+              mirrorLandscape: mirror,
+              screenSide: () async => side,
+              auto: auto,
             ),
           ),
         ),
@@ -1957,6 +2221,103 @@ void main() {
         1,
       );
       await tester.tap(find.byTooltip('Rotate to landscape'));
+      expect(turned, [DeviceOrientation.landscapeLeft]);
+    });
+
+    testWidgets('on iPhone the two landscapes are swapped (it names them by '
+        'the home-button side), so the screen is not turned upside down', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+        mirror: true,
+      );
+      r.add((9.7, 0.3, 0.5)); // top of the phone turned to the left
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byTooltip('Rotate to landscape'));
+      expect(turned, [DeviceOrientation.landscapeRight]);
+    });
+
+    testWidgets(
+      'flipped 180 degrees with the screen locked: offers to flip it',
+      (tester) async {
+        final turned = <DeviceOrientation>[];
+        final r = await mount(
+          tester,
+          screen: const Size(800, 400), // landscape screen
+          turned: turned,
+          side: HeldOrientation.landscapeLeft, // screen is turned this way...
+        );
+        r.add((-9.7, 0.3, 0.5)); // ...but the phone is now held the other way
+        await tester.pump(const Duration(milliseconds: 1500));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byTooltip('Flip the screen'));
+        expect(turned, [DeviceOrientation.landscapeRight]);
+      },
+    );
+
+    testWidgets('screen already matches the way the phone is held: no prompt', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(800, 400),
+        turned: turned,
+        side: HeldOrientation.landscapeLeft,
+      );
+      r.add((9.7, 0.3, 0.5));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byTooltip('Flip the screen'), findsNothing);
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        0,
+      );
+    });
+
+    testWidgets('auto: turning the phone sideways turns the screen, once', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+        auto: true,
+      );
+      r.add((9.7, 0.3, 0.5));
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(turned, [DeviceOrientation.landscapeLeft]);
+      // the screen has not followed (a stubborn system): it does not retry
+      await tester.pump(const Duration(seconds: 5));
+      expect(turned.length, 1);
+    });
+
+    testWidgets('auto: no turning while fingers are swiping the screen', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+        auto: true,
+      );
+      r.add((9.7, 0.3, 0.5)); // the phone tilts as it is swiped...
+      await tester.pump(const Duration(milliseconds: 1000));
+      await tester.tapAt(
+        const Offset(200, 300),
+      ); // ...and a finger was just on it
+      await tester.pump(const Duration(milliseconds: 800)); // timer fires now
+      expect(turned, isEmpty);
+      await tester.pump(const Duration(milliseconds: 3000)); // quiet again
+      await tester.pump(const Duration(milliseconds: 500));
       expect(turned, [DeviceOrientation.landscapeLeft]);
     });
 

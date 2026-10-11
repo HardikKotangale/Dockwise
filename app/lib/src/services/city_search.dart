@@ -6,7 +6,13 @@ class CityResult {
     required this.name,
     required this.region,
     required this.timezone,
+    this.latitude,
+    this.longitude,
   });
+
+  /// Where it is, when the search said (the offline list does not).
+  final double? latitude;
+  final double? longitude;
 
   final String name;
   final String region; // "Massachusetts, United States"
@@ -45,6 +51,8 @@ Future<List<CityResult>> searchCities(
             r['country'],
           ].whereType<String>().where((v) => v.isNotEmpty).join(', '),
           timezone: r['timezone'] as String,
+          latitude: (r['latitude'] as num?)?.toDouble(),
+          longitude: (r['longitude'] as num?)?.toDouble(),
         ),
   ];
 }

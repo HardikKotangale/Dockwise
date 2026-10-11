@@ -140,7 +140,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
 
   @override
   Widget build(BuildContext context) {
-    const heading = TextStyle(fontWeight: FontWeight.w900, fontSize: 17);
+    const heading = TextStyle(fontWeight: FontWeight.w700, fontSize: 17);
     final source = c.settings.musicSource;
     void pick(String value) =>
         c.updateSettings(c.settings.copyWith(musicSource: value));
@@ -223,7 +223,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
               const Expanded(
                 child: Text(
                   'Play on',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
               IconButton(
@@ -256,7 +256,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
           const SizedBox(height: 12),
           const Text(
             'Playlists',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           FutureBuilder<List<SpotifyPlaylist>>(
             future: _playlists,
@@ -355,6 +355,8 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
   @override
   void initState() {
     super.initState();
+    // the last device list, so the bar is there on the very first tap
+    _device = c.lastSpotifyDevices.where((d) => d.isActive).firstOrNull;
     _refresh();
     _lastSource = c.snapshots.nowPlaying.source;
     c.addListener(_onController);
@@ -424,7 +426,23 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
   @override
   Widget build(BuildContext context) {
     final d = _device;
-    if (d == null) return const SizedBox.shrink();
+    if (d == null) {
+      // still asking Spotify which device is playing: show the bar, not nothing
+      return widget.compact
+          ? Container(
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : const SizedBox.shrink();
+    }
     final locked = d.volume == null;
     final value = (_drag ?? d.volume?.toDouble() ?? 0).clamp(0.0, 100.0);
     final level = value.round();
@@ -499,7 +517,7 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
                   textAlign: TextAlign.end,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -545,14 +563,14 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
                             : 'Volume · ${d.name}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                     if (!locked)
                       Text(
                         '$level%',
                         style: const TextStyle(
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700,
                           fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),

@@ -6,7 +6,7 @@
 
 Dockwise turns a charging phone into a bedside display: big readable clocks, live weather, a calendar and a Spotify now-playing card, designed for a dark room. It is built with Flutter for Android and iPhone, and is based on the open-source Standby Pro project.
 
-The look is inspired by iOS StandBy, but the layouts, themes, controls and motion are original.
+The look is inspired by iOS StandBy, but the layouts, themes, controls and motion are original. Version 3 gives the whole interface an iOS feel: springs instead of fixed-time animations, glass surfaces, press feedback on touch-down, and layouts that rearrange themselves when you turn the phone.
 
 <p align="center">
   <img src="docs/screenshots/frame-fullscreen.png" width="49%" alt="Frame clock filling the whole screen">
@@ -20,7 +20,52 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
   <img src="docs/screenshots/settings-dock.png" width="60%" alt="Live-preview settings dock">
 </p>
 
-*Screenshots from an Android phone.*
+*The clock screenshots are from an Android phone. The settings dock and the music screenshots below are rendered from the app's own widgets with sample data (`app/tool`), so they show the current look.*
+
+## What's new in v3
+
+**Clocks follow the phone's orientation.** Held upright, Digital, Mono, Flip, Float and World stack the hours over the minutes so the digits fill the tall screen; turned sideways they go back on one line. The parts glide between the two arrangements on a spring: the hours rise to the top, the minutes settle at the bottom, the colon folds away. With two panels, World and Flip stay on one line whichever way the phone is held.
+
+<p align="center">
+  <img src="docs/clock-rotate.gif" width="52%" alt="Digital, Flip and World clocks gliding between one line and stacked hours over minutes">
+</p>
+
+**Summary panel.** A fifth panel with five tiles: the time here, the time in a second city, today's date, the weather and the music card (the very same card as the Music panel, so it keeps seek, devices, volume, queue and search). The tiles deal in one after another like little cards. Hold any tile and they all start to jiggle like the iOS home screen: drag one onto another to swap them, drag the music tile to another column, and tap Done. The arrangement is saved. Tap the second city to search for another. It is only available with one panel.
+
+<p align="center">
+  <img src="docs/summary-cards.gif" width="75%" alt="Summary panel: cards deal in, then are rearranged by dragging">
+</p>
+
+**Page indicator.** After you swipe to another panel, a row of small symbols (clock, sun, calendar, note, dashboard) appears for a moment, then fades. Press one and slide: a glass strip lists every page and lights the one under your finger (Weather, then Calendar, then Music, then Summary); lift your finger to go there. A tap does the same. While the symbols are hidden, the first touch only brings them back.
+
+<p align="center">
+  <img src="docs/page-dots.gif" width="75%" alt="Page indicator: press, slide across the pages, lift to go there">
+</p>
+
+**Weather has four pages**, swiped up and down, with small dots and a name for each (the second city's own name once you have chosen one):
+1. now, with the animated scene
+2. the same card in Fahrenheit
+3. the forecast: the next hours, then the days ahead with a range bar for each
+4. the weather in your second city (the same city search as the second clock)
+
+The Summary panel's weather tile swipes through the same four pages. The clock (its styles) and the calendar (Today / Month) show the same dots and a name after an up or down swipe.
+
+<p align="center">
+  <img src="docs/weather-pages.gif" width="48%" alt="Weather card pages: now, Fahrenheit, forecast, second city">
+</p>
+
+**Music card buttons.** Pressing a button springs it in and out with a soft glow, Play and Pause morph into each other, Previous and Next hop in their direction. Hold a button and a glass label names it; hold Next to see the song that is coming. Tap the source at the top to pick a device (your Mac, a speaker) from a list, like AirPlay's.
+
+<p align="center">
+  <img src="docs/music-buttons.gif" width="40%" alt="Music card: press feedback, play and pause morph, a hold label naming the next song">
+</p>
+
+**Also new**
+- **Settings in iOS style:** a dock that springs open and can be dragged away by its header (a flick sends it where the flick was heading), grouped sections, iOS-style switches, sliders and chips, bouncing scroll, and a compact keyboard whose keys are larger in portrait.
+- **Animations switch** (All settings): turns off every spring, slide and the moving weather backdrop to save battery. The phone's own Reduce Motion setting does the same.
+- **Rotation follows the phone while rotation lock is on:** turn the phone sideways and the screen follows after a moment, turn it back and it returns. If you flip it 180 degrees (landscape to the other landscape) it turns the screen over too. It waits until you stop touching the screen, so swiping never rotates it.
+
+*All animations in this section are recorded from the app's own widgets with sample data (`app/tool/readme_gifs_test.dart`).*
 
 ## Spotify and music
 
@@ -65,9 +110,10 @@ The music card has three small buttons in its header: **queue**, **search** and 
 - 12/24-hour time, optional seconds, adjustable size, no per-second layout jumps.
 
 **Cards**
-- **Weather:** animated Apple-style scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location.
-- **Calendar:** today or the whole month.
-- **Music:** now playing with transport, 10-second skips, hold-the-progress-bar to seek, and Spotify volume.
+- **Weather:** animated Apple-style scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location, with Fahrenheit, forecast and second-city pages (swipe up and down).
+- **Calendar:** today or the whole month (swipe up or down).
+- **Music:** now playing with a sharp album cover over a soft blurred backdrop, transport, 10-second skips, hold-the-progress-bar to seek, a device menu and Spotify volume.
+- **Summary:** time here and in a second city, the date, the weather and the music card in one rearrangeable panel.
 
 **Spotify**
 - Sign in with Spotify and control playback on any device: a Mac, a speaker, a TV or the phone itself (Spotify Premium is needed for control).
@@ -78,8 +124,9 @@ The music card has three small buttons in its header: **queue**, **search** and 
 
 **Layout and gestures**
 - **Fits any screen:** Dockwise reads the screen size once at start and lays everything out on a standard phone size, then scales the whole interface to the real screen. An iPhone 15, an iPhone 17 Pro Max and a tablet show the same composition at their own size, in portrait and landscape.
-- One or two panels. Pinch with two fingers: spread = one panel (the one you spread on), pinch together = two panels, back in the original order. One-finger swipes change the card.
-- Tap any panel to open a settings dock whose changes preview live behind it.
+- One or two panels. Pinch with two fingers: spread = one panel (the one you spread on), pinch together = two panels (the panels slide apart or together on a spring), back in the original order.
+- Swipe sideways to change the card, swipe up or down to change the clock style, the calendar view or the weather page.
+- Tap any panel to open a settings dock whose changes preview live behind it. Drag the dock's header to move it away.
 
 **Night and battery**
 - **Auto brightness:** the screen stays on while charging and follows the room light, like Apple's StandBy: dimmer in a dark bedroom, up to the brightness you set in daylight. It reads the light sensor and eases between levels, so a passing shadow does not flicker it.
@@ -91,8 +138,8 @@ The music card has three small buttons in its header: **queue**, **search** and 
 - **Battery badge:** a tiny percentage in the top-right corner, shown only when the battery is not full on the charger (grey on battery, green charging, red when low).
 - **Low-battery prompt:** at a level you choose (5-50%, default 20%) and not charging, a full-screen "Charge your phone" prompt appears until you plug in. It can be turned off in settings.
 
-**Rotation hint**
-- If the screen is not turned the way you are holding the phone (for example iPhone rotation lock is on), a small rotate symbol appears at the bottom edge. It uses the phone's gravity sensor, and tapping it turns Dockwise to landscape or portrait. It stays hidden when the screen already matches.
+**Rotation**
+- If the screen is not turned the way you are holding the phone (for example iPhone rotation lock is on), Dockwise follows the phone by itself after a moment, using the gravity sensor, and a small rotate symbol at the bottom edge works as a manual fallback. It also notices when the phone is flipped 180 degrees. It never rotates while you are touching the screen.
 
 **Auto-start (Android only)**
 - Opens Dockwise by itself when the phone is charging and propped up in landscape, and closes it when you unplug. Details below.
@@ -112,7 +159,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
   <img src="docs/low-battery-prompt.gif" width="46%" alt="Low-battery prompt">
 </p>
 
-*Weather and low-battery animations use sample data.*
+*Every animation is recorded from the app's own widgets with sample data (`app/tool`).*
 
 ## Platforms
 
@@ -126,7 +173,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 | Spotify account control and volume | Yes | Yes |
 | Battery badge and low-battery prompt | Yes | Yes |
 | Spotify search and queue | Yes | Yes |
-| Rotation hint (works with rotation lock on) | Yes | Yes |
+| Follows the phone's rotation (works with rotation lock on) | Yes | Yes |
 | Show and control music from other apps on the phone | Yes | No (iOS does not allow it) |
 | Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) |
 
@@ -234,14 +281,15 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 ## Project Layout
 
 - `app/lib/src/domain`: settings, themes, presets and the data shown on the cards.
-- `app/lib/src/core`: pinch gesture, night-mode policy, clock cadence and burn-in policy.
-- `app/lib/src/features/standby`: the main screen, settings docks, clock faces, weather scenes, music and battery widgets.
+- `app/lib/src/core`: pinch gesture, night-mode policy, clock cadence and burn-in policy, and `motion/` (springs, press feedback, glass, the page indicator, the clock morph).
+- `app/lib/src/features/standby`: the main screen and dashboard, `settings/` pages, `widgets/` (one file per clock style under `clock/`, weather, calendar, music and Summary cards, battery, keyboard).
 - `app/lib/src/services`: Spotify, weather, city search and the native bridge.
 - `app/android/.../standbypro`: auto-start service, posture (tilt) logic, media session bridge.
 - `app/ios/Runner`: small Swift bridge for keep-awake and brightness.
 - `scripts`: one-command setup for macOS and Windows. `requirements.txt` lists everything the project needs.
 - `spec`: formal models (PlusCal, checked with the TLC model checker) of the posture detection and the auto-launch logic, with the bugs they found. See [spec/README.md](spec/README.md).
-- `docs`: screenshots and animations used in this README.
+- `docs`: screenshots and animations used in this README, and [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- `app/tool`: records the README animations (`flutter test tool/readme_gifs_test.dart`, then `python3 tool/frames_to_gif.py`).
 
 ## License
 

@@ -98,7 +98,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
     await Future.delayed(
       const Duration(milliseconds: 800),
     ); // let Spotify catch up
-    if (mounted) _load();
+    if (mounted) unawaited(_load());
   }
 
   Widget _art(SpotifyHit hit) {
@@ -136,7 +136,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
       style: const TextStyle(
         color: Colors.white54,
         fontSize: 12,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
         letterSpacing: 0.6,
       ),
     ),
@@ -215,7 +215,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                 const Expanded(
                   child: Text(
                     'Queue',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                 ),
                 if (widget.onSearch != null)
