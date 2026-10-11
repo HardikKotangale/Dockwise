@@ -230,21 +230,6 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                       touch: _touch,
                                       closeDock: () =>
                                           _dockKey.currentState?.dismiss(),
-                                      onSummary: (center, direction) {
-                                        final size = MediaQuery.sizeOf(context);
-                                        final duo =
-                                            settings.layoutMode ==
-                                            StandbyLayoutMode.duo;
-                                        final onSecond =
-                                            duo &&
-                                            (landscape
-                                                ? center.dx > size.width / 2
-                                                : center.dy > size.height / 2);
-                                        tick();
-                                        _controller.toggleSummary(
-                                          left: !onSecond,
-                                        );
-                                      },
                                       onPinch: (mode, center) {
                                         if (mode == settings.layoutMode) return;
                                         // zooming into a panel keeps that panel, not always the left one

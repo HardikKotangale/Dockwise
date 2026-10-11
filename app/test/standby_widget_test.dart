@@ -1823,47 +1823,6 @@ void main() {
     expect(find.text('Two panels'), findsNothing);
   });
 
-  testWidgets('a three-finger swipe goes to Summary, and again goes back', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    tester.view.physicalSize = const Size(900, 420);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      const StandbyProApp(
-        initialSettings: StandbySettings(layoutMode: StandbyLayoutMode.single),
-      ),
-    );
-    await tester.pump();
-    expect(find.byType(SummaryCard), findsNothing);
-
-    Future<void> threeFingerSwipe(Offset by) async {
-      final start = [
-        const Offset(300, 200),
-        const Offset(380, 200),
-        const Offset(460, 200),
-      ];
-      final fingers = [
-        for (var i = 0; i < 3; i++)
-          await tester.startGesture(start[i], pointer: 10 + i),
-      ];
-      for (final f in fingers) {
-        await f.moveBy(by);
-      }
-      for (final f in fingers) {
-        await f.up();
-      }
-      await tester.pumpAndSettle();
-    }
-
-    await threeFingerSwipe(const Offset(-120, 0)); // any direction works
-    expect(find.byType(SummaryCard), findsOneWidget);
-    await threeFingerSwipe(const Offset(0, 120));
-    expect(find.byType(SummaryCard), findsNothing);
-    expect(find.byType(ClockFace), findsOneWidget); // back on the clock
-  });
-
   testWidgets(
     'the Summary panel shows two clocks, the date, weather and music',
     (tester) async {

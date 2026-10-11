@@ -15,57 +15,39 @@ void main() {
     return c;
   }
 
-  test('a three-finger swipe sends the one panel to Summary and back', () {
+  test('with one panel, swiping sideways reaches Summary after Music', () {
     final c = make(
-      const StandbySettings(
-        layoutMode: StandbyLayoutMode.single,
-        leftWidget: StandbyWidgetType.weather,
-      ),
-    );
-    c.toggleSummary(left: true);
-    expect(c.settings.leftWidget, StandbyWidgetType.summary);
-    c.toggleSummary(left: true);
-    expect(c.settings.leftWidget, StandbyWidgetType.weather); // where it was
-  });
-
-  test('with two panels there is no Summary: the swipe does nothing', () {
-    final c = make(const StandbySettings());
-    c.toggleSummary(left: true);
-    c.toggleSummary(left: false);
-    expect(c.settings.leftWidget, StandbyWidgetType.clock);
-    expect(c.settings.rightWidget, StandbyWidgetType.weather);
-  });
-
-  test('swiping through widgets skips Summary with two panels only', () {
-    final duo = make(const StandbySettings());
-    for (var i = 0; i < 6; i++) {
-      duo.cyclePanelWidget(left: false, step: 1);
-      expect(duo.settings.rightWidget, isNot(StandbyWidgetType.summary));
-    }
-    final single = make(
       const StandbySettings(
         layoutMode: StandbyLayoutMode.single,
         leftWidget: StandbyWidgetType.music,
       ),
     );
-    single.cyclePanelWidget(left: true, step: 1);
-    expect(single.settings.leftWidget, StandbyWidgetType.summary);
+    c.cyclePanelWidget(left: true, step: 1);
+    expect(c.settings.leftWidget, StandbyWidgetType.summary);
+    c.cyclePanelWidget(left: true, step: 1);
+    expect(c.settings.leftWidget, StandbyWidgetType.clock); // wraps round
+  });
+
+  test('with two panels there is no Summary in the swipe order', () {
+    final c = make(const StandbySettings());
+    for (var i = 0; i < 6; i++) {
+      c.cyclePanelWidget(left: false, step: 1);
+      expect(c.settings.rightWidget, isNot(StandbyWidgetType.summary));
+    }
   });
 
   test(
-    'going to two panels while on Summary returns that panel to what it was',
+    'going to two panels while on Summary gives that panel something else',
     () {
       final c = make(
         const StandbySettings(
           layoutMode: StandbyLayoutMode.single,
-          leftWidget: StandbyWidgetType.calendar,
+          leftWidget: StandbyWidgetType.summary,
         ),
       );
-      c.toggleSummary(left: true);
-      expect(c.settings.leftWidget, StandbyWidgetType.summary);
       c.setLayout(StandbyLayoutMode.duo);
       expect(c.settings.layoutMode, StandbyLayoutMode.duo);
-      expect(c.settings.leftWidget, StandbyWidgetType.calendar);
+      expect(c.settings.leftWidget, StandbyWidgetType.clock);
       expect(c.settings.rightWidget, isNot(StandbyWidgetType.summary));
     },
   );

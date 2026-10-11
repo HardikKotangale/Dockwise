@@ -176,8 +176,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// With two panels there is no Summary: whichever panel had it goes back to
-  /// what it showed before.
+  /// With two panels there is no Summary: the left panel goes back to the
+  /// clock, the right one to the weather.
   StandbySettings _noSummaryInDuo(StandbySettings v) {
     if (v.layoutMode != StandbyLayoutMode.duo) return v;
     if (v.leftWidget != StandbyWidgetType.summary &&
@@ -185,10 +185,10 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       return v;
     }
     final l = v.leftWidget == StandbyWidgetType.summary
-        ? (_beforeSummaryLeft ?? StandbyWidgetType.clock)
+        ? StandbyWidgetType.clock
         : v.leftWidget;
     var r = v.rightWidget == StandbyWidgetType.summary
-        ? (_beforeSummaryRight ?? StandbyWidgetType.weather)
+        ? StandbyWidgetType.weather
         : v.rightWidget;
     if (l == r) {
       r = l == StandbyWidgetType.clock
@@ -259,42 +259,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Swipe a panel sideways to flip it to the next/previous widget.
   /// Skips the widget already shown in the other panel.
-  // what each panel showed before a three-finger swipe sent it to Summary
-  StandbyWidgetType? _beforeSummaryLeft;
-  StandbyWidgetType? _beforeSummaryRight;
-
-  /// Three-finger swipe: this panel jumps to Summary; swipe again to go back
-  /// to what it showed before.
-  void toggleSummary({required bool left}) {
-    final current = left ? settings.leftWidget : settings.rightWidget;
-    final other = left ? settings.rightWidget : settings.leftWidget;
-    final duo = settings.layoutMode == StandbyLayoutMode.duo;
-    if (duo) return; // Summary fills the screen: one panel only
-    StandbyWidgetType next;
-    if (current == StandbyWidgetType.summary) {
-      next =
-          (left ? _beforeSummaryLeft : _beforeSummaryRight) ??
-          StandbyWidgetType.clock;
-      if (duo && next == other) next = StandbyWidgetType.clock;
-      if (duo && next == other) next = StandbyWidgetType.weather;
-    } else {
-      if (duo && other == StandbyWidgetType.summary) return; // already shown
-      if (left) {
-        _beforeSummaryLeft = current;
-      } else {
-        _beforeSummaryRight = current;
-      }
-      next = StandbyWidgetType.summary;
-    }
-    unawaited(
-      updateSettings(
-        left
-            ? settings.copyWith(leftWidget: next)
-            : settings.copyWith(rightWidget: next),
-      ),
-    );
-  }
-
   void cyclePanelWidget({required bool left, required int step}) {
     final duo = settings.layoutMode == StandbyLayoutMode.duo;
     // Summary is a whole-screen panel: it is only offered with one panel

@@ -34,13 +34,6 @@ class PanelTouches {
   bool multi = false; // two or more fingers were down: not a card swipe
   bool locked = false; // a tile is being dragged: no card swipes
   Offset swipeDir = Offset.zero; // which way the last swipe travelled
-  Offset? threeStart; // where the middle of three fingers started
-  bool threeFired = false; // this three-finger swipe already did its job
-
-  Offset get center3 => points.length < 3
-      ? Offset.zero
-      : points.values.reduce((a, b) => a + b) / points.length.toDouble();
-
   Offset get center => points.length < 2
       ? Offset.zero
       : (points.values.first + points.values.last) / 2;
@@ -60,7 +53,6 @@ class Dashboard extends StatelessWidget {
     required this.clockPart,
     required this.touch,
     required this.onPinch,
-    required this.onSummary,
     required this.closeDock,
   });
 
@@ -74,9 +66,6 @@ class Dashboard extends StatelessWidget {
 
   /// Closes the settings panel (for pages that end by going away).
   final VoidCallback closeDock;
-
-  /// A three-finger swipe: [center] where it happened, [direction] the way it went.
-  final void Function(Offset center, Offset direction) onSummary;
 
   // Watches raw touches (it never competes with the swipe/tap gestures) to
   // spot a two-finger pinch: spread = one panel, pinch = two panels.
@@ -93,25 +82,10 @@ class Dashboard extends StatelessWidget {
     onPinch(mode, touch.center);
   }
 
-  // Three fingers swiped any way: jump to Summary (and back again).
-  void _threeFingers() {
-    final start = touch.threeStart;
-    if (touch.threeFired || start == null || touch.points.length != 3) return;
-    final d = touch.center3 - start;
-    if (d.distance < 60) return;
-    touch.threeFired = true;
-    final dir = d.dx.abs() >= d.dy.abs()
-        ? Offset(d.dx.sign, 0)
-        : Offset(0, d.dy.sign);
-    touch.swipeDir = -dir; // the new card arrives from where the fingers went
-    onSummary(touch.center3, dir);
-  }
-
   void _release(PointerEvent e, {required bool decide}) {
     if (decide) _decide();
     touch.points.remove(e.pointer);
     touch.startDistance = null;
-    if (touch.points.length < 3) touch.threeStart = null;
     if (touch.points.isEmpty) {
       // after this frame, so the swipe handlers (same moment) still see it
       WidgetsBinding.instance.addPostFrameCallback((_) => touch.multi = false);
@@ -124,10 +98,6 @@ class Dashboard extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (e) {
         touch.points[e.pointer] = e.position;
-        if (touch.points.length == 3) {
-          touch.threeStart = touch.center3;
-          touch.threeFired = false;
-        }
         if (touch.points.length >= 2) {
           touch.multi = true; // a pinch, never a card swipe
           if (touch.points.length == 2) {
@@ -140,7 +110,6 @@ class Dashboard extends StatelessWidget {
         if (touch.points.containsKey(e.pointer)) {
           touch.points[e.pointer] = e.position;
           _decide();
-          _threeFingers();
         }
       },
       onPointerUp: (e) => _release(e, decide: true),
