@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -113,6 +114,7 @@ class _OrientationHintState extends State<OrientationHint> {
             ? accelerometerEventStream().map((e) => (e.x, e.y, e.z))
             : null);
     _sub = stream?.listen(_onReading, onError: (_) {}); // no sensor: no hint
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_touched);
   }
 
   void _onReading((double, double, double) r) {
@@ -122,7 +124,32 @@ class _OrientationHintState extends State<OrientationHint> {
     _settle?.cancel();
     // only act once the phone has been held that way for a moment, so turning
     // it or picking it up does not flash the symbol
+    _arm();
+  }
+
+  // Swiping or tapping jostles the phone. While fingers are on the screen, or
+  // just were, the readings say nothing about how it is really held, so the
+  // wait starts over instead of turning the screen.
+  bool _touching = false;
+  Timer? _untouch;
+
+  void _touched(PointerEvent e) {
+    if (e is PointerDownEvent || e is PointerMoveEvent) {
+      _touching = true;
+      _untouch?.cancel();
+      _untouch = Timer(const Duration(milliseconds: 1500), () {
+        _touching = false;
+      });
+    }
+  }
+
+  void _arm() {
+    _settle?.cancel();
     _settle = Timer(const Duration(milliseconds: 1200), () async {
+      if (_touching) {
+        _arm();
+        return;
+      }
       final side = await _readSide();
       if (mounted) {
         setState(() {
@@ -145,9 +172,11 @@ class _OrientationHintState extends State<OrientationHint> {
 
   @override
   void dispose() {
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_touched);
     _sub?.cancel();
     _settle?.cancel();
     _recheck?.cancel();
+    _untouch?.cancel();
     super.dispose();
   }
 

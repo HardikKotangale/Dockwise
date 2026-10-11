@@ -2041,6 +2041,28 @@ void main() {
       expect(turned.length, 1);
     });
 
+    testWidgets('auto: no turning while fingers are swiping the screen', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+        auto: true,
+      );
+      r.add((9.7, 0.3, 0.5)); // the phone tilts as it is swiped...
+      await tester.pump(const Duration(milliseconds: 1000));
+      await tester.tapAt(
+        const Offset(200, 300),
+      ); // ...and a finger was just on it
+      await tester.pump(const Duration(milliseconds: 800)); // timer fires now
+      expect(turned, isEmpty);
+      await tester.pump(const Duration(milliseconds: 3000)); // quiet again
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(turned, [DeviceOrientation.landscapeLeft]);
+    });
+
     testWidgets('landscape screen, phone held upright: suggests portrait', (
       tester,
     ) async {
