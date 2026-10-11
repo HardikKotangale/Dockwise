@@ -1580,9 +1580,12 @@ void main() {
     await b.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.textContaining('Loading weather'), findsNothing); // one panel
     expect(find.text('One panel'), findsOneWidget); // dark pop-up
     expect(find.byType(SnackBar), findsNothing); // not a light snackbar
+    await tester.pump(
+      const Duration(milliseconds: 1500),
+    ); // the panel folds away
+    expect(find.textContaining('Loading weather'), findsNothing); // one panel
 
     // pinch together: back to TWO panels; the pinch must not swipe a card
     await tester.pump(const Duration(seconds: 2));
@@ -1594,8 +1597,8 @@ void main() {
     await e.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.textContaining('Loading weather'), findsOneWidget);
     expect(find.text('Two panels'), findsOneWidget);
+    expect(find.textContaining('Loading weather'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2)); // let the pop-up timer end
   });
 
@@ -1621,12 +1624,12 @@ void main() {
     await b.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('One panel'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
     expect(
       find.textContaining('Loading weather'),
       findsOneWidget,
     ); // weather stays
-    expect(find.text('One panel'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
 
     // pinch back out: the clock is on the left again, weather on the right
     final d = await tester.startGesture(Offset(c.width * 0.15, y), pointer: 3);
@@ -1636,7 +1639,7 @@ void main() {
     await d.up();
     await e.up();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 1500));
     final weather = tester.getCenter(find.textContaining('Loading weather'));
     expect(weather.dx, greaterThan(c.width / 2)); // back on the right
     await tester.pump(const Duration(seconds: 2));

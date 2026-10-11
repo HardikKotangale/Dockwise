@@ -37,6 +37,7 @@ class _Touch {
   double? startDistance; // between the two fingers when the second one landed
   bool fired = false; // this pinch already switched the layout
   bool multi = false; // two or more fingers were down: not a card swipe
+  Offset swipeDir = Offset.zero; // which way the last swipe travelled
 
   Offset get center => points.length < 2
       ? Offset.zero
@@ -518,15 +519,12 @@ class _Dashboard extends StatelessWidget {
   }
 
   Widget _layout(BuildContext context) {
-    if (settings.layoutMode == StandbyLayoutMode.single) {
-      return _panel(context, settings.leftWidget, isLeft: true);
-    }
-    final children = [
-      Expanded(child: _panel(context, settings.leftWidget, isLeft: true)),
-      const SizedBox(width: 12, height: 12),
-      Expanded(child: _panel(context, settings.rightWidget, isLeft: false)),
-    ];
-    return stacked ? Column(children: children) : Row(children: children);
+    return SplitPanels(
+      duo: settings.layoutMode == StandbyLayoutMode.duo,
+      vertical: stacked,
+      first: _panel(context, settings.leftWidget, isLeft: true),
+      second: _panel(context, settings.rightWidget, isLeft: false),
+    );
   }
 
   // Tap a panel to customize it live (clock, music, weather) or open all settings.
@@ -599,6 +597,10 @@ class _Dashboard extends StatelessWidget {
   ) {
     if (velocity.abs() < _swipeVelocity || touch.multi) return;
     final step = velocity < 0 ? 1 : -1; // swipe left/up = next
+    // the new card arrives from the side the finger moved towards
+    touch.swipeDir = axis == Axis.horizontal
+        ? Offset(step.toDouble(), 0)
+        : Offset(0, step.toDouble());
     if (axis == Axis.horizontal) {
       controller.cyclePanelWidget(left: isLeft, step: step);
     } else if (type == StandbyWidgetType.clock) {
@@ -663,11 +665,34 @@ class _Dashboard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(32),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
+                  duration: const Duration(milliseconds: 420),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
                   layoutBuilder: (current, previous) => Stack(
                     fit: StackFit.expand,
                     children: [...previous, ?current],
                   ),
+                  // A swipe slides the new card in from the side you swiped
+                  // toward while the old one eases away; anything else fades.
+                  transitionBuilder: (child, animation) {
+                    final dir = touch.swipeDir;
+                    final incoming = child.key == _currentKey(type);
+                    final travel = incoming ? dir : -dir;
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, c) {
+                        final gone = 1 - animation.value;
+                        return FractionalTranslation(
+                          translation: travel * (0.18 * gone),
+                          child: Opacity(
+                            opacity: animation.value.clamp(0.0, 1.0),
+                            child: c,
+                          ),
+                        );
+                      },
+                      child: child,
+                    );
+                  },
                   child: KeyedSubtree(
                     key: ValueKey(
                       '${type.name}-${isClock
@@ -686,6 +711,15 @@ class _Dashboard extends StatelessWidget {
       ),
     );
   }
+
+  // the key of the card shown for [type] right now
+  ValueKey<String> _currentKey(StandbyWidgetType type) => ValueKey(
+    '${type.name}-${type == StandbyWidgetType.clock
+        ? settings.clockStyle.name
+        : type == StandbyWidgetType.calendar
+        ? settings.calendarStyle.name
+        : ''}',
+  );
 
   Widget _card(BuildContext context, StandbyWidgetType type) {
     return switch (type) {
@@ -1329,20 +1363,31 @@ class _AllSettings extends StatelessWidget {
                       v == StandbyLayoutMode.duo ? 'Two panels' : 'Single',
                   onChanged: (v) => set(settings.copyWith(layoutMode: v)),
                 ),
-                _EnumPicker<StandbyWidgetType>(
-                  label: 'Left widget',
-                  value: settings.leftWidget,
-                  values: StandbyWidgetType.values,
-                  display: _widgetLabel,
-                  onChanged: (v) => set(settings.copyWith(leftWidget: v)),
-                ),
-                _EnumPicker<StandbyWidgetType>(
-                  label: 'Right widget',
-                  value: settings.rightWidget,
-                  values: StandbyWidgetType.values,
-                  display: _widgetLabel,
-                  onChanged: (v) => set(settings.copyWith(rightWidget: v)),
-                ),
+                // One panel: there is only the one to choose; no left or right.
+                if (settings.layoutMode == StandbyLayoutMode.single)
+                  _EnumPicker<StandbyWidgetType>(
+                    label: 'Widget',
+                    value: settings.leftWidget,
+                    values: StandbyWidgetType.values,
+                    display: _widgetLabel,
+                    onChanged: (v) => set(settings.copyWith(leftWidget: v)),
+                  )
+                else ...[
+                  _EnumPicker<StandbyWidgetType>(
+                    label: 'Left widget',
+                    value: settings.leftWidget,
+                    values: StandbyWidgetType.values,
+                    display: _widgetLabel,
+                    onChanged: (v) => set(settings.copyWith(leftWidget: v)),
+                  ),
+                  _EnumPicker<StandbyWidgetType>(
+                    label: 'Right widget',
+                    value: settings.rightWidget,
+                    values: StandbyWidgetType.values,
+                    display: _widgetLabel,
+                    onChanged: (v) => set(settings.copyWith(rightWidget: v)),
+                  ),
+                ],
               ],
             ),
           ),
