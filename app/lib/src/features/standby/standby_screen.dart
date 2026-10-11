@@ -1064,7 +1064,7 @@ class _CityRow extends StatelessWidget {
         style: TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(name),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
       onTap: onTap,
     );
   }
@@ -1167,7 +1167,11 @@ class _CityPageState extends State<_CityPage> {
             onTap: () => setState(() => _keyboard = true),
             decoration: InputDecoration(
               hintText: 'Search any city in the world',
-              prefixIcon: const Icon(Icons.search),
+              hintStyle: const TextStyle(color: Colors.white38),
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: Colors.white54,
+              ),
               suffixIcon: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(14),
@@ -1187,9 +1191,9 @@ class _CityPageState extends State<_CityPage> {
                             },
                           )),
               filled: true,
-              fillColor: Colors.black26,
+              fillColor: Colors.white.withValues(alpha: 0.10),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -1204,16 +1208,33 @@ class _CityPageState extends State<_CityPage> {
             ),
           Expanded(
             child: ListView(
+              padding: const EdgeInsets.only(top: 10),
               children: [
-                for (final r in _results)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(r.name),
-                    subtitle: Text(r.region),
-                    onTap: () => _pick(r),
+                // results as one rounded group with hairlines, like iOS lists
+                if (_results.isNotEmpty)
+                  Material(
+                    color: Colors.white.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(14),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < _results.length; i++) ...[
+                          if (i > 0)
+                            const Divider(height: 1, indent: 16, endIndent: 0),
+                          ListTile(
+                            title: Text(_results[i].name),
+                            subtitle: Text(_results[i].region),
+                            onTap: () => _pick(_results[i]),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 if (c.settings.worldZone.isNotEmpty)
                   TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF453A),
+                    ),
                     onPressed: () {
                       c.updateSettings(
                         c.settings.copyWith(worldZone: '', worldCity: ''),

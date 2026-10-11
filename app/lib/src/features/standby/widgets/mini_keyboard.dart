@@ -22,7 +22,7 @@ class MiniKeyboard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Padding(
         padding: const EdgeInsets.all(4),
@@ -80,7 +80,7 @@ class MiniKeyboard extends StatelessWidget {
   }
 }
 
-class _Key extends StatelessWidget {
+class _Key extends StatefulWidget {
   const _Key({required this.label, required this.onTap, this.icon});
 
   final String label;
@@ -88,30 +88,50 @@ class _Key extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_Key> createState() => _KeyState();
+}
+
+class _KeyState extends State<_Key> {
+  bool _down = false;
+
+  @override
   Widget build(BuildContext context) {
+    // Letters are lighter keys, space/backspace/hide are darker, like iOS. A
+    // key lights up and types the moment the finger touches it, not on release.
+    final letter = widget.icon == null && widget.label.length == 1;
+    final base = Colors.white.withValues(alpha: letter ? 0.24 : 0.13);
+    final lit = Colors.white.withValues(alpha: 0.42);
     return Padding(
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 3),
       child: Semantics(
         button: true,
-        label: label,
-        child: Material(
-          // translucent so the panels behind the dock stay in view
-          color: Colors.white.withValues(alpha: 0.13),
-          borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onTap();
-            },
+        label: widget.label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) {
+            setState(() => _down = true);
+            HapticFeedback.selectionClick();
+            widget.onTap();
+          },
+          onTapUp: (_) => setState(() => _down = false),
+          onTapCancel: () => setState(() => _down = false),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: _down ? lit : base,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: const [
+                BoxShadow(color: Color(0x59000000), offset: Offset(0, 1)),
+              ],
+            ),
             child: Center(
-              child: icon != null
-                  ? Icon(icon, size: 20)
+              child: widget.icon != null
+                  ? Icon(widget.icon, size: 20)
                   : Text(
-                      label,
+                      widget.label,
                       style: TextStyle(
-                        fontSize: label.length > 1 ? 14 : 20,
-                        fontWeight: FontWeight.w600,
+                        fontSize: widget.label.length > 1 ? 15 : 22,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: -0.2,
                       ),
                     ),
             ),

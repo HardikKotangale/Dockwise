@@ -594,7 +594,10 @@ void main() {
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     final hours = spans.firstWhere((s) => s.text == two(now.hour));
-    final minutes = spans.firstWhere((s) => s.text == two(now.minute));
+    // at 01:01 hours and minutes read the same: the minutes are the second match
+    final minutes = spans
+        .where((s) => s.text == two(now.minute))
+        .elementAt(now.hour == now.minute ? 1 : 0);
     expect(hours.style?.color, const Color(0xFFFFFFFF)); // white offered
     expect(minutes.style?.color, const Color(0xFF0A84FF));
     expect(clockPalette.first.argb, 0xFFFFFFFF); // white is the first swatch
@@ -850,7 +853,11 @@ void main() {
         const Color(0xFFFFFFFF),
       );
       expect(
-        spans.firstWhere((s) => s.text == two(now.minute)).style?.color,
+        spans
+            .where((s) => s.text == two(now.minute))
+            .elementAt(now.hour == now.minute ? 1 : 0)
+            .style
+            ?.color,
         const Color(0xFFFF453A),
       );
     },

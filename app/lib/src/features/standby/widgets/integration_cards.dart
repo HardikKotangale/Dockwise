@@ -146,7 +146,7 @@ class WeatherCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(
-                          Icons.near_me,
+                          Icons.near_me_rounded,
                           size: (unit / 16).clamp(14.0, 20.0),
                           color: Colors.white,
                         ),
@@ -159,7 +159,8 @@ class WeatherCard extends StatelessWidget {
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: (unit / 12).clamp(16.0, 26.0),
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.4,
                             ),
                           ),
                         ),
@@ -175,7 +176,8 @@ class WeatherCard extends StatelessWidget {
                           color: Colors.white,
                           fontSize: (unit * 0.42).clamp(56.0, 160.0),
                           height: 0.95,
-                          fontWeight: FontWeight.w300,
+                          fontWeight: FontWeight.w200,
+                          letterSpacing: -3,
                         ),
                       ),
                     ),
@@ -196,7 +198,8 @@ class WeatherCard extends StatelessWidget {
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: (unit / 13).clamp(15.0, 24.0),
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: -0.3,
                             ),
                           ),
                         ),
@@ -208,7 +211,9 @@ class WeatherCard extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: (unit / 15).clamp(14.0, 22.0),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.2,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -273,7 +278,7 @@ class CalendarCard extends StatelessWidget {
             color: settings.appAccentInk,
             fontSize: (unit / 10).clamp(16.0, 30.0),
             fontWeight: FontWeight.w600,
-            letterSpacing: 2,
+            letterSpacing: 1.2,
           ),
         ),
         Expanded(
@@ -286,7 +291,8 @@ class CalendarCard extends StatelessWidget {
                 color: Colors.white,
                 fontSize: 400,
                 height: 1,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -12,
               ),
             ),
           ),
@@ -298,7 +304,8 @@ class CalendarCard extends StatelessWidget {
           style: TextStyle(
             color: Colors.white70,
             fontSize: (unit / 11).clamp(16.0, 28.0),
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
+            letterSpacing: -0.3,
           ),
         ),
       ],
@@ -321,7 +328,7 @@ class CalendarCard extends StatelessWidget {
                   color: settings.appAccentInk,
                   fontSize: headerSize,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 1.5,
+                  letterSpacing: 0.8,
                 ),
               ),
             ),
@@ -393,9 +400,16 @@ class CalendarCard extends StatelessWidget {
             child: Text(
               '$day',
               style: TextStyle(
-                color: today ? Colors.black : Colors.white,
+                color: today
+                    ? (ThemeData.estimateBrightnessForColor(
+                                settings.appAccentInk,
+                              ) ==
+                              Brightness.light
+                          ? Colors.black
+                          : Colors.white)
+                    : Colors.white,
                 fontSize: (size * 0.46).clamp(10.0, 24.0),
-                fontWeight: today ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: today ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ),
