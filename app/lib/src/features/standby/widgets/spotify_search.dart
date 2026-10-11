@@ -331,10 +331,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
                 if (_keyboard)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    child: SizedBox(
-                      height: box.maxHeight * 0.34,
-                      child: _keys(),
-                    ),
+                    child: _keys(),
                   ),
               ],
             );

@@ -98,7 +98,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
     await Future.delayed(
       const Duration(milliseconds: 800),
     ); // let Spotify catch up
-    if (mounted) _load();
+    if (mounted) unawaited(_load());
   }
 
   Widget _art(SpotifyHit hit) {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/apple.dart';
+
 /// Our own translucent letter keyboard for the city search. Lives inside the
 /// settings dock, so the system (floating) keyboard never covers the screen.
 class MiniKeyboard extends StatelessWidget {
@@ -16,64 +18,105 @@ class MiniKeyboard extends StatelessWidget {
   final VoidCallback onDone;
 
   static const _rows = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+  // Compact keys on a wide screen, bigger ones on a tall (portrait) one, where
+  // there is room; the size glides when the phone is turned.
+  static const _compactKey = 36.0;
+  static const _roomyKey = 54.0;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          children: [
-            for (var r = 0; r < _rows.length; r++)
-              Expanded(
-                child: Row(
-                  children: [
-                    if (r == 1) const Spacer(flex: 1),
-                    for (final ch in _rows[r].split(''))
-                      Expanded(
-                        flex: 2,
-                        child: _Key(label: ch, onTap: () => onChar(ch)),
-                      ),
-                    if (r == 1) const Spacer(flex: 1),
-                    if (r == 2)
+    final portrait = MediaQuery.orientationOf(context) == Orientation.portrait;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: portrait ? 1.0 : 0.0),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 380),
+      curve: easeOutStrong,
+      builder: (context, t, _) => _build(t),
+    );
+  }
+
+  // [t]: 0 = compact keys, 1 = roomy keys
+  Widget _build(double t) {
+    final keyHeight = _compactKey + (_roomyKey - _compactKey) * t;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var r = 0; r < _rows.length; r++)
+                  SizedBox(
+                    height: keyHeight,
+                    child: Row(
+                      children: [
+                        if (r == 1) const Spacer(flex: 1),
+                        for (final ch in _rows[r].split(''))
+                          Expanded(
+                            flex: 2,
+                            child: _Key(
+                              label: ch,
+                              scale: t,
+                              onTap: () => onChar(ch),
+                            ),
+                          ),
+                        if (r == 1) const Spacer(flex: 1),
+                        if (r == 2)
+                          Expanded(
+                            flex: 3,
+                            child: _Key(
+                              scale: t,
+                              icon: Icons.backspace_outlined,
+                              label: 'Backspace',
+                              onTap: onBackspace,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                SizedBox(
+                  height: keyHeight,
+                  child: Row(
+                    children: [
                       Expanded(
                         flex: 3,
                         child: _Key(
-                          icon: Icons.backspace_outlined,
-                          label: 'Backspace',
-                          onTap: onBackspace,
+                          label: '-',
+                          scale: t,
+                          onTap: () => onChar('-'),
                         ),
                       ),
-                  ],
+                      Expanded(
+                        flex: 12,
+                        child: _Key(
+                          label: 'space',
+                          scale: t,
+                          onTap: () => onChar(' '),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 5,
+                        child: _Key(
+                          scale: t,
+                          icon: Icons.keyboard_hide_outlined,
+                          label: 'Hide keyboard',
+                          onTap: onDone,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: _Key(label: '-', onTap: () => onChar('-')),
-                  ),
-                  Expanded(
-                    flex: 12,
-                    child: _Key(label: 'space', onTap: () => onChar(' ')),
-                  ),
-                  Expanded(
-                    flex: 5,
-                    child: _Key(
-                      icon: Icons.keyboard_hide_outlined,
-                      label: 'Hide keyboard',
-                      onTap: onDone,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -81,7 +124,15 @@ class MiniKeyboard extends StatelessWidget {
 }
 
 class _Key extends StatefulWidget {
-  const _Key({required this.label, required this.onTap, this.icon});
+  const _Key({
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.scale = 0,
+  });
+
+  /// 0 compact .. 1 roomy: the text grows a little with the key
+  final double scale;
 
   final String label;
   final IconData? icon;
@@ -102,7 +153,7 @@ class _KeyState extends State<_Key> {
     final base = Colors.white.withValues(alpha: letter ? 0.24 : 0.13);
     final lit = Colors.white.withValues(alpha: 0.42);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2.5, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2.5),
       child: Semantics(
         button: true,
         label: widget.label,
@@ -125,11 +176,13 @@ class _KeyState extends State<_Key> {
             ),
             child: Center(
               child: widget.icon != null
-                  ? Icon(widget.icon, size: 20)
+                  ? Icon(widget.icon, size: 20 + 3 * widget.scale)
                   : Text(
                       widget.label,
                       style: TextStyle(
-                        fontSize: widget.label.length > 1 ? 15 : 22,
+                        fontSize:
+                            (widget.label.length > 1 ? 14 : 19) +
+                            4 * widget.scale,
                         fontWeight: FontWeight.w400,
                         letterSpacing: -0.2,
                       ),

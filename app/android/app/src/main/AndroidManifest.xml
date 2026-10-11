@@ -13,7 +13,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
-        android:usesCleartextTraffic="true"
         android:label="Dockwise"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

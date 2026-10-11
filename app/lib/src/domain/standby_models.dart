@@ -96,7 +96,7 @@ extension ClockStyleInfo on ClockStyle {
   };
 }
 
-enum StandbyWidgetType { clock, weather, calendar, music }
+enum StandbyWidgetType { clock, weather, calendar, music, summary }
 
 T _enumFromName<T extends Enum>(List<T> values, Object? name, T fallback) {
   if (name is! String) return fallback;
@@ -396,6 +396,8 @@ class StandbySettings {
     this.nightModeEnabled = false,
     this.burnInProtection = true,
     this.lowBatteryAlert = true,
+    this.animations = true,
+    this.summaryLayout = 'here,there,date,weather;2',
     this.lowBatteryLevel = 20,
     this.autoBrightness = true,
     this.idleDimMinutes = 5,
@@ -403,6 +405,8 @@ class StandbySettings {
     this.keepAwakeWhileCharging = true,
     this.use24HourTime = true,
     this.worldZone = '',
+    this.worldLat = 0,
+    this.worldLon = 0,
     this.musicSource = 'auto',
     this.worldCity = '',
     this.calendarStyle = CalendarStyle.day,
@@ -439,6 +443,12 @@ class StandbySettings {
   final bool nightModeEnabled;
   final bool burnInProtection;
   final bool lowBatteryAlert; // low and not charging: ask to charge the phone
+
+  /// Springs, slides and the moving weather backdrop. Off saves battery.
+  final bool animations;
+
+  /// Where the Summary panel's tiles are (see SummaryLayout).
+  final String summaryLayout;
   final int lowBatteryLevel; // percent at or below which that prompt shows
   final bool
   autoBrightness; // follow the room light (Android); iOS auto-brightness
@@ -477,6 +487,11 @@ class StandbySettings {
   final bool autoExitOnUnplug;
   final String worldCity; // display name of the chosen world-clock city
   final bool fahrenheit;
+
+  /// Where the second city is, for its weather (0, 0 = not known).
+  final double worldLat;
+  final double worldLon;
+
   final String worldZone; // IANA id of the 2nd world-clock city; '' = not set
   final double brightness;
   final double nightTintIntensity;
@@ -552,6 +567,8 @@ class StandbySettings {
     bool? nightModeEnabled,
     bool? burnInProtection,
     bool? lowBatteryAlert,
+    bool? animations,
+    String? summaryLayout,
     int? lowBatteryLevel,
     bool? autoBrightness,
     int? idleDimMinutes,
@@ -559,6 +576,8 @@ class StandbySettings {
     bool? keepAwakeWhileCharging,
     bool? use24HourTime,
     String? worldZone,
+    double? worldLat,
+    double? worldLon,
     String? musicSource,
     String? worldCity,
     CalendarStyle? calendarStyle,
@@ -595,6 +614,8 @@ class StandbySettings {
       nightModeEnabled: nightModeEnabled ?? this.nightModeEnabled,
       burnInProtection: burnInProtection ?? this.burnInProtection,
       lowBatteryAlert: lowBatteryAlert ?? this.lowBatteryAlert,
+      animations: animations ?? this.animations,
+      summaryLayout: summaryLayout ?? this.summaryLayout,
       lowBatteryLevel: lowBatteryLevel ?? this.lowBatteryLevel,
       autoBrightness: autoBrightness ?? this.autoBrightness,
       idleDimMinutes: idleDimMinutes ?? this.idleDimMinutes,
@@ -603,6 +624,8 @@ class StandbySettings {
           keepAwakeWhileCharging ?? this.keepAwakeWhileCharging,
       use24HourTime: use24HourTime ?? this.use24HourTime,
       worldZone: worldZone ?? this.worldZone,
+      worldLat: worldLat ?? this.worldLat,
+      worldLon: worldLon ?? this.worldLon,
       musicSource: musicSource ?? this.musicSource,
       worldCity: worldCity ?? this.worldCity,
       calendarStyle: calendarStyle ?? this.calendarStyle,
@@ -642,6 +665,8 @@ class StandbySettings {
       'nightModeEnabled': nightModeEnabled,
       'burnInProtection': burnInProtection,
       'lowBatteryAlert': lowBatteryAlert,
+      'animations': animations,
+      'summaryLayout': summaryLayout,
       'lowBatteryLevel': lowBatteryLevel,
       'autoBrightness': autoBrightness,
       'idleDimMinutes': idleDimMinutes,
@@ -649,6 +674,8 @@ class StandbySettings {
       'keepAwakeWhileCharging': keepAwakeWhileCharging,
       'use24HourTime': use24HourTime,
       'worldZone': worldZone,
+      'worldLat': worldLat,
+      'worldLon': worldLon,
       'musicSource': musicSource,
       'worldCity': worldCity,
       'calendarStyle': calendarStyle.name,
@@ -708,6 +735,8 @@ class StandbySettings {
           json['burnInProtection'] as bool? ?? defaults.burnInProtection,
       lowBatteryAlert:
           json['lowBatteryAlert'] as bool? ?? defaults.lowBatteryAlert,
+      animations: json['animations'] as bool? ?? defaults.animations,
+      summaryLayout: json['summaryLayout'] as String? ?? defaults.summaryLayout,
       lowBatteryLevel:
           json['lowBatteryLevel'] as int? ?? defaults.lowBatteryLevel,
       autoBrightness:
@@ -719,6 +748,8 @@ class StandbySettings {
           defaults.keepAwakeWhileCharging,
       use24HourTime: json['use24HourTime'] as bool? ?? defaults.use24HourTime,
       worldZone: json['worldZone'] as String? ?? defaults.worldZone,
+      worldLat: (json['worldLat'] as num?)?.toDouble() ?? defaults.worldLat,
+      worldLon: (json['worldLon'] as num?)?.toDouble() ?? defaults.worldLon,
       musicSource: json['musicSource'] as String? ?? defaults.musicSource,
       worldCity: json['worldCity'] as String? ?? defaults.worldCity,
       hoursColor: (json['hoursColor'] as num?)?.toInt() ?? 0,
@@ -769,6 +800,8 @@ class StandbySettings {
         other.nightModeEnabled == nightModeEnabled &&
         other.burnInProtection == burnInProtection &&
         other.lowBatteryAlert == lowBatteryAlert &&
+        other.animations == animations &&
+        other.summaryLayout == summaryLayout &&
         other.lowBatteryLevel == lowBatteryLevel &&
         other.autoBrightness == autoBrightness &&
         other.idleDimMinutes == idleDimMinutes &&
@@ -776,6 +809,8 @@ class StandbySettings {
         other.keepAwakeWhileCharging == keepAwakeWhileCharging &&
         other.use24HourTime == use24HourTime &&
         other.worldZone == worldZone &&
+        other.worldLat == worldLat &&
+        other.worldLon == worldLon &&
         other.musicSource == musicSource &&
         other.worldCity == worldCity &&
         other.calendarStyle == calendarStyle &&
@@ -814,6 +849,8 @@ class StandbySettings {
     nightModeEnabled,
     burnInProtection,
     lowBatteryAlert,
+    animations,
+    summaryLayout,
     lowBatteryLevel,
     autoBrightness,
     idleDimMinutes,
@@ -821,6 +858,8 @@ class StandbySettings {
     keepAwakeWhileCharging,
     use24HourTime,
     worldZone,
+    worldLat,
+    worldLon,
     musicSource,
     worldCity,
     fahrenheit,
@@ -863,6 +902,36 @@ class StandbyWidgetConfig {
   final Duration refreshCadence;
 }
 
+/// One day of the forecast.
+class ForecastDay {
+  const ForecastDay({
+    required this.date,
+    required this.code,
+    required this.highCelsius,
+    required this.lowCelsius,
+  });
+
+  final DateTime date;
+  final int? code;
+  final int highCelsius;
+  final int lowCelsius;
+}
+
+/// One hour of the forecast.
+class ForecastHour {
+  const ForecastHour({
+    required this.time,
+    required this.code,
+    required this.temperatureCelsius,
+    required this.isDay,
+  });
+
+  final DateTime time;
+  final int? code;
+  final int temperatureCelsius;
+  final bool isDay;
+}
+
 class WeatherSnapshot {
   const WeatherSnapshot({
     required this.city,
@@ -873,7 +942,15 @@ class WeatherSnapshot {
     required this.updatedAt,
     this.code,
     this.isDay = true,
+    this.days = const [],
+    this.hours = const [],
   });
+
+  /// The next days, today first (empty when the forecast could not be read).
+  final List<ForecastDay> days;
+
+  /// The next hours, starting with the current one.
+  final List<ForecastHour> hours;
 
   /// WMO weather code from Open-Meteo (drives the icon and card tint).
   final int? code;
@@ -899,7 +976,6 @@ class NowPlayingSnapshot {
     this.positionMs = 0,
     this.durationMs = 0,
     this.viaSpotifyApi = false,
-    this.viaYtm = false,
     this.fetchedAt,
   });
 
@@ -919,7 +995,6 @@ class NowPlayingSnapshot {
     positionMs: ms,
     durationMs: durationMs,
     viaSpotifyApi: viaSpotifyApi,
-    viaYtm: viaYtm,
     fetchedAt: DateTime.now(),
   );
 
@@ -933,9 +1008,6 @@ class NowPlayingSnapshot {
 
   /// True when read from the Spotify Web API (commands must go there too).
   final bool viaSpotifyApi;
-
-  /// True when read from YouTube Music on a computer (commands go there too).
-  final bool viaYtm;
 
   final int positionMs;
   final int durationMs;

@@ -11,7 +11,6 @@ import '../domain/standby_models.dart';
 import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
-import '../services/ytm_desktop_service.dart';
 
 class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   StandbyController({
@@ -20,7 +19,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     SettingsRepository? settingsRepository,
     StandbySystemService? systemService,
     SpotifyService? spotifyService,
-    YtmDesktopService? ytmService,
     WeatherService? weatherService,
     bool autostartTicker = true,
   }) : settings = initialSettings ?? const StandbySettings(),
@@ -29,7 +27,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
        _settingsRepository = settingsRepository,
        _systemService = systemService ?? StandbySystemService(),
        _spotify = spotifyService ?? SpotifyService(),
-       _ytm = ytmService ?? YtmDesktopService(),
        _weatherService = weatherService ?? WeatherService(),
        _autostartTicker = autostartTicker,
        now = DateTime.now();
@@ -46,7 +43,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   final StandbySystemService _systemService;
   final WeatherService _weatherService;
   final SpotifyService _spotify;
-  final YtmDesktopService _ytm;
   final bool _autostartTicker;
   Timer? _timer;
   Timer? _musicTimer;
@@ -61,7 +57,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     await _applySystemSettings();
     unawaited(refreshWeather());
     await _spotify.load();
-    await _ytm.load();
     _spotify.phoneName = await _systemService.deviceModel();
     if (_autostartTicker) {
       _scheduleNextTick();
@@ -84,14 +79,63 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
 
   // Weather needs the phone's location; so does the World clock, which names
   // this phone's city next to its time.
-  bool get _weatherOnScreen =>
-      settings.leftWidget == StandbyWidgetType.weather ||
+  // is [t] one of the panels on screen right now?
+  bool _showing(StandbyWidgetType t) =>
+      settings.leftWidget == t ||
       (settings.layoutMode == StandbyLayoutMode.duo &&
-          settings.rightWidget == StandbyWidgetType.weather) ||
+          settings.rightWidget == t);
+
+  bool get _weatherOnScreen =>
+      _showing(StandbyWidgetType.weather) ||
+      _showing(StandbyWidgetType.summary) ||
       (settings.clockStyle == ClockStyle.world &&
           (settings.leftWidget == StandbyWidgetType.clock ||
               (settings.layoutMode == StandbyLayoutMode.duo &&
                   settings.rightWidget == StandbyWidgetType.clock)));
+
+  /// The weather card's pages, swiped up and down: 0 now, 1 the temperature
+  /// in Fahrenheit alone, 2 the forecast, 3 the second city.
+  int weatherPage = 0;
+  static const weatherPages = 4;
+  static const secondCityPage = 3;
+
+  /// Weather in the second city (page 2), once fetched.
+  WeatherSnapshot? secondWeather;
+  bool secondWeatherFailed = false;
+  String _secondWeatherFor = ''; // which city [secondWeather] belongs to
+
+  void cycleWeatherPage(int step) {
+    weatherPage = (weatherPage + step) % weatherPages;
+    if (weatherPage < 0) weatherPage += weatherPages;
+    notifyListeners();
+    if (weatherPage == secondCityPage) unawaited(refreshSecondWeather());
+  }
+
+  /// The second city's weather: only fetched when that page is wanted.
+  Future<void> refreshSecondWeather() async {
+    final s = settings;
+    if (s.worldZone.isEmpty || (s.worldLat == 0 && s.worldLon == 0)) {
+      secondWeather = null;
+      secondWeatherFailed = false;
+      notifyListeners();
+      return;
+    }
+    final key = '${s.worldZone}|${s.worldLat}|${s.worldLon}';
+    if (_secondWeatherFor != key) secondWeather = null; // a different city
+    try {
+      final city = s.worldCity.isNotEmpty ? s.worldCity : s.worldZone;
+      secondWeather = await _weatherService.fetchForCity(
+        city: city,
+        latitude: s.worldLat,
+        longitude: s.worldLon,
+      );
+      _secondWeatherFor = key;
+      secondWeatherFailed = false;
+    } catch (_) {
+      secondWeatherFailed = true;
+    }
+    notifyListeners();
+  }
 
   // Battery: fetch only while a weather card is visible, then every 30 min.
   Future<void> refreshWeather() async {
@@ -118,6 +162,10 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         weatherProblem = WeatherProblem.offline;
       }
       notifyListeners();
+      if (weatherPage == secondCityPage &&
+          _showing(StandbyWidgetType.weather)) {
+        unawaited(refreshSecondWeather());
+      }
     }
     if (_autostartTicker) {
       // retry sooner after a failure so granting permission shows up quickly
@@ -128,8 +176,39 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// With two panels there is no Summary: whichever panel had it goes back to
+  /// what it showed before.
+  StandbySettings _noSummaryInDuo(StandbySettings v) {
+    if (v.layoutMode != StandbyLayoutMode.duo) return v;
+    if (v.leftWidget != StandbyWidgetType.summary &&
+        v.rightWidget != StandbyWidgetType.summary) {
+      return v;
+    }
+    final l = v.leftWidget == StandbyWidgetType.summary
+        ? (_beforeSummaryLeft ?? StandbyWidgetType.clock)
+        : v.leftWidget;
+    var r = v.rightWidget == StandbyWidgetType.summary
+        ? (_beforeSummaryRight ?? StandbyWidgetType.weather)
+        : v.rightWidget;
+    if (l == r) {
+      r = l == StandbyWidgetType.clock
+          ? StandbyWidgetType.weather
+          : StandbyWidgetType.clock;
+    }
+    return v.copyWith(leftWidget: l, rightWidget: r);
+  }
+
   Future<void> updateSettings(StandbySettings value) async {
+    value = _noSummaryInDuo(value);
+    final cityChanged =
+        value.worldZone != settings.worldZone ||
+        value.worldLat != settings.worldLat ||
+        value.worldLon != settings.worldLon;
     settings = value;
+    // the second city changed while its weather is on screen: fetch it now
+    if (cityChanged && weatherPage == secondCityPage) {
+      unawaited(refreshSecondWeather());
+    }
     // The pending tick was planned for the old settings (e.g. a 60 s wait for a
     // style without seconds). Re-plan it now, or seconds would sit frozen.
     now = DateTime.now();
@@ -165,23 +244,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  void toggleLayout() {
-    final next = settings.layoutMode == StandbyLayoutMode.duo
-        ? StandbyLayoutMode.single
-        : StandbyLayoutMode.duo;
-    unawaited(updateSettings(settings.copyWith(layoutMode: next)));
-  }
-
-  void cycleTheme() {
-    final index = standbyThemes.indexWhere(
-      (theme) => theme.id == settings.activeThemeId,
-    );
-    final next = standbyThemes[(index + 1) % standbyThemes.length];
-    unawaited(updateSettings(settings.copyWith(activeThemeId: next.id)));
-  }
-
   void cycleClockStyle([int step = 1]) {
-    final styles = ClockStyle.values;
+    const styles = ClockStyle.values;
     final next = styles[(settings.clockStyle.index + step) % styles.length];
     unawaited(updateSettings(settings.copyWith(clockStyle: next)));
   }
@@ -195,14 +259,55 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Swipe a panel sideways to flip it to the next/previous widget.
   /// Skips the widget already shown in the other panel.
-  void cyclePanelWidget({required bool left, required int step}) {
-    const all = StandbyWidgetType.values;
+  // what each panel showed before a three-finger swipe sent it to Summary
+  StandbyWidgetType? _beforeSummaryLeft;
+  StandbyWidgetType? _beforeSummaryRight;
+
+  /// Three-finger swipe: this panel jumps to Summary; swipe again to go back
+  /// to what it showed before.
+  void toggleSummary({required bool left}) {
     final current = left ? settings.leftWidget : settings.rightWidget;
     final other = left ? settings.rightWidget : settings.leftWidget;
     final duo = settings.layoutMode == StandbyLayoutMode.duo;
+    if (duo) return; // Summary fills the screen: one panel only
+    StandbyWidgetType next;
+    if (current == StandbyWidgetType.summary) {
+      next =
+          (left ? _beforeSummaryLeft : _beforeSummaryRight) ??
+          StandbyWidgetType.clock;
+      if (duo && next == other) next = StandbyWidgetType.clock;
+      if (duo && next == other) next = StandbyWidgetType.weather;
+    } else {
+      if (duo && other == StandbyWidgetType.summary) return; // already shown
+      if (left) {
+        _beforeSummaryLeft = current;
+      } else {
+        _beforeSummaryRight = current;
+      }
+      next = StandbyWidgetType.summary;
+    }
+    unawaited(
+      updateSettings(
+        left
+            ? settings.copyWith(leftWidget: next)
+            : settings.copyWith(rightWidget: next),
+      ),
+    );
+  }
+
+  void cyclePanelWidget({required bool left, required int step}) {
+    final duo = settings.layoutMode == StandbyLayoutMode.duo;
+    // Summary is a whole-screen panel: it is only offered with one panel
+    final all = [
+      for (final t in StandbyWidgetType.values)
+        if (!duo || t != StandbyWidgetType.summary) t,
+    ];
+    final current = left ? settings.leftWidget : settings.rightWidget;
+    final other = left ? settings.rightWidget : settings.leftWidget;
     var next = current;
     for (var i = 0; i < all.length; i++) {
-      next = all[(next.index + step) % all.length];
+      final at = all.indexOf(next);
+      next = all[((at < 0 ? 0 : at) + step) % all.length];
       if (!duo || next != other) break;
     }
     unawaited(
@@ -219,7 +324,14 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   bool get spotifyConfigured => _spotify.isConfigured;
   bool get spotifyConnected => _spotify.isConnected;
   Future<List<SpotifyPlaylist>> spotifyPlaylists() => _spotify.playlists();
-  Future<List<SpotifyDevice>> spotifyDevices() => _spotify.devices();
+
+  /// The last device list Spotify gave us, so the volume bar can show at once.
+  List<SpotifyDevice> lastSpotifyDevices = const [];
+  Future<List<SpotifyDevice>> spotifyDevices() async {
+    final list = await _spotify.devices();
+    lastSpotifyDevices = list;
+    return list;
+  }
 
   Future<bool> playSpotifyPlaylist(String uri, {String? deviceId}) async {
     final ok = await _spotify.playPlaylist(uri, deviceId: deviceId);
@@ -296,28 +408,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // YouTube Music on a computer (needs its desktop app with the API Server plugin)
-  bool get ytmConfigured => _ytm.isConfigured;
-  String get ytmAddress => _ytm.address;
-  String? get ytmError => _ytm.lastError;
-
-  Future<void> setYtmAddress(String value) async {
-    await _ytm.setAddress(value);
-    notifyListeners();
-    if (_ytm.isConfigured) unawaited(refreshMusic());
-  }
-
-  Future<bool> checkYtm() async {
-    final ok = await _ytm.check();
-    notifyListeners();
-    if (ok) unawaited(refreshMusic());
-    return ok;
-  }
-
-  Future<int?> ytmVolume() => _ytm.volume();
-  Future<bool> setYtmVolume(int percent) => _ytm.setVolume(percent);
-
-  /// Where the music card gets its song: 'auto', 'spotify', 'ytm' or a phone app.
+  /// Where the music card gets its song: 'auto', 'spotify' or a phone app.
   Future<void> setMusicSource(String source) {
     snapshots = IntegrationSnapshotBundle(
       weather: snapshots.weather,
@@ -329,9 +420,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool get _musicOnScreen =>
-      settings.leftWidget == StandbyWidgetType.music ||
-      (settings.layoutMode == StandbyLayoutMode.duo &&
-          settings.rightWidget == StandbyWidgetType.music);
+      _showing(StandbyWidgetType.music) || _showing(StandbyWidgetType.summary);
 
   // Battery: only poll while a music widget is on screen and the app is
   // visible; poll slowly when nothing is playing.
@@ -352,18 +441,11 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         // 'spotify' = account only; anything else = that phone app only.
         final src = settings.musicSource;
         final fromSpotify = src == 'auto' || src == 'spotify';
-        final fromYtm = (src == 'auto' || src == 'ytm') && _ytm.isConfigured;
-        final fromPhone = src != 'spotify' && src != 'ytm';
+        final fromPhone = src != 'spotify';
         // a read that hangs must not stop the polling, so each one has a limit
         final playing =
             (fromSpotify && _spotify.isConnected
                 ? await _spotify.nowPlaying().timeout(
-                    const Duration(seconds: 10),
-                    onTimeout: () => null,
-                  )
-                : null) ??
-            (fromYtm
-                ? await _ytm.nowPlaying().timeout(
                     const Duration(seconds: 10),
                     onTimeout: () => null,
                   )
@@ -381,18 +463,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
             nowPlaying: playing,
           );
           notifyListeners();
-        } else if (fromYtm && snapshots.nowPlaying.viaYtm) {
-          // the Mac stopped, closed the player or went away: do not keep a
-          // stale song on screen
-          if (++_idlePolls >= 2) {
-            snapshots = IntegrationSnapshotBundle(
-              weather: snapshots.weather,
-              nowPlaying: IntegrationSnapshotBundle.fallback(
-                now: DateTime.now(),
-              ).nowPlaying,
-            );
-            notifyListeners();
-          }
         } else if (fromSpotify && _spotify.isConnected && _spotify.playerIdle) {
           // Spotify says nothing is playing anywhere. Do not keep showing the
           // last song as if it still played; wait for two answers in a row so
@@ -466,16 +536,12 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       nowPlaying: now.withPosition(target),
     );
     notifyListeners();
-    final ok = now.viaYtm
-        ? await _ytm.seekTo(target)
-        : now.viaSpotifyApi
+    final ok = now.viaSpotifyApi
         ? await _spotify.seekTo(target)
         : await _systemService.seekTo(target);
     musicError = ok
         ? null
-        : (now.viaYtm
-              ? _ytm.lastError
-              : now.viaSpotifyApi
+        : (now.viaSpotifyApi
               ? _spotify.lastError
               : 'Grant Notification access in Music sources');
     unawaited(Future.delayed(const Duration(milliseconds: 450), refreshMusic));
@@ -486,10 +552,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> sendMediaCommand(String command) async {
     final now = snapshots.nowPlaying;
     final bool ok;
-    if (now.viaYtm) {
-      ok = await _ytm.command(command);
-      musicError = ok ? null : _ytm.lastError;
-    } else if (now.viaSpotifyApi) {
+    if (now.viaSpotifyApi) {
       ok = await _spotify.command(
         command,
         isPlaying: now.isPlaying,
@@ -605,7 +668,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     }
     final src = settings.musicSource;
     await _systemService.setPreferredPlayer(
-      src == 'auto' || src == 'spotify' || src == 'ytm' ? '' : src,
+      src == 'auto' || src == 'spotify' ? '' : src,
     );
   }
 

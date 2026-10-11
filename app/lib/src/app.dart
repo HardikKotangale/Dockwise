@@ -1,11 +1,12 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
+
 import 'core/apple.dart';
 import 'core/screen_fit.dart';
 import 'domain/standby_models.dart';
-import 'services/standby_system_service.dart';
 import 'features/standby/standby_screen.dart';
 import 'features/standby/widgets/battery_badge.dart' show BatteryMonitor;
+import 'services/standby_system_service.dart';
 
 class StandbyProApp extends StatelessWidget {
   const StandbyProApp({

@@ -117,7 +117,8 @@ class _WeatherSceneState extends State<WeatherScene>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) _stop();
+    // animations off (battery saver): a still backdrop, no timer running
+    MediaQuery.disableAnimationsOf(context) ? _stop() : _start();
     return RepaintBoundary(
       child: CustomPaint(
         painter: _ScenePainter(widget.spec, _time),
