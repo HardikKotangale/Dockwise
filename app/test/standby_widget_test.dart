@@ -1915,6 +1915,7 @@ void main() {
       WidgetTester tester, {
       required Size screen,
       required List<DeviceOrientation> turned,
+      bool mirror = false,
     }) async {
       tester.view.physicalSize = screen;
       tester.view.devicePixelRatio = 1;
@@ -1927,6 +1928,7 @@ void main() {
             body: OrientationHint(
               readings: readings.stream,
               onRotate: turned.add,
+              mirrorLandscape: mirror,
             ),
           ),
         ),
@@ -1958,6 +1960,24 @@ void main() {
       );
       await tester.tap(find.byTooltip('Rotate to landscape'));
       expect(turned, [DeviceOrientation.landscapeLeft]);
+    });
+
+    testWidgets('on iPhone the two landscapes are swapped (it names them by '
+        'the home-button side), so the screen is not turned upside down', (
+      tester,
+    ) async {
+      final turned = <DeviceOrientation>[];
+      final r = await mount(
+        tester,
+        screen: const Size(400, 800),
+        turned: turned,
+        mirror: true,
+      );
+      r.add((9.7, 0.3, 0.5)); // top of the phone turned to the left
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byTooltip('Rotate to landscape'));
+      expect(turned, [DeviceOrientation.landscapeRight]);
     });
 
     testWidgets('landscape screen, phone held upright: suggests portrait', (

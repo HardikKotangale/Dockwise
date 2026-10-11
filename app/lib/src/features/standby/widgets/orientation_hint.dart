@@ -29,7 +29,18 @@ HeldOrientation classifyHeld(double x, double y, double z) {
 /// turns the app that way when tapped. It uses the gravity sensor, so it works
 /// even when the system refuses to rotate. Tap again to follow the phone back.
 class OrientationHint extends StatefulWidget {
-  const OrientationHint({super.key, this.readings, this.onRotate});
+  const OrientationHint({
+    super.key,
+    this.readings,
+    this.onRotate,
+    this.mirrorLandscape,
+  });
+
+  /// iOS names its landscapes after the HOME-BUTTON side (the opposite of
+  /// Android and of how the sensor sees it), so on iPhone left and right must
+  /// be swapped or the screen turns the wrong way round. Null = decide by
+  /// platform; tests pass a value.
+  final bool? mirrorLandscape;
 
   /// Gravity readings (x, y, z); the real sensor unless a test passes its own.
   final Stream<(double, double, double)>? readings;
@@ -88,13 +99,18 @@ class _OrientationHintState extends State<OrientationHint> {
   Widget build(BuildContext context) {
     final screenIsLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
+    final mirror = widget.mirrorLandscape ?? Platform.isIOS;
     final DeviceOrientation? target = switch (_held) {
       HeldOrientation.portrait when screenIsLandscape =>
         DeviceOrientation.portraitUp,
       HeldOrientation.landscapeLeft when !screenIsLandscape =>
-        DeviceOrientation.landscapeLeft,
+        mirror
+            ? DeviceOrientation.landscapeRight
+            : DeviceOrientation.landscapeLeft,
       HeldOrientation.landscapeRight when !screenIsLandscape =>
-        DeviceOrientation.landscapeRight,
+        mirror
+            ? DeviceOrientation.landscapeLeft
+            : DeviceOrientation.landscapeRight,
       _ => null,
     };
     final toLandscape = target != DeviceOrientation.portraitUp;
