@@ -785,40 +785,55 @@ class _Section extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget child;
-  final bool first; // no divider above the very first section
-  final bool nested; // a sub-section inside another one: smaller heading
+  final bool first; // the very first section sits a little closer to the top
+  final bool nested; // a sub-section inside another one: lighter heading
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!first)
-          Divider(
-            height: nested ? 34 : 48,
-            thickness: 1,
-            color: Colors.white.withValues(alpha: nested ? 0.08 : 0.14),
-          ),
-        Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: nested ? 15 : 19,
-            letterSpacing: nested ? -0.1 : -0.35,
-            color: nested ? Colors.white70 : Colors.white,
-          ),
+    // Like iOS Settings: a small heading, then the content in a rounded,
+    // slightly lighter group. Sub-sections stay inside their parent group.
+    final heading = Padding(
+      padding: EdgeInsets.fromLTRB(nested ? 0 : 6, 0, 0, 6),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: nested ? 15 : 14,
+          letterSpacing: -0.15,
+          color: nested ? Colors.white70 : Colors.white54,
         ),
-        if (subtitle != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
+      ),
+    );
+    final note = subtitle == null
+        ? null
+        : Padding(
+            padding: EdgeInsets.fromLTRB(nested ? 0 : 6, 0, 0, 8),
             child: Text(
               subtitle!,
               style: const TextStyle(color: Colors.white54, fontSize: 13),
             ),
-          ),
-        const SizedBox(height: 10),
-        child,
-      ],
+          );
+    return Padding(
+      padding: EdgeInsets.only(top: first ? 4 : (nested ? 18 : 28)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          heading,
+          ?note,
+          if (nested)
+            child
+          else
+            // Material (not a decorated box) so list tiles can paint ink inside.
+            Material(
+              color: Colors.white.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(18),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: child,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

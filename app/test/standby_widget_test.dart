@@ -1322,8 +1322,6 @@ void main() {
     for (final t in ['Style', 'Presets', 'Clock colors', 'Options']) {
       expect(find.text(t), findsOneWidget, reason: t);
     }
-    // a divider line between the sections
-    expect(find.byType(Divider), findsAtLeastNWidgets(4));
   });
 
   testWidgets(
