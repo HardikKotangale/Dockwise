@@ -18,7 +18,12 @@ SCENES = {
     "clock-rotate": "clock-rotate.gif",
     "weather-pages": "weather-pages.gif",
     "music-buttons": "music-buttons.gif",
+    "flip-clock": "flip-clock.gif",
+    "weather-scenes": "weather-scenes.gif",
+    "low-battery": "low-battery-prompt.gif",
 }
+# a narrower picture for the busy ones keeps the file small
+WIDTHS = {"weather-scenes": 340, "weather-pages": 420}
 WIDTH = 520  # px: small enough for a README, sharp enough to read
 
 
@@ -27,12 +32,13 @@ def build(scene: str, name: str) -> None:
     if not files:
         sys.exit(f"no frames for {scene}: run the recorder first")
     frames = []
+    width = WIDTHS.get(scene, WIDTH)
     for f in files:
         im = Image.open(f).convert("RGB")
-        h = round(im.height * WIDTH / im.width)
-        frames.append(im.resize((WIDTH, h), Image.LANCZOS))
+        h = round(im.height * width / im.width)
+        frames.append(im.resize((width, h), Image.LANCZOS))
     # one shared palette keeps the file small and the colours steady
-    sheet = Image.new("RGB", (WIDTH, frames[0].height * min(len(frames), 8)))
+    sheet = Image.new("RGB", (width, frames[0].height * min(len(frames), 8)))
     for i, im in enumerate(frames[:: max(1, len(frames) // 8)][:8]):
         sheet.paste(im, (0, i * im.height))
     palette = sheet.quantize(colors=128, method=Image.Quantize.MEDIANCUT)

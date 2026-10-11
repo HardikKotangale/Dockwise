@@ -20,7 +20,7 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
   <img src="docs/screenshots/settings-dock.png" width="60%" alt="Live-preview settings dock">
 </p>
 
-*Screenshots from an Android phone.*
+*The clock screenshots are from an Android phone. The settings dock and the music screenshots below are rendered from the app's own widgets with sample data (`app/tool`), so they show the current look.*
 
 ## What's new in v3
 
@@ -61,7 +61,6 @@ The Summary panel's weather tile swipes through the same four pages. The clock (
 </p>
 
 **Also new**
-- **Three-finger swipe** in any direction jumps to Summary, and back to what the panel showed before. Some phones use three-finger swipes for the system (screenshot, split screen); turn those off if they get in the way.
 - **Settings in iOS style:** a dock that springs open and can be dragged away by its header (a flick sends it where the flick was heading), grouped sections, iOS-style switches, sliders and chips, bouncing scroll, and a compact keyboard whose keys are larger in portrait.
 - **Animations switch** (All settings): turns off every spring, slide and the moving weather backdrop to save battery. The phone's own Reduce Motion setting does the same.
 - **Rotation follows the phone while rotation lock is on:** turn the phone sideways and the screen follows after a moment, turn it back and it returns. If you flip it 180 degrees (landscape to the other landscape) it turns the screen over too. It waits until you stop touching the screen, so swiping never rotates it.
@@ -126,7 +125,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 **Layout and gestures**
 - **Fits any screen:** Dockwise reads the screen size once at start and lays everything out on a standard phone size, then scales the whole interface to the real screen. An iPhone 15, an iPhone 17 Pro Max and a tablet show the same composition at their own size, in portrait and landscape.
 - One or two panels. Pinch with two fingers: spread = one panel (the one you spread on), pinch together = two panels (the panels slide apart or together on a spring), back in the original order.
-- Swipe sideways to change the card, swipe up or down to change the clock style, the calendar view or the weather page. A three-finger swipe jumps to Summary.
+- Swipe sideways to change the card, swipe up or down to change the clock style, the calendar view or the weather page.
 - Tap any panel to open a settings dock whose changes preview live behind it. Drag the dock's header to move it away.
 
 **Night and battery**
@@ -160,7 +159,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
   <img src="docs/low-battery-prompt.gif" width="46%" alt="Low-battery prompt">
 </p>
 
-*Weather and low-battery animations use sample data.*
+*Every animation is recorded from the app's own widgets with sample data (`app/tool`).*
 
 ## Platforms
 

@@ -15,7 +15,7 @@ app/lib/src/
   state/                    StandbyController: the one ChangeNotifier
   features/standby/
     standby_screen.dart     the screen: layout, dock, page dots, low battery
-    dashboard.dart          the panels, swipes, pinch and three-finger gestures
+    dashboard.dart          the panels, swipes and pinch gestures
     widgets/                weather/calendar/music cards, Summary, dock, keyboard
     widgets/clock/          one file per clock style, plus shared clock helpers
     settings/               the pages inside the settings dock
