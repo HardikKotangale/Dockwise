@@ -11,12 +11,17 @@ class Dock extends StatelessWidget {
     required this.handle,
     required this.horizontal,
     required this.child,
+    this.solid = false,
   });
 
   final String title;
   final SpringDockHandle handle;
   final bool horizontal; // landscape: slides sideways
   final Widget child;
+
+  /// A sheet that covers the window: an opaque surface with rounded top
+  /// corners, nothing showing through.
+  final bool solid;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +83,23 @@ class Dock extends StatelessWidget {
       ),
     );
     // Material (not a decorated box) so list tiles can paint ink inside.
+    if (solid) {
+      return DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Color(0xFF0B0B0D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            children: [
+              header,
+              Expanded(child: child),
+            ],
+          ),
+        ),
+      );
+    }
     return Glass(
       radius: 28,
       opacity: 0.94,

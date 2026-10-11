@@ -185,14 +185,21 @@ class WeatherNowView extends StatelessWidget {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.bottomLeft,
-                        child: Text(
-                          _deg(w.temperatureCelsius),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: (unit * 0.42).clamp(56.0, 160.0),
-                            height: 0.95,
-                            fontWeight: FontWeight.w200,
-                            letterSpacing: -3,
+                        child: AnimatedSwitcher(
+                          // °C <-> °F: the number fades to the other unit
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 300),
+                          child: Text(
+                            _deg(w.temperatureCelsius),
+                            key: ValueKey(settings.fahrenheit),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: (unit * 0.42).clamp(56.0, 160.0),
+                              height: 0.95,
+                              fontWeight: FontWeight.w200,
+                              letterSpacing: -3,
+                            ),
                           ),
                         ),
                       ),

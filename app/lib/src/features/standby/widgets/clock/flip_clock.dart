@@ -41,7 +41,7 @@ class FlipClockFace extends StatelessWidget {
       children: [
         for (var i = 0; i < v.length; i++) ...[
           if (i > 0) const SizedBox(width: 6),
-          _FlipTile(
+          FlipCard(
             key: ValueKey('${role.name}$i'),
             value: v[i],
             settings: settings,
@@ -87,9 +87,9 @@ class FlipClockFace extends StatelessWidget {
                   if (!stacked) colonDots(),
                   SizedBox(
                     width:
-                        _FlipTile.width * parts[2].length * k +
+                        88 * parts[2].length * k +
                         6 * (parts[2].length - 1) * k,
-                    height: _FlipTile.height * k,
+                    height: 174 * k,
                     child: FittedBox(
                       child: tapPart(
                         onPartTap,
@@ -102,59 +102,64 @@ class FlipClockFace extends StatelessWidget {
               ),
             )
           : null,
-      // AM/PM hangs off the end of the last line, at its bottom edge
+      // AM/PM is a small flip card of its own, hanging off the end of the last
+      // line at its bottom edge; it flips when the day turns over
       suffix: t.suffix == null
           ? null
           : tapPart(
               onPartTap,
               ClockPart.detail,
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  t.suffix!,
-                  style: TextStyle(
-                    color: settings.detailInk,
-                    shadows: glowShadows(
-                      settings.detailInk,
-                      settings.glowIntensity,
-                    ),
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+              FlipCard(
+                key: const ValueKey('suffix'),
+                value: t.suffix!,
+                settings: settings,
+                role: ClockPart.detail,
+                width: 74,
+                height: 78,
+                fontSize: 34,
+                radius: 14,
               ),
             ),
     );
   }
 }
 
-/// One flip-clock tile. When its value changes it flips like a real one: the
-/// old top half folds down, then the new bottom half unfolds into place.
-class _FlipTile extends StatefulWidget {
-  const _FlipTile({
+/// One flip card (a digit, or AM/PM at a smaller size). When its value
+/// changes it flips like a real one: the old top half falls forward and
+/// darkens as it goes, then the new bottom half drops into place with a tiny
+/// settle. A hinge sits at the seam, and each flap is shaded by how far it has
+/// turned, so it reads as a solid card with depth.
+/// One flip card (also used by the timer).
+class FlipCard extends StatefulWidget {
+  const FlipCard({
     super.key,
     required this.value,
     required this.settings,
-    required this.role, // hours, minutes or detail (= seconds)
+    required this.role, // hours, minutes or detail
+    this.width = 88,
+    this.height = 174,
+    this.fontSize = 92,
+    this.radius = 18,
   });
 
   final String value;
   final StandbySettings settings;
   final ClockPart role;
-
-  static const width = 88.0;
-  static const height = 174.0;
+  final double width;
+  final double height;
+  final double fontSize;
+  final double radius;
 
   @override
-  State<_FlipTile> createState() => _FlipTileState();
+  State<FlipCard> createState() => _FlipCardState();
 }
 
-class _FlipTileState extends State<_FlipTile>
+class _FlipCardState extends State<FlipCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _flip =
       AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 460),
+        duration: const Duration(milliseconds: 720),
       )..addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) {
           setState(() => _previous = null);
@@ -162,8 +167,13 @@ class _FlipTileState extends State<_FlipTile>
       });
   String? _previous; // the value being flipped away from
 
+  // the top falls (speeding up, like gravity); the bottom drops and settles
+  static const _topCurve = Curves.easeInCubic;
+  static const _bottomCurve = Cubic(0.25, 1.0, 0.4, 1.12);
+  static const _split = 0.42; // when the top flap is edge-on
+
   @override
-  void didUpdateWidget(_FlipTile old) {
+  void didUpdateWidget(FlipCard old) {
     super.didUpdateWidget(old);
     if (widget.value == old.value) return;
     if (MediaQuery.disableAnimationsOf(context)) return; // respect the setting
@@ -177,97 +187,176 @@ class _FlipTileState extends State<_FlipTile>
     super.dispose();
   }
 
-  // The full tile showing [value]: the card, the digits, the centre seam.
-  Widget _card(String value) {
+  // The full card showing [value]: the face, the digits, the seam and hinge.
+  Widget _face(String value) {
     final theme = widget.settings.theme;
-    // Color-block themes invert: ink tile, panel-colored digits.
+    // Color-block themes invert: ink card, panel-colored digits.
     final onPanel = theme.panelColor != null;
-    final tile = onPanel ? theme.clockColor : const Color(0xFF111116);
-    final digits = onPanel
+    final base = onPanel ? theme.clockColor : const Color(0xFF111116);
+    final ink = onPanel
         ? theme.panelColor!
         : switch (widget.role) {
             ClockPart.minutes => widget.settings.minutesInk,
             ClockPart.detail => widget.settings.detailInk,
             _ => widget.settings.hoursInk,
           };
+    Color shade(Color c, double k) =>
+        Color.lerp(c, k > 0 ? Colors.white : Colors.black, k.abs())!;
     return Container(
-      width: _FlipTile.width,
-      height: _FlipTile.height,
+      width: widget.width,
+      height: widget.height,
       decoration: BoxDecoration(
-        color: tile,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(widget.radius),
+        // a faint light from above: the top a touch lighter than the bottom
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [shade(base, 0.07), base, shade(base, -0.12)],
+          stops: const [0, 0.5, 1],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
           Text(
             value,
+            maxLines: 1,
             style: TextStyle(
-              color: digits,
-              shadows: glowShadows(digits, widget.settings.glowIntensity),
-              fontSize: 92,
+              color: ink,
+              shadows: glowShadows(ink, widget.settings.glowIntensity),
+              fontSize: widget.fontSize,
               fontWeight: FontWeight.w900,
               height: 1,
             ),
           ),
+          // the seam: a dark gap with a light edge under it
           Positioned.fill(
             child: Align(
               alignment: Alignment.center,
-              child: Container(height: 1.5, color: Colors.black87),
+              child: Container(
+                height: math.max(1.5, widget.height / 90),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
+          // the hinge pins at each end of the seam
+          for (final left in [true, false])
+            Positioned(
+              left: left ? 0 : null,
+              right: left ? null : 0,
+              top: widget.height / 2 - widget.height / 40,
+              child: Container(
+                width: widget.width / 18,
+                height: widget.height / 20,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.horizontal(
+                    left: left ? Radius.zero : const Radius.circular(2),
+                    right: left ? const Radius.circular(2) : Radius.zero,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  // Top or bottom half of the tile for [value].
-  Widget _half(String value, {required bool top}) => SizedBox(
-    width: _FlipTile.width,
-    height: _FlipTile.height / 2,
-    child: ClipRect(
-      child: Align(
-        alignment: top ? Alignment.topCenter : Alignment.bottomCenter,
-        heightFactor: 0.5,
-        child: _card(value),
+  // Top or bottom half of the card for [value], darkened by [dark] (0..1).
+  Widget _half(String value, {required bool top, double dark = 0}) {
+    final half = SizedBox(
+      width: widget.width,
+      height: widget.height / 2,
+      // the whole face at its full size, of which only this half shows (an
+      // Align alone would squeeze the face into the half's height)
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: top ? Alignment.topCenter : Alignment.bottomCenter,
+          minWidth: widget.width,
+          maxWidth: widget.width,
+          minHeight: widget.height,
+          maxHeight: widget.height,
+          child: _face(value),
+        ),
       ),
-    ),
-  );
+    );
+    if (dark <= 0.01) return half;
+    return Stack(
+      children: [
+        half,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: dark.clamp(0.0, 1.0)),
+                borderRadius: BorderRadius.vertical(
+                  top: top ? Radius.circular(widget.radius) : Radius.zero,
+                  bottom: top ? Radius.zero : Radius.circular(widget.radius),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Matrix4 _tilt(double angle) => Matrix4.identity()
-    ..setEntry(3, 2, 0.004) // a little perspective
+    ..setEntry(3, 2, 0.0034) // perspective
     ..rotateX(angle);
 
   @override
   Widget build(BuildContext context) {
     final old = _previous;
-    if (old == null) return _card(widget.value);
-    const half = _FlipTile.height / 2;
+    if (old == null) return _face(widget.value);
+    final half = widget.height / 2;
     return AnimatedBuilder(
       animation: _flip,
       builder: (context, _) {
         final t = _flip.value;
-        final first = t < 0.5; // 1st half: old top folds; 2nd: new bottom opens
+        final p = (t / _split).clamp(0.0, 1.0); // the top flap, 0..1
+        final q = ((t - _split) / (1 - _split)).clamp(0.0, 1.0); // the bottom
+        final fall = _topCurve.transform(p);
+        final drop = _bottomCurve.transform(q);
         return SizedBox(
-          width: _FlipTile.width,
-          height: _FlipTile.height,
+          width: widget.width,
+          height: widget.height,
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              // behind: the new top half and the old bottom half
+              // behind: the new top half (shadowed while the old flap is over
+              // it) and the old bottom half (shadowed as the new one lands)
               Positioned(
                 top: 0,
                 left: 0,
-                child: _half(widget.value, top: true),
+                child: _half(
+                  widget.value,
+                  top: true,
+                  dark: p < 1 ? 0.45 * (1 - fall) : 0,
+                ),
               ),
-              Positioned(bottom: 0, left: 0, child: _half(old, top: false)),
-              if (first)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                child: _half(old, top: false, dark: q > 0 ? 0.35 * q : 0),
+              ),
+              if (p < 1)
                 Positioned(
                   top: 0,
                   left: 0,
                   child: Transform(
                     alignment: Alignment.bottomCenter,
-                    transform: _tilt(-math.pi / 2 * (t / 0.5)),
-                    child: _half(old, top: true),
+                    transform: _tilt(-math.pi / 2 * fall),
+                    child: _half(old, top: true, dark: 0.55 * fall),
                   ),
                 )
               else
@@ -276,8 +365,12 @@ class _FlipTileState extends State<_FlipTile>
                   left: 0,
                   child: Transform(
                     alignment: Alignment.topCenter,
-                    transform: _tilt(math.pi / 2 * (1 - (t - 0.5) / 0.5)),
-                    child: _half(widget.value, top: false),
+                    transform: _tilt(math.pi / 2 * (1 - drop)),
+                    child: _half(
+                      widget.value,
+                      top: false,
+                      dark: 0.5 * (1 - drop).clamp(0.0, 1.0),
+                    ),
                   ),
                 ),
             ],

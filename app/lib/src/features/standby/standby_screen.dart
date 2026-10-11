@@ -38,6 +38,8 @@ class _StandbyScreenState extends State<StandbyScreen> {
   late final BatteryMonitor _battery = widget.battery ?? BatteryMonitor();
   String _dockTitle = '';
   Widget Function()? _dockBuild;
+  bool _dockFill =
+      false; // the whole window, in either orientation (the timer's pad)
   bool _dockTall = false; // portrait: use the whole screen (e.g. city search)
   // Which clock part was tapped on screen; the Clock dock jumps to its color.
   final _clockPart = ValueNotifier<ClockPart?>(null);
@@ -89,8 +91,14 @@ class _StandbyScreenState extends State<StandbyScreen> {
     super.dispose();
   }
 
-  void _openDock(String title, Widget Function() build, {bool tall = false}) {
+  void _openDock(
+    String title,
+    Widget Function() build, {
+    bool tall = false,
+    bool fill = false,
+  }) {
     setState(() {
+      _dockFill = fill;
       _dockTitle = title;
       _dockBuild = build;
       _dockTall = tall;
@@ -256,34 +264,54 @@ class _StandbyScreenState extends State<StandbyScreen> {
                             MediaQuery.viewInsetsOf(context).bottom > 0;
                         // Keyboard up in portrait: give the dock all the visible space so
                         // what you type is never hidden behind it.
-                        final full = (typing || _dockTall) && !landscape;
+                        // [_dockFill] (the timer's number pad) covers the whole window in
+                        // landscape too
+                        final full =
+                            _dockFill || (typing || _dockTall) && !landscape;
                         final gap = full ? 0.0 : 12.0;
                         final panelExtent = full
                             ? c.maxHeight
                             : landscape
                             ? (c.maxWidth * 0.42).clamp(320.0, 460.0)
                             : c.maxHeight * 0.46;
+                        // a window-sized dock rises from the bottom and goes back
+                        // down, like a sheet, in either orientation
+                        final sideways = landscape && !full;
                         final dock = SpringDock(
                           key: _dockKey,
-                          axis: landscape ? Axis.horizontal : Axis.vertical,
+                          axis: sideways ? Axis.horizontal : Axis.vertical,
                           extent: panelExtent + gap,
+                          overlay: full,
                           onClosed: _closeDock,
-                          builder: (context, handle) => Padding(
-                            padding: landscape
-                                ? EdgeInsets.only(left: gap)
-                                : EdgeInsets.only(top: gap),
-                            child: Dock(
-                              title: _dockTitle,
-                              handle: handle,
-                              horizontal: landscape,
-                              child: AnimatedBuilder(
-                                animation: _controller,
-                                builder: (context, _) => build(),
+                          builder: (context, handle) => SpringDockScope(
+                            handle: handle,
+                            child: Padding(
+                              padding: sideways
+                                  ? EdgeInsets.only(left: gap)
+                                  : EdgeInsets.only(top: gap),
+                              child: Dock(
+                                title: _dockTitle,
+                                handle: handle,
+                                horizontal: sideways,
+                                solid: full,
+                                child: _DockBody(
+                                  controller: _controller,
+                                  build: build,
+                                ),
                               ),
                             ),
                           ),
                         );
-                        if (full) return dock;
+                        // a window-sized dock slides over the dashboard (which
+                        // stays under it) like a sheet
+                        if (full) {
+                          return Stack(
+                            children: [
+                              dashboard,
+                              Positioned.fill(child: dock),
+                            ],
+                          );
+                        }
                         return landscape
                             ? Row(
                                 children: [
@@ -325,4 +353,38 @@ class _StandbyScreenState extends State<StandbyScreen> {
       },
     );
   }
+}
+
+/// The panel in the dock. It rebuilds when something changes, not on every
+/// clock tick or song-position update: the settings are a long list of widgets
+/// and rebuilding them each second made opening and scrolling them stutter.
+class _DockBody extends StatefulWidget {
+  const _DockBody({required this.controller, required this.build});
+
+  final StandbyController controller;
+  final Widget Function() build;
+
+  @override
+  State<_DockBody> createState() => _DockBodyState();
+}
+
+class _DockBodyState extends State<_DockBody> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (!widget.controller.backgroundNotify) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.build();
 }

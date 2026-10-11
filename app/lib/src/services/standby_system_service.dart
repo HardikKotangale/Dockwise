@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 
 import '../domain/standby_models.dart';
@@ -70,6 +74,30 @@ class StandbySystemService {
 
   Future<bool> launchApp(String package) =>
       _invokeBool('launchApp', {'package': package});
+
+  /// Opens the Spotify app on this phone (by package on Android, by its URL on
+  /// iPhone). False when it is not installed.
+  Future<bool> openSpotify() => defaultTargetPlatform == TargetPlatform.iOS
+      ? _invokeBool('launchApp', {'url': 'spotify://'})
+      : launchApp('com.spotify.music');
+
+  /// Plays the timer's end sound ('alarm', 'chime', 'fanfare' or 'none') and
+  /// vibrates. On Android, a phone on silent or vibrate gets only the buzz.
+  /// iPhone cannot tell us about the silent switch: its sound is muted by the
+  /// switch itself, so the buzz is what you feel there.
+  Future<void> timerAlert({
+    required String sound,
+    required bool vibrate,
+  }) async {
+    final ok = await _invokeBool('timerAlert', {
+      'sound': sound,
+      'vibrate': vibrate,
+    });
+    if (ok) return;
+    // no native side (tests, other platforms): the plain system ones
+    if (sound != 'none') unawaited(SystemSound.play(SystemSoundType.alert));
+    if (vibrate) unawaited(HapticFeedback.heavyImpact());
+  }
 
   Future<String> deviceModel() async {
     try {

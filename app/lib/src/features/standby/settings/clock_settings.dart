@@ -219,7 +219,9 @@ class ClockColors extends StatelessWidget {
     final active = selected == part;
     return KeyedSubtree(
       key: rowKeys[part],
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         key: ValueKey('row-${part.name}${active ? '-active' : ''}'),
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(10),
@@ -252,7 +254,9 @@ class ClockColors extends StatelessWidget {
                     label: '$label ${c.name}',
                     child: GestureDetector(
                       onTap: () => onChanged(_apply(part, c.argb)),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
@@ -333,7 +337,9 @@ class AccentPicker extends StatelessWidget {
             label: 'Accent ${c.name}',
             child: GestureDetector(
               onTap: () => onChanged(settings.copyWith(appAccent: c.argb)),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
@@ -432,9 +438,10 @@ class PreviewTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                DecoratedBox(
-                  position: DecorationPosition.foreground,
-                  decoration: BoxDecoration(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  foregroundDecoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: selected

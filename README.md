@@ -60,8 +60,31 @@ The Summary panel's weather tile swipes through the same four pages. The clock (
   <img src="docs/music-buttons.gif" width="40%" alt="Music card: press feedback, play and pause morph, a hold label naming the next song">
 </p>
 
+**Timer.** A sixth panel, after Summary. The time is as big as the panel allows (hours over minutes over seconds in a tall one, on one line in two panels) and a small figure runs along a track under it as the time goes: a horse towards a finish flag in the Digital style, a football player towards the end zone in the Flip style. When the time is up the player scores: confetti and fireworks go off, with a sound and a buzz, and keep going every three seconds until you press Stop. The figures are drawn as a few strokes and only move with the clock, so a running timer costs next to nothing and a paused one nothing at all.
+
+<p align="center">
+  <img src="docs/timer-horse.gif" width="46%" alt="Timer in the Digital style: a horse gallops along the track as the time counts down">
+  <img src="docs/timer-touchdown.gif" width="46%" alt="Timer in the Flip style: the player reaches the end zone, confetti and fireworks">
+</p>
+
+- **Buttons:** +1, +5 and +10 minutes (they lengthen the run, and the runner keeps its place), Reset, Start / Pause / Resume / Stop, and quick lengths from 1 minute to 2 hours. With one panel they are roomy boxes in a grid; in landscape, once it runs, the side column slides away and all five buttons sit in one row above the track so the time gets the whole width. With two panels they are small boxes in two rows (+1 +5 +10, then Type Reset Start).
+- **Type a length:** tap the time (or Type). A window slides up over the screen with the timer's current time and the app's own number pad. Digits rise into place; the first key starts a new number, backspace edits the shown one, and 1 5 0 0 is 15:00. Swipe the time up or down, or press X, and it slides away.
+- **Own colors and sounds:** the time and the runner have their own colors (separate from the clock's), and the end sound is an alarm, a chime or a fanfare, with an optional buzz. Everything is under Timer in All settings, and in the timer's own settings.
+
+<p align="center">
+  <img src="docs/timer-type.gif" width="40%" alt="Typing 1 5 0 0 on the number pad: the digits rise into place">
+</p>
+
+**Spotify, better.**
+- **Play goes to the right place.** With nothing playing, Play starts on this phone (it opens the Spotify app, and on Android tries to bring Dockwise back by itself) instead of on whichever device played last. A playlist or a song you pick goes to the device that is already playing.
+- **Playlists open into their songs.** Tap a playlist for its songs; tap one and it plays with the rest of the playlist after it.
+- **Reorder the queue.** Long-press a song, or use its handle, and drag; the others slide out of the way. Spotify's public API cannot move a song in the queue, so the new order is held and takes effect as the current song ends, with the restart timed from how long Spotify took last time (a pause of around a fifth of a second, not a cut in the middle of the song). Tapping a song jumps straight to it, with nothing played in between.
+
+**Flip clock, redone.** Each digit is a solid card with a hinge: the top flap falls, darkening, and the bottom drops into place with a tiny settle. AM / PM is a small flip card of its own. Every settings change (12/24-hour, a color, a style) now eases instead of jumping.
+
 **Also new**
 - **Settings in iOS style:** a dock that springs open and can be dragged away by its header (a flick sends it where the flick was heading), grouped sections, iOS-style switches, sliders and chips, bouncing scroll, and a compact keyboard whose keys are larger in portrait.
+- **Smoother settings:** the settings list is no longer rebuilt every second while it is open, and it is built once per open instead of once per frame, so opening and scrolling it stays smooth on slower phones. The dock closes as soon as it has visibly gone.
 - **Animations switch** (All settings): turns off every spring, slide and the moving weather backdrop to save battery. The phone's own Reduce Motion setting does the same.
 - **Rotation follows the phone while rotation lock is on:** turn the phone sideways and the screen follows after a moment, turn it back and it returns. If you flip it 180 degrees (landscape to the other landscape) it turns the screen over too. It waits until you stop touching the screen, so swiping never rotates it.
 
@@ -113,7 +136,8 @@ The music card has three small buttons in its header: **queue**, **search** and 
 - **Weather:** animated Apple-style scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location, with Fahrenheit, forecast and second-city pages (swipe up and down).
 - **Calendar:** today or the whole month (swipe up or down).
 - **Music:** now playing with a sharp album cover over a soft blurred backdrop, transport, 10-second skips, hold-the-progress-bar to seek, a device menu and Spotify volume.
-- **Summary:** time here and in a second city, the date, the weather and the music card in one rearrangeable panel.
+- **Summary:** time here and in a second city, the date, the weather and the music card in one rearrangeable panel. Tap the music or weather tile to open its settings.
+- **Timer:** big digital or flip countdown with a running horse or football player, quick lengths, typed lengths, +1/+5/+10 minutes, and its own colors and end sound.
 
 **Spotify**
 - Sign in with Spotify and control playback on any device: a Mac, a speaker, a TV or the phone itself (Spotify Premium is needed for control).
@@ -146,7 +170,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 
 ## Animations
 
-**Flip clock:** every digit is its own card. The seconds digit flips each second, and a digit only flips when it changes (here: 10:59:57 rolling over to 11:00:02).
+**Flip clock:** every digit is its own card with a hinge, and AM / PM is a small card too. The seconds digit flips each second, and a digit only flips when it changes (here: 10:59:57 rolling over to 11:00:02).
 
 <p align="center">
   <img src="docs/flip-clock.gif" width="70%" alt="Flip clock: each digit flips on its own card">

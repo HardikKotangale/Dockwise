@@ -11,6 +11,7 @@ import '../widgets/dock.dart';
 import '../widgets/music_sources_sheet.dart';
 import 'clock_settings.dart';
 import 'controls.dart';
+import 'simple_settings.dart';
 
 // Every setting, in sections. Changes show live on the panels beside/above.
 class AllSettings extends StatelessWidget {
@@ -148,6 +149,12 @@ class AllSettings extends StatelessWidget {
               display: (v) => v == CalendarStyle.day ? 'Today' : 'Whole month',
               onChanged: (v) => set(settings.copyWith(calendarStyle: v)),
             ),
+          ),
+          SettingsSection(
+            title: 'Timer',
+            subtitle:
+                'Its own colors, separate from the clock, and what happens when it ends.',
+            child: TimerBody(controller: controller),
           ),
           SettingsSection(
             title: 'Display & battery',

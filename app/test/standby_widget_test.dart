@@ -1092,6 +1092,7 @@ void main() {
             ),
           ),
         );
+        await tester.pump(const Duration(milliseconds: 400)); // eases to size
         return tester.getSize(find.byType(FittedBox).first).width;
       }
 

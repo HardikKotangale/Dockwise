@@ -8,6 +8,7 @@
 // Frames go to build/readme_frames/<scene>/, the GIFs to ../docs/.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:standby_pro/src/core/apple.dart';
 import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/domain/summary_layout.dart';
@@ -15,7 +16,10 @@ import 'package:standby_pro/src/features/standby/widgets/battery_badge.dart';
 import 'package:standby_pro/src/features/standby/widgets/clock_faces.dart';
 import 'package:standby_pro/src/features/standby/widgets/integration_cards.dart';
 import 'package:standby_pro/src/features/standby/widgets/summary_card.dart';
+import 'package:standby_pro/src/features/standby/widgets/timer_card.dart';
+import 'package:standby_pro/src/features/standby/widgets/timer_entry.dart';
 import 'package:standby_pro/src/services/weather_service.dart';
+import 'package:standby_pro/src/state/standby_controller.dart';
 
 import 'harness.dart';
 
@@ -517,5 +521,107 @@ void main() {
     await set(20, plugged: true);
     await rec.play(1600); // plugged in: it fades out
     monitor.dispose(); // its timer must not outlive the test
+  });
+
+  // 8-9. The timer: a horse runs along the track (digital), a player runs for
+  // the end zone (flip) and the touchdown sets off confetti and fireworks.
+  Future<void> timerScene(
+    WidgetTester tester,
+    String name,
+    TimerStyle style,
+    Size size, {
+    required int totalMs,
+    required int fromMs,
+    required int seconds,
+  }) async {
+    surface(tester, size);
+    final key = GlobalKey();
+    var left = fromMs;
+    var started = true;
+    late StateSetter set;
+    await tester.pumpWidget(
+      stage(
+        key,
+        size,
+        StatefulBuilder(
+          builder: (context, setState) {
+            set = setState;
+            return TimerCard(
+              settings: StandbySettings(timerStyle: style),
+              leftMs: left,
+              totalMs: totalMs,
+              running: started && left > 0,
+              started: started,
+              done: started && left <= 0,
+              onStart: () {},
+              onPause: () {},
+              onReset: () => set(() => started = false),
+              onAdd: (_) {},
+              onPreset: (_) {},
+              onType: () {},
+              roomy: true,
+              horizontal: false,
+            );
+          },
+        ),
+      ),
+    );
+    final rec = Rec(tester, key, name);
+    await rec.play(500);
+    for (var i = 0; i < seconds; i++) {
+      set(() => left = (left - 1000).clamp(0, totalMs));
+      await rec.play(1000);
+    }
+    return;
+  }
+
+  testWidgets('timer horse', (tester) async {
+    await timerScene(
+      tester,
+      'timer-horse',
+      TimerStyle.digital,
+      const Size(560, 280),
+      totalMs: 20000,
+      fromMs: 17000,
+      seconds: 6,
+    );
+  });
+
+  testWidgets('timer touchdown', (tester) async {
+    await timerScene(
+      tester,
+      'timer-touchdown',
+      TimerStyle.flip,
+      const Size(560, 280),
+      totalMs: 8000,
+      fromMs: 4000,
+      seconds: 8,
+    );
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  // 10. Typing a length on our number pad: it opens on the timer's time, digits
+  // rise into place, the first key starts a new number.
+  testWidgets('timer type', (tester) async {
+    const size = Size(440, 420);
+    surface(tester, size);
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
+    final key = GlobalKey();
+    final c = StandbyController(
+      autostartTicker: false,
+      initialSettings: const StandbySettings(),
+    );
+    addTearDown(c.dispose);
+    await tester.pumpWidget(
+      stage(key, size, TimerEntry(controller: c, onDone: () {})),
+    );
+    final rec = Rec(tester, key, 'timer-type');
+    await rec.play(900);
+    for (final k in ['1', '5', '0', '0']) {
+      await tester.tap(find.text(k));
+      await rec.play(600);
+    }
+    await rec.play(900);
   });
 }

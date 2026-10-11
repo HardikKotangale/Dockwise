@@ -96,7 +96,10 @@ extension ClockStyleInfo on ClockStyle {
   };
 }
 
-enum StandbyWidgetType { clock, weather, calendar, music, summary }
+enum StandbyWidgetType { clock, weather, calendar, music, summary, timer }
+
+/// How the timer's countdown is drawn.
+enum TimerStyle { digital, flip }
 
 T _enumFromName<T extends Enum>(List<T> values, Object? name, T fallback) {
   if (name is! String) return fallback;
@@ -410,6 +413,12 @@ class StandbySettings {
     this.musicSource = 'auto',
     this.worldCity = '',
     this.calendarStyle = CalendarStyle.day,
+    this.timerStyle = TimerStyle.digital,
+    this.timerSeconds = 300,
+    this.timerSound = 'alarm',
+    this.timerVibrate = true,
+    this.timerColor = 0,
+    this.timerFigureColor = 0,
     this.hoursColor = 0,
     this.minutesColor = 0,
     this.colonColor = 0,
@@ -461,6 +470,21 @@ class StandbySettings {
   /// 'auto', 'spotify' (account) or an Android package name to follow.
   final String musicSource;
   final CalendarStyle calendarStyle;
+  final TimerStyle timerStyle;
+
+  /// The length the timer starts from (the last one you set).
+  final int timerSeconds;
+
+  /// What plays when the timer ends: alarm, chime, fanfare or none.
+  final String timerSound;
+
+  /// Vibrate as well (a phone that is on silent vibrates regardless).
+  final bool timerVibrate;
+
+  /// The timer's own colors; 0 = follow the clock's. [timerColor] is the
+  /// time, [timerFigureColor] the horse, the player and their track.
+  final int timerColor;
+  final int timerFigureColor;
 
   /// Per-part clock colors as ARGB ints; 0 = follow the theme.
   final int hoursColor;
@@ -581,6 +605,12 @@ class StandbySettings {
     String? musicSource,
     String? worldCity,
     CalendarStyle? calendarStyle,
+    TimerStyle? timerStyle,
+    int? timerSeconds,
+    String? timerSound,
+    bool? timerVibrate,
+    int? timerColor,
+    int? timerFigureColor,
     int? hoursColor,
     int? minutesColor,
     int? colonColor,
@@ -629,6 +659,12 @@ class StandbySettings {
       musicSource: musicSource ?? this.musicSource,
       worldCity: worldCity ?? this.worldCity,
       calendarStyle: calendarStyle ?? this.calendarStyle,
+      timerStyle: timerStyle ?? this.timerStyle,
+      timerSeconds: timerSeconds ?? this.timerSeconds,
+      timerSound: timerSound ?? this.timerSound,
+      timerVibrate: timerVibrate ?? this.timerVibrate,
+      timerColor: timerColor ?? this.timerColor,
+      timerFigureColor: timerFigureColor ?? this.timerFigureColor,
       hoursColor: hoursColor ?? this.hoursColor,
       minutesColor: minutesColor ?? this.minutesColor,
       colonColor: colonColor ?? this.colonColor,
@@ -679,6 +715,12 @@ class StandbySettings {
       'musicSource': musicSource,
       'worldCity': worldCity,
       'calendarStyle': calendarStyle.name,
+      'timerStyle': timerStyle.name,
+      'timerSeconds': timerSeconds,
+      'timerSound': timerSound,
+      'timerVibrate': timerVibrate,
+      'timerColor': timerColor,
+      'timerFigureColor': timerFigureColor,
       'hoursColor': hoursColor,
       'minutesColor': minutesColor,
       'colonColor': colonColor,
@@ -769,6 +811,16 @@ class StandbySettings {
         json['calendarStyle'],
         defaults.calendarStyle,
       ),
+      timerStyle: _enumFromName(
+        TimerStyle.values,
+        json['timerStyle'],
+        defaults.timerStyle,
+      ),
+      timerSeconds: (json['timerSeconds'] as num?)?.toInt() ?? 300,
+      timerSound: json['timerSound'] as String? ?? 'alarm',
+      timerVibrate: json['timerVibrate'] as bool? ?? true,
+      timerColor: (json['timerColor'] as num?)?.toInt() ?? 0,
+      timerFigureColor: (json['timerFigureColor'] as num?)?.toInt() ?? 0,
       fahrenheit: json['fahrenheit'] as bool? ?? defaults.fahrenheit,
       brightness:
           (json['brightness'] as num?)?.toDouble() ?? defaults.brightness,
@@ -814,6 +866,12 @@ class StandbySettings {
         other.musicSource == musicSource &&
         other.worldCity == worldCity &&
         other.calendarStyle == calendarStyle &&
+        other.timerStyle == timerStyle &&
+        other.timerSeconds == timerSeconds &&
+        other.timerSound == timerSound &&
+        other.timerVibrate == timerVibrate &&
+        other.timerColor == timerColor &&
+        other.timerFigureColor == timerFigureColor &&
         other.hoursColor == hoursColor &&
         other.minutesColor == minutesColor &&
         other.colonColor == colonColor &&
@@ -873,6 +931,12 @@ class StandbySettings {
     fontWeight,
     glowIntensity,
     calendarStyle,
+    timerStyle,
+    timerSeconds,
+    timerSound,
+    timerVibrate,
+    timerColor,
+    timerFigureColor,
     hoursColor,
     minutesColor,
     colonColor,

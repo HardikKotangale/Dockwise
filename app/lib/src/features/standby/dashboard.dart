@@ -15,6 +15,8 @@ import 'widgets/music_sources_sheet.dart';
 import 'widgets/spotify_queue.dart';
 import 'widgets/spotify_search.dart';
 import 'widgets/summary_card.dart';
+import 'widgets/timer_card.dart';
+import 'widgets/timer_entry.dart';
 
 const cardColor = Color(0xFF1C1C1E); // iOS secondary system background
 
@@ -23,7 +25,12 @@ const swipeVelocity = 300.0; // px/s: below this a drag is not a swipe
 /// Opens a settings dock with [title]; [build] runs on every settings change
 /// so the panels behind it update live.
 typedef OpenDock =
-    void Function(String title, Widget Function() build, {bool tall});
+    void Function(
+      String title,
+      Widget Function() build, {
+      bool tall,
+      bool fill,
+    });
 
 /// Tracks the fingers on screen so a two-finger pinch can be told apart from
 /// a one-finger swipe.
@@ -183,6 +190,11 @@ class Dashboard extends StatelessWidget {
           'Calendar',
           () => CalendarSettings(controller: controller, onAll: all),
         );
+      case StandbyWidgetType.timer:
+        openDock(
+          'Timer',
+          () => TimerSettings(controller: controller, onAll: all),
+        );
       case StandbyWidgetType.summary:
         all();
     }
@@ -211,6 +223,8 @@ class Dashboard extends StatelessWidget {
       controller.cycleClockStyle(step);
     } else if (type == StandbyWidgetType.calendar) {
       controller.toggleCalendarStyle();
+    } else if (type == StandbyWidgetType.timer) {
+      controller.toggleTimerStyle();
     } else if (type == StandbyWidgetType.weather) {
       // up: the next page (now, forecast, second city); down: the one before
       controller.cycleWeatherPage(step);
@@ -262,9 +276,14 @@ class Dashboard extends StatelessWidget {
               type,
               isLeft,
             ),
-            child: DecoratedBox(
+            // the panel's color eases to a new theme's, instead of jumping
+            child: AnimatedContainer(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
-                color: isClock
+                color: isClock || type == StandbyWidgetType.timer
                     ? (settings.theme.panelColor ?? Colors.transparent)
                     : cardColor,
                 borderRadius: BorderRadius.circular(32),
@@ -311,6 +330,8 @@ class Dashboard extends StatelessWidget {
                               ? settings.clockStyle.name
                               : type == StandbyWidgetType.calendar
                               ? settings.calendarStyle.name
+                              : type == StandbyWidgetType.timer
+                              ? settings.timerStyle.name
                               : ''}',
                         ),
                         child: content,
@@ -331,6 +352,12 @@ class Dashboard extends StatelessWidget {
                         key: const ValueKey('calendar-rail'),
                         index: settings.calendarStyle.index,
                         labels: const ['Today', 'Month'],
+                      )
+                    else if (type == StandbyWidgetType.timer)
+                      SwipeRail(
+                        key: const ValueKey('timer-rail'),
+                        index: settings.timerStyle.index,
+                        labels: const ['Digital', 'Flip'],
                       ),
                   ],
                 ),
@@ -348,7 +375,17 @@ class Dashboard extends StatelessWidget {
         ? settings.clockStyle.name
         : type == StandbyWidgetType.calendar
         ? settings.calendarStyle.name
+        : type == StandbyWidgetType.timer
+        ? settings.timerStyle.name
         : ''}',
+  );
+
+  // Type a timer length on our number pad.
+  void _typeTimer() => openDock(
+    'Set timer',
+    () => TimerEntry(controller: controller, onDone: closeDock),
+    tall: true,
+    fill: true,
   );
 
   // Searching for the second city (the clock's, and the weather's third page).
@@ -384,6 +421,8 @@ class Dashboard extends StatelessWidget {
         onEditing: (on) => touch.locked = on,
         // tapping the second city goes straight to choosing another
         onCityTap: _chooseCity,
+        onOpenMusic: () => _open(StandbyWidgetType.music),
+        onOpenWeather: () => _open(StandbyWidgetType.weather),
       ),
       StandbyWidgetType.weather => _weatherCard(),
       StandbyWidgetType.calendar => CalendarCard(
@@ -391,6 +430,22 @@ class Dashboard extends StatelessWidget {
         now: controller.now,
       ),
       StandbyWidgetType.music => _musicCard(context),
+      StandbyWidgetType.timer => TimerCard(
+        settings: settings,
+        leftMs: controller.timerLeftMs,
+        totalMs: controller.timerTotalMs,
+        running: controller.timerRunning,
+        started: controller.timerStarted,
+        done: controller.timerDone,
+        onStart: controller.timerStart,
+        onPause: controller.timerPause,
+        onReset: controller.timerReset,
+        onAdd: (m) => controller.timerAdd(Duration(minutes: m)),
+        onPreset: controller.timerSet,
+        onType: _typeTimer,
+        roomy: settings.layoutMode == StandbyLayoutMode.single,
+        horizontal: settings.layoutMode == StandbyLayoutMode.duo,
+      ),
     };
   }
 

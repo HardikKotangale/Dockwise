@@ -26,6 +26,8 @@ class SummaryCard extends StatefulWidget {
     this.onWeatherSwipe,
     this.onLayout,
     this.onCityTap,
+    this.onOpenMusic,
+    this.onOpenWeather,
     this.onEditing,
   });
 
@@ -38,6 +40,10 @@ class SummaryCard extends StatefulWidget {
 
   /// Swiped up (+1) or down (-1) on the weather tile.
   final ValueChanged<int>? onWeatherSwipe;
+
+  /// A tap on the music or weather tile opens that card's settings.
+  final VoidCallback? onOpenMusic;
+  final VoidCallback? onOpenWeather;
 
   /// The now-playing card itself (the one the Music panel shows), so Summary
   /// has all of its controls: seek, devices, volume, queue and search.
@@ -142,6 +148,7 @@ class _SummaryCardState extends State<SummaryCard>
       borderRadius: BorderRadius.circular(20),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTap: _editing ? null : widget.onOpenWeather,
         onVerticalDragEnd: _editing
             ? null
             : (d) {
@@ -327,7 +334,10 @@ class _SummaryCardState extends State<SummaryCard>
     final content = <String, Widget>{
       _musicId: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: widget.music,
+        child: GestureDetector(
+          onTap: _editing ? null : widget.onOpenMusic,
+          child: widget.music,
+        ),
       ),
       for (final t in SummaryTile.values) t.name: _tile(t),
     };
@@ -482,33 +492,46 @@ class _ClockTile extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.bottomLeft,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        time.text,
-                        style: const TextStyle(
-                          fontSize: 120,
-                          fontWeight: FontWeight.w200,
-                          letterSpacing: -5,
-                          height: 1.05,
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      if (time.suffix != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Text(
-                            time.suffix!,
+                  child: AnimatedSwitcher(
+                    // 12 <-> 24-hour (and each new minute) fades, not jumps
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 280),
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: Alignment.bottomLeft,
+                      children: [...previous, ?current],
+                    ),
+                    child: KeyedSubtree(
+                      key: ValueKey('${time.text}${time.suffix}'),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            time.text,
                             style: const TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white60,
+                              fontSize: 120,
+                              fontWeight: FontWeight.w200,
+                              letterSpacing: -5,
+                              height: 1.05,
+                              fontFeatures: [FontFeature.tabularFigures()],
                             ),
                           ),
-                        ),
-                    ],
+                          if (time.suffix != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text(
+                                time.suffix!,
+                                style: const TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white60,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),

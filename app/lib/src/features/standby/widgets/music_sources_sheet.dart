@@ -138,8 +138,107 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
     _ => Icons.speaker,
   };
 
+  // the playlist whose songs are showing, and its songs
+  SpotifyPlaylist? _open;
+  Future<List<SpotifyHit>>? _songs;
+
+  void _openPlaylist(SpotifyPlaylist? p) => setState(() {
+    _open = p;
+    _songs = p == null ? null : c.spotifyPlaylistTracks(p.uri);
+  });
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: const Duration(milliseconds: 220),
+    switchInCurve: Curves.easeOutCubic,
+    child: KeyedSubtree(
+      key: ValueKey(_open?.uri),
+      child: _open == null ? _main(context) : _songList(_open!),
+    ),
+  );
+
+  // Every song in the playlist: tap one to play it, the rest follow.
+  Widget _songList(SpotifyPlaylist p) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 4, 20, 24),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Back',
+              onPressed: () => _openPlaylist(null),
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            ),
+            Expanded(
+              child: Text(
+                p.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: () => _run(() => c.playSpotifyPlaylist(p.uri)),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Play'),
+            ),
+          ],
+        ),
+        FutureBuilder<List<SpotifyHit>>(
+          future: _songs,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.only(top: 24),
+                child: LinearProgressIndicator(),
+              );
+            }
+            final songs = snap.data ?? const <SpotifyHit>[];
+            if (songs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 24, left: 8),
+                child: Text(c.musicError ?? 'No songs'),
+              );
+            }
+            return Column(
+              children: [
+                for (final h in songs)
+                  ListTile(
+                    contentPadding: const EdgeInsets.only(left: 8),
+                    leading: h.imageUrl == null
+                        ? const Icon(Icons.music_note_rounded)
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.network(
+                              h.imageUrl!,
+                              width: 44,
+                              height: 44,
+                            ),
+                          ),
+                    title: Text(
+                      h.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      h.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => _run(() => c.playPlaylistTrack(p.uri, h.uri)),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _main(BuildContext context) {
     const heading = TextStyle(fontWeight: FontWeight.w700, fontSize: 17);
     final source = c.settings.musicSource;
     void pick(String value) =>
@@ -280,7 +379,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    onTap: () => _run(() => c.playSpotifyPlaylist(p.uri)),
+                    onTap: () => _openPlaylist(p),
                   ),
               ],
             ),

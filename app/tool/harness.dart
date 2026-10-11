@@ -277,7 +277,11 @@ class DemoSpotify extends SpotifyService {
   @override
   Future<bool> playUri(String uri, {String? deviceId}) async => true;
   @override
-  Future<bool> skipNext(int times) async => true;
+  Future<bool> reorderQueue(
+    SpotifyHit now,
+    List<SpotifyHit> next,
+    int positionMs,
+  ) async => true;
   @override
   Future<bool> setVolume(int percent, String deviceId) async => true;
 }

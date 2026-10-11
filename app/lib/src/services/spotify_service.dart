@@ -225,6 +225,11 @@ class SpotifyService {
         return 'no device is playing. Open Spotify on a device, or pick one in Music settings';
       }
       final msg = err?['message'] as String?;
+      if (res.statusCode == 404 ||
+          r == 'DEVICE_NOT_FOUND' ||
+          (msg ?? '').toLowerCase().contains('device not found')) {
+        return 'Spotify is not open on that device. Open it there, then try again';
+      }
       if (msg != null && msg.isNotEmpty) return msg;
     } catch (_) {}
     return 'error ${res.statusCode}';
@@ -273,6 +278,13 @@ class SpotifyService {
   Future<String?> _fallbackDevice() async {
     final all = await devices();
     if (all.isEmpty) return null;
+    // Something is playing somewhere: carry on there (a Mac, a speaker). Only
+    // with nothing playing does this phone come first.
+    if (!playerIdle) {
+      for (final d in all) {
+        if (d.isActive) return d.id;
+      }
+    }
     final phone = phoneName.toLowerCase();
     if (phone.isNotEmpty) {
       for (final d in all) {
@@ -299,6 +311,36 @@ class SpotifyService {
   /// Starts a playlist on [deviceId], else the active device, else any device.
   Future<bool> playPlaylist(String uri, {String? deviceId}) =>
       playUri(uri, deviceId: deviceId);
+
+  /// The songs in a playlist (the first 100).
+  Future<List<SpotifyHit>> playlistTracks(String playlistUri) async {
+    final res = await _call(
+      'GET',
+      '/playlists/${playlistUri.split(':').last}/tracks?limit=100',
+    );
+    if (!_ok(res)) return const [];
+    return [
+      for (final i in (jsonDecode(res!.body)['items'] as List?) ?? const [])
+        if (i is Map<String, dynamic> && _queueItem(i['track']) != null)
+          _queueItem(i['track'])!,
+    ];
+  }
+
+  /// Starts [trackUri] inside [playlistUri], so the rest of the playlist
+  /// follows it.
+  Future<bool> playInPlaylist(String playlistUri, String trackUri) async {
+    final id = await _fallbackDevice();
+    return _ok(
+      await _call(
+        'PUT',
+        id == null ? '/me/player/play' : '/me/player/play?device_id=$id',
+        body: jsonEncode({
+          'context_uri': playlistUri,
+          'offset': {'uri': trackUri},
+        }),
+      ),
+    );
+  }
 
   /// Plays a song, an album or a playlist. A song plays by itself; an album or
   /// playlist plays from its start.
@@ -368,16 +410,25 @@ class SpotifyService {
     ]);
   }
 
-  /// Skips forward [times] songs (jumping to a song further down the queue).
-  Future<bool> skipNext(int times) async {
-    for (var i = 0; i < times; i++) {
-      if (!_ok(await _call('POST', '/me/player/next'))) return false;
-      if (i < times - 1) {
-        await Future.delayed(const Duration(milliseconds: 250));
-      }
-    }
-    return true;
-  }
+  /// Spotify's Web API cannot move a song in the queue, so this plays [now]
+  /// again from [positionMs] followed by [next] in the new order. That replaces
+  /// the album or playlist the queue came from with this list (at most 100).
+  Future<bool> reorderQueue(
+    SpotifyHit now,
+    List<SpotifyHit> next,
+    int positionMs,
+  ) async => _ok(
+    await _call(
+      'PUT',
+      '/me/player/play',
+      body: jsonEncode({
+        'uris': [
+          for (final h in [now, ...next].take(100)) h.uri,
+        ],
+        'position_ms': positionMs,
+      }),
+    ),
+  );
 
   /// Songs, albums and playlists matching [query]. Spotify allows at most 10
   /// results per type for apps in development mode, so we ask for 5 of each.

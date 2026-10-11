@@ -28,6 +28,18 @@ class CalendarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // the accent color eases to a new one, instead of jumping
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: settings.appAccentInk),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
+      builder: (context, tinted, _) =>
+          _content(context, tinted ?? settings.appAccentInk),
+    );
+  }
+
+  Widget _content(BuildContext context, Color accent) {
     final theme = settings.theme;
     return LayoutBuilder(
       builder: (context, c) {
@@ -36,14 +48,14 @@ class CalendarCard extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.all(pad),
           child: settings.calendarStyle == CalendarStyle.month
-              ? _month(theme, unit)
-              : _day(theme, unit),
+              ? _month(theme, unit, accent)
+              : _day(theme, unit, accent),
         );
       },
     );
   }
 
-  Widget _day(ThemePreset theme, double unit) {
+  Widget _day(ThemePreset theme, double unit, Color accent) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -51,7 +63,7 @@ class CalendarCard extends StatelessWidget {
           DateFormat('EEEE').format(now).toUpperCase(),
           maxLines: 1,
           style: TextStyle(
-            color: settings.appAccentInk,
+            color: accent,
             fontSize: (unit / 10).clamp(16.0, 30.0),
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
@@ -88,7 +100,7 @@ class CalendarCard extends StatelessWidget {
     );
   }
 
-  Widget _month(ThemePreset theme, double unit) {
+  Widget _month(ThemePreset theme, double unit, Color accent) {
     final cells = monthCells(now);
     final weeks = cells.length ~/ 7;
     final headerSize = (unit / 11).clamp(15.0, 26.0);
@@ -101,7 +113,7 @@ class CalendarCard extends StatelessWidget {
                 DateFormat('MMMM').format(now).toUpperCase(),
                 maxLines: 1,
                 style: TextStyle(
-                  color: settings.appAccentInk,
+                  color: accent,
                   fontSize: headerSize,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.8,
@@ -145,7 +157,7 @@ class CalendarCard extends StatelessWidget {
                   child: Row(
                     children: [
                       for (var d = 0; d < 7; d++)
-                        Expanded(child: _cell(cells[w * 7 + d], theme)),
+                        Expanded(child: _cell(cells[w * 7 + d], theme, accent)),
                     ],
                   ),
                 ),
@@ -156,7 +168,7 @@ class CalendarCard extends StatelessWidget {
     );
   }
 
-  Widget _cell(int? day, ThemePreset theme) {
+  Widget _cell(int? day, ThemePreset theme, Color accent) {
     if (day == null) return const SizedBox.shrink();
     final today = day == now.day;
     return LayoutBuilder(
@@ -168,18 +180,13 @@ class CalendarCard extends StatelessWidget {
             height: size,
             alignment: Alignment.center,
             decoration: today
-                ? BoxDecoration(
-                    color: settings.appAccentInk,
-                    shape: BoxShape.circle,
-                  )
+                ? BoxDecoration(color: accent, shape: BoxShape.circle)
                 : null,
             child: Text(
               '$day',
               style: TextStyle(
                 color: today
-                    ? (ThemeData.estimateBrightnessForColor(
-                                settings.appAccentInk,
-                              ) ==
+                    ? (ThemeData.estimateBrightnessForColor(accent) ==
                               Brightness.light
                           ? Colors.black
                           : Colors.white)

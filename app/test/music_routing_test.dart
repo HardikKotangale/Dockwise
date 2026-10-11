@@ -56,7 +56,7 @@ class _SearchSpotify extends SpotifyService {
   final played = <String>[];
   final queued = <String>[];
   final searched = <String>[];
-  final skips = <int>[];
+  final jumps = <List<String>>[];
   @override
   bool get isConnected => true;
   @override
@@ -68,8 +68,12 @@ class _SearchSpotify extends SpotifyService {
     ],
   );
   @override
-  Future<bool> skipNext(int times) async {
-    skips.add(times);
+  Future<bool> reorderQueue(
+    SpotifyHit now,
+    List<SpotifyHit> next,
+    int positionMs,
+  ) async {
+    jumps.add([now.title, ...next.map((h) => h.title)]);
     return true;
   }
 
@@ -481,8 +485,8 @@ void main() {
     ]); // the null entry is skipped
     expect(q.next[1].subtitle, 'A Podcast'); // episodes show their podcast
     seen.clear();
-    expect(await spotify.skipNext(3), isTrue);
-    expect(seen.where((r) => r == 'POST /v1/me/player/next').length, 3);
+    expect(await spotify.reorderQueue(q.now!, q.next, 5000), isTrue);
+    expect(seen, ['PUT /v1/me/player/play']);
   });
 
   testWidgets(
@@ -522,9 +526,13 @@ void main() {
       expect(find.text('Next One'), findsOneWidget);
       expect(find.text('Next Two'), findsOneWidget);
 
-      await tester.tap(find.text('Next Two')); // second in the queue = 2 skips
+      await tester.tap(
+        find.text('Next Two'),
+      ); // second in the queue plays at once
       await tester.pump();
-      expect(spotify.skips, [2]);
+      expect(spotify.jumps, [
+        ['Next Two'],
+      ]); // straight to it, nothing played in between
       expect(touched, greaterThan(0)); // keeps the card from auto-closing
       await tester.pump(const Duration(seconds: 2));
 
@@ -865,6 +873,50 @@ void main() {
       // the card jumps immediately, before the next poll confirms it
       expect(phone.snapshots.nowPlaying.positionMs, 90000);
       expect(web.snapshots.nowPlaying.positionMs, 45000);
+    },
+  );
+
+  test(
+    'a playlist goes to the device that is playing, else this phone',
+    () async {
+      SharedPreferences.setMockInitialValues({'spotify_refresh': 'r'});
+      final seen = <String>[];
+      var playing = true;
+      final spotify = SpotifyService(
+        client: MockClient((request) async {
+          seen.add(
+            '${request.method} ${request.url.path}?${request.url.query}',
+          );
+          if (request.url.path.endsWith('/token')) {
+            return http.Response('{"access_token":"a","expires_in":3600}', 200);
+          }
+          if (request.url.path.endsWith('/devices')) {
+            return http.Response(
+              '{"devices":[{"id":"ph","name":"Pixel","type":"Smartphone",'
+              '"is_active":false,"volume_percent":10},'
+              '{"id":"echo","name":"Echo","type":"Speaker","is_active":true,'
+              '"volume_percent":30}]}',
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/me/player')) {
+            return playing
+                ? http.Response('{"item":null}', 200)
+                : http.Response('', 204);
+          }
+          return http.Response('', 204);
+        }),
+      );
+      await spotify.load();
+      spotify.phoneName = 'Pixel';
+      await spotify.nowPlaying();
+      await spotify.playPlaylist('spotify:playlist:p');
+      expect(seen.last, contains('device_id=echo')); // carry on where it plays
+
+      playing = false;
+      await spotify.nowPlaying(); // nothing plays anywhere now
+      await spotify.playPlaylist('spotify:playlist:p');
+      expect(seen.last, contains('device_id=ph'));
     },
   );
 }
