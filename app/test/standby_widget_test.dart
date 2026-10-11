@@ -103,6 +103,27 @@ void main() {
     expect(find.text('OLED burn-in protection'), findsOneWidget);
   });
 
+  testWidgets(
+    'with one panel, All settings offers one widget, not left and right',
+    (tester) async {
+      await tester.pumpWidget(
+        const StandbyProApp(
+          initialSettings: StandbySettings(
+            layoutMode: StandbyLayoutMode.single,
+            leftWidget: StandbyWidgetType.weather,
+          ),
+        ),
+      );
+      await tester.tap(find.textContaining('Loading weather'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Widget'), findsOneWidget);
+      expect(find.text('Left widget'), findsNothing);
+      expect(find.text('Right widget'), findsNothing);
+    },
+  );
+
   testWidgets('world clock shows exactly two times, 12-hour with AM/PM', (
     tester,
   ) async {
