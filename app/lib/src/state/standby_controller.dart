@@ -10,7 +10,6 @@ import '../core/clock_cadence.dart';
 import '../core/room_light.dart';
 import '../data/settings_repository.dart';
 import '../domain/standby_models.dart';
-import '../services/spotify_remote.dart';
 import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
@@ -572,15 +571,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
-  final _remote = SpotifyRemote();
-
   Future<bool> playSpotifyUri(String uri) async {
-    final sw = Stopwatch()..start();
-    // iOS: try the Spotify app directly first, the web API is the fallback
-    final ok =
-        (uri.startsWith('spotify:track:') ? await _remote.play(uri) : null) ??
-        await _spotify.playUri(uri);
-    debugPrint('PLAY total ${sw.elapsedMilliseconds} ms');
+    final ok = await _spotify.playUri(uri);
     musicError = ok ? null : _spotify.lastError;
     if (ok) _refreshSoon();
     return ok;
@@ -707,7 +699,6 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     final ok = await _spotify.connect();
     notifyListeners();
     if (ok) unawaited(refreshMusic());
-    if (ok) unawaited(_remote.connect());
     return ok;
   }
 

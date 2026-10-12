@@ -304,14 +304,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
-  json_annotation:
-    dependency: transitive
-    description:
-      name: json_annotation
-      sha256: "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.12.0"
   leak_tracker:
     dependency: transitive
     description:
@@ -589,46 +581,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.2"
-  spotify_sdk:
-    dependency: "direct main"
-    description:
-      name: spotify_sdk
-      sha256: "6ef9496f1010b7e4e6e473e0c71cdcbc250a558d441149fa3da462749d115784"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.3.3"
-  spotify_sdk_android:
-    dependency: transitive
-    description:
-      name: spotify_sdk_android
-      sha256: dd1aec2cc6efa112e04790ed3008896c4b0cdc3b7108d77d8b67f6112db89368
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.3.3"
-  spotify_sdk_ios:
-    dependency: transitive
-    description:
-      name: spotify_sdk_ios
-      sha256: "7096e6e023b82e8a38db13b7b6aebbfc1fc09d35fd094c20651b1583f1a8a9df"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.3.3"
-  spotify_sdk_platform_interface:
-    dependency: transitive
-    description:
-      name: spotify_sdk_platform_interface
-      sha256: e5378162f18f58f5c3ef324c5dccc32f6f5f1eac525c0c2cf95de47ead58a709
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.3.3"
-  spotify_sdk_web:
-    dependency: transitive
-    description:
-      name: spotify_sdk_web
-      sha256: "4a7ffac72ca6c19bc4ae7037b379f9a0909c188dc57072bdd0cdc7ad35a24b1f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.3.3"
   stack_trace:
     dependency: transitive
     description:
@@ -653,14 +605,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
-  synchronized:
-    dependency: transitive
-    description:
-      name: synchronized
-      sha256: "397b146f97613b83d84bdccb439bc8d0f3aebb6c1d14a9641e6f24201c490b2d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.4.2"
   term_glyph:
     dependency: transitive
     description:
@@ -839,4 +783,4 @@ packages:
     version: "3.1.4"
 sdks:
   dart: ">=3.13.0 <4.0.0"
-  flutter: ">=3.47.1"
+  flutter: ">=3.44.0"
