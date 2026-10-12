@@ -45,6 +45,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
   final _clockPart = ValueNotifier<ClockPart?>(null);
   final _touch = PanelTouches();
   final _dockKey = GlobalKey<SpringDockState>();
+  final _dashboardKey = GlobalKey();
   // the page dots show for a moment after the widget changes
   bool _dotsVisible = false;
   Timer? _dotsTimer;
@@ -143,120 +144,131 @@ class _StandbyScreenState extends State<StandbyScreen> {
                       builder: (context, c) {
                         // Landscape: dock on the right; portrait: dock at the bottom.
                         final landscape = c.maxWidth >= 700;
-                        final dashboard = Stack(
-                          children: [
-                            // glide to the next burn-in position (once a minute)
-                            TweenAnimationBuilder<Offset>(
-                              tween: Tween(end: Offset(offset.dx, offset.dy)),
-                              duration: const Duration(milliseconds: 1500),
-                              curve: Curves.easeInOutCubic,
-                              builder: (context, o, child) {
-                                final moved = Transform.translate(
-                                  offset: o,
-                                  child: child,
-                                );
-                                return NightModePolicy.shouldTint(
-                                      _controller.now,
-                                      settings,
-                                      dark: _controller.roomDark,
-                                    )
-                                    ? ColorFiltered(
-                                        colorFilter: NightModePolicy.filter(
-                                          settings,
-                                        ),
-                                        child: moved,
+                        // [_dashboardKey] keeps the dashboard (and so a Summary
+                        // that is being edited) alive when the dock opens and the
+                        // screen around it changes shape; without it everything
+                        // under it was rebuilt from scratch.
+                        final dashboard = KeyedSubtree(
+                          key: _dashboardKey,
+                          child: Stack(
+                            children: [
+                              // glide to the next burn-in position (once a minute)
+                              TweenAnimationBuilder<Offset>(
+                                tween: Tween(end: Offset(offset.dx, offset.dy)),
+                                duration: const Duration(milliseconds: 1500),
+                                curve: Curves.easeInOutCubic,
+                                builder: (context, o, child) {
+                                  final moved = Transform.translate(
+                                    offset: o,
+                                    child: child,
+                                  );
+                                  return NightModePolicy.shouldTint(
+                                        _controller.now,
+                                        settings,
+                                        dark: _controller.roomDark,
                                       )
-                                    : moved;
-                              },
-                              // a thin strip on top is always reserved for the battery
-                              // badge, so cards never resize when it appears or hides
-                              child: Column(
-                                children: [
-                                  SizedBox(
-                                    height: 30,
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        // page dots (one panel only): tap or
-                                        // slide across them to change page
-                                        if (settings.layoutMode ==
-                                            StandbyLayoutMode.single)
-                                          PageDots(
-                                            labels: [
-                                              for (final t
-                                                  in StandbyWidgetType.values)
-                                                widgetLabel(t),
-                                            ],
-                                            icons: [
-                                              for (final t
-                                                  in StandbyWidgetType.values)
-                                                widgetIcon(t),
-                                            ],
-                                            index: settings.leftWidget.index,
-                                            bright: _dotsVisible,
-                                            onSelect: (i) {
-                                              final to =
-                                                  StandbyWidgetType.values[i];
-                                              if (to == settings.leftWidget) {
-                                                return;
-                                              }
-                                              _touch.swipeDir = Offset(
-                                                i > settings.leftWidget.index
-                                                    ? 1
-                                                    : -1,
-                                                0,
-                                              );
-                                              _controller.updateSettings(
-                                                settings.copyWith(
-                                                  leftWidget: to,
-                                                ),
-                                              );
-                                            },
+                                      ? ColorFiltered(
+                                          colorFilter: NightModePolicy.filter(
+                                            settings,
                                           ),
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 6,
+                                          child: moved,
+                                        )
+                                      : moved;
+                                },
+                                // a thin strip on top is always reserved for the battery
+                                // badge, so cards never resize when it appears or hides
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      height: 30,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          // page dots (one panel only): tap or
+                                          // slide across them to change page
+                                          if (settings.layoutMode ==
+                                              StandbyLayoutMode.single)
+                                            PageDots(
+                                              labels: [
+                                                for (final t
+                                                    in StandbyWidgetType.values)
+                                                  widgetLabel(t),
+                                              ],
+                                              icons: [
+                                                for (final t
+                                                    in StandbyWidgetType.values)
+                                                  widgetIcon(t),
+                                              ],
+                                              index: settings.leftWidget.index,
+                                              bright: _dotsVisible,
+                                              onSelect: (i) {
+                                                final to =
+                                                    StandbyWidgetType.values[i];
+                                                if (to == settings.leftWidget) {
+                                                  return;
+                                                }
+                                                _touch.swipeDir = Offset(
+                                                  i > settings.leftWidget.index
+                                                      ? 1
+                                                      : -1,
+                                                  0,
+                                                );
+                                                _controller.updateSettings(
+                                                  settings.copyWith(
+                                                    leftWidget: to,
+                                                  ),
+                                                );
+                                              },
                                             ),
-                                            child: BatteryBadge(
-                                              monitor: _battery,
-                                              lowAt: settings.lowBatteryLevel,
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 6,
+                                              ),
+                                              child: BatteryBadge(
+                                                monitor: _battery,
+                                                lowAt: settings.lowBatteryLevel,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    child: Dashboard(
-                                      controller: _controller,
-                                      settings: settings,
-                                      stacked: !landscape,
-                                      openDock: _openDock,
-                                      clockPart: _clockPart,
-                                      touch: _touch,
-                                      closeDock: () =>
-                                          _dockKey.currentState?.dismiss(),
-                                      onPinch: (mode, center) {
-                                        if (mode == settings.layoutMode) return;
-                                        // zooming into a panel keeps that panel, not always the left one
-                                        final size = MediaQuery.sizeOf(context);
-                                        final onSecond = landscape
-                                            ? center.dx > size.width / 2
-                                            : center.dy > size.height / 2;
-                                        tick();
-                                        _controller.setLayout(
-                                          mode,
-                                          soloSecond: onSecond,
-                                        );
-                                      },
+                                    Expanded(
+                                      child: Dashboard(
+                                        controller: _controller,
+                                        settings: settings,
+                                        stacked: !landscape,
+                                        openDock: _openDock,
+                                        clockPart: _clockPart,
+                                        touch: _touch,
+                                        closeDock: () =>
+                                            _dockKey.currentState?.dismiss(),
+                                        onPinch: (mode, center) {
+                                          if (mode == settings.layoutMode) {
+                                            return;
+                                          }
+                                          // zooming into a panel keeps that panel, not always the left one
+                                          final size = MediaQuery.sizeOf(
+                                            context,
+                                          );
+                                          final onSecond = landscape
+                                              ? center.dx > size.width / 2
+                                              : center.dy > size.height / 2;
+                                          tick();
+                                          _controller.setLayout(
+                                            mode,
+                                            soloSecond: onSecond,
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         );
                         final build = _dockBuild;
                         if (build == null) return dashboard;

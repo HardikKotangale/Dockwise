@@ -562,12 +562,7 @@ class _TimerCardState extends State<TimerCard>
           final iw = c.maxWidth - l - r, ih = c.maxHeight - t - b;
           // it runs: the side column slides away, the time takes the width
           final sideW = widget.started ? 0.0 : side;
-          main = Rect.fromLTWH(
-            l,
-            t,
-            widget.started ? iw : iw - side - 14,
-            ih,
-          );
+          main = Rect.fromLTWH(l, t, widget.started ? iw : iw - side - 14, ih);
           rest = Rect.fromLTWH(l + iw - sideW, t, sideW, ih);
           restAt = Alignment.center;
           restWidth = side - 14;
@@ -590,7 +585,9 @@ class _TimerCardState extends State<TimerCard>
           restWidth = _short ? c.maxWidth - 20 : iw;
         }
 
-        final duration = still ? Duration.zero : const Duration(milliseconds: 520);
+        final duration = still
+            ? Duration.zero
+            : const Duration(milliseconds: 520);
         return Stack(
           clipBehavior: Clip.hardEdge,
           children: [

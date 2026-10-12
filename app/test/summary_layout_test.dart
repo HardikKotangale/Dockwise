@@ -632,4 +632,18 @@ void main() {
     await tester.tapAt(const Offset(2, 2));
     expect(behind, 0);
   });
+
+  testWidgets('leaving the Summary while editing releases the swipe lock', (
+    tester,
+  ) async {
+    final editing = <bool>[];
+    await tester.pumpWidget(host(card(onEditing: editing.add)));
+    await tester.pump(const Duration(seconds: 2));
+    await tester.longPress(find.text('SUNDAY'));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(editing, [true]);
+    // the panel goes away (another panel, or rebuilt) before Done is tapped
+    await tester.pumpWidget(const SizedBox());
+    expect(editing, [true, false]);
+  });
 }
