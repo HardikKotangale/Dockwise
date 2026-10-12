@@ -119,15 +119,7 @@ class _TimerCardState extends State<TimerCard>
   // Digits, big. Stacked (a tall panel): hours over minutes over seconds, each
   // as large as the width allows. Otherwise on one line with colons.
   // The timer's own colors when picked; otherwise the clock's.
-  StandbySettings get _st {
-    final s = widget.settings;
-    if (s.timerColor == 0) return s;
-    return s.copyWith(
-      hoursColor: s.timerColor,
-      minutesColor: s.timerColor,
-      colonColor: s.timerColor,
-    );
-  }
+  StandbySettings get _st => widget.settings.timerLook;
 
   // the horse, the player and the track
   Color get _figureColor {

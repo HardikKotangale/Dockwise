@@ -24,9 +24,10 @@ SCENES = {
     "timer-horse": "timer-horse.gif",
     "timer-touchdown": "timer-touchdown.gif",
     "timer-type": "timer-type.gif",
+    "summary-widgets": "summary-widgets.gif",
 }
 # a narrower picture for the busy ones keeps the file small
-WIDTHS = {"weather-scenes": 340, "weather-pages": 420, "timer-type": 400, "timer-touchdown": 400, "timer-horse": 440}
+WIDTHS = {"weather-scenes": 340, "weather-pages": 420, "timer-type": 400, "timer-touchdown": 400, "timer-horse": 440, "summary-widgets": 480}
 WIDTH = 520  # px: small enough for a README, sharp enough to read
 
 

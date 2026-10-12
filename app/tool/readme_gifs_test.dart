@@ -18,6 +18,7 @@ import 'package:standby_pro/src/features/standby/widgets/integration_cards.dart'
 import 'package:standby_pro/src/features/standby/widgets/summary_card.dart';
 import 'package:standby_pro/src/features/standby/widgets/timer_card.dart';
 import 'package:standby_pro/src/features/standby/widgets/timer_entry.dart';
+import 'package:standby_pro/src/features/standby/widgets/timer_tile.dart';
 import 'package:standby_pro/src/services/weather_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
 
@@ -623,5 +624,116 @@ void main() {
       await rec.play(600);
     }
     await rec.play(900);
+  });
+
+  // 11. Summary widgets: hold, take one away with the "-", a "+" appears, add
+  // the timer, swipe it to the flip style, drag a card onto the empty place.
+  testWidgets('summary widgets', (tester) async {
+    const size = Size(660, 330);
+    surface(tester, size);
+    final key = GlobalKey();
+    final art = await makeArt(tester);
+    var layout = SummaryLayout.standard.encode();
+    var left = 242000;
+    var style = TimerStyle.digital;
+    final weather = parseForecast(sampleForecast(), city: 'Austin');
+    late StateSetter set;
+    await tester.pumpWidget(
+      stage(
+        key,
+        size,
+        StatefulBuilder(
+          builder: (context, setState) {
+            set = setState;
+            final s = StandbySettings(
+              worldZone: 'Asia/Tokyo',
+              worldCity: 'Tokyo',
+              worldLat: 35.7,
+              worldLon: 139.7,
+              localCity: 'Austin',
+              use24HourTime: false,
+              summaryLayout: layout,
+              timerStyle: style,
+            );
+            return SummaryCard(
+              now: DateTime(2026, 10, 11, 14, 30),
+              settings: s,
+              weather: WeatherCard(
+                snapshot: weather,
+                settings: s,
+                onCityTap: () {},
+              ),
+              music: MusicCard(
+                snapshot: sampleSong(art),
+                settings: s,
+                onCommand: (_) async => true,
+              ),
+              timer: TimerTile(
+                settings: s,
+                leftMs: left,
+                totalMs: 300000,
+                running: true,
+                started: true,
+                done: false,
+                onStart: () {},
+                onPause: () {},
+                onReset: () {},
+                onAddMinute: () {},
+                onOpen: () {},
+                onSwipe: () => set(
+                  () => style = style == TimerStyle.digital
+                      ? TimerStyle.flip
+                      : TimerStyle.digital,
+                ),
+              ),
+              onAddTile: () {},
+              onLayout: (v) => set(() => layout = v),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () async => precacheImage(
+        MemoryImage(art),
+        tester.element(find.byType(SummaryCard)),
+      ),
+    );
+    final rec = Rec(tester, key, 'summary-widgets');
+    await rec.play(1500); // the cards deal in
+    final hold = await tester.startGesture(
+      tester.getCenter(find.text('SUNDAY')),
+    );
+    await rec.play(900); // hold: they jiggle, each gets a "-"
+    await hold.up();
+    await rec.play(500);
+    // take the second city away: it shrinks, the others close the gap
+    await tester.tap(find.byIcon(Icons.remove_rounded).at(1));
+    await rec.play(1100); // and a "+" takes the free place
+    // add the timer (what the "Add a widget" window does)
+    set(
+      () => layout = SummaryLayout.parse(
+        layout,
+      ).added(SummaryTile.timer)!.encode(),
+    );
+    await rec.play(1000); // it pops in
+    await tester.tap(find.text('Done'));
+    await rec.play(500);
+    for (var i = 0; i < 2; i++) {
+      set(() => left -= 1000);
+      await rec.play(1000);
+    }
+    // swipe up on the time: the flip style
+    final tile = tester.getRect(find.byType(TimerTile));
+    await tester.flingFrom(
+      tile.topLeft + Offset(tile.width / 2, tile.height * 0.3),
+      const Offset(0, -120),
+      900,
+    );
+    await rec.play(900);
+    for (var i = 0; i < 2; i++) {
+      set(() => left -= 1000);
+      await rec.play(1000);
+    }
   });
 }

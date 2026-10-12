@@ -30,7 +30,13 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
   <img src="docs/clock-rotate.gif" width="52%" alt="Digital, Flip and World clocks gliding between one line and stacked hours over minutes">
 </p>
 
-**Summary panel.** A fifth panel with five tiles: the time here, the time in a second city, today's date, the weather and the music card (the very same card as the Music panel, so it keeps seek, devices, volume, queue and search). The tiles deal in one after another like little cards. Hold any tile and they all start to jiggle like the iOS home screen: drag one onto another to swap them, drag the music tile to another column, and tap Done. The arrangement is saved. Tap the second city to search for another. It is only available with one panel.
+**Summary panel.** A fifth panel of widgets: the time here, the time in a second city, today's date, the weather, the music card (the very same card as the Music panel, so it keeps seek, devices, volume, queue and search) and the timer. The tiles deal in one after another like little cards. Tap the music or weather tile to open its settings; tap the second city to search for another. It is only available with one panel.
+
+Make it yours, the way you arrange the iOS home screen. Hold any tile and they all start to jiggle, each with a red **-**: tap it and that widget shrinks away while the others glide together. A dashed **+ Add widget** takes the free place; tap it for a window of the widgets that are not on the panel and pick one, and it pops in. Drag a tile onto another to swap them, or onto the empty place to move it there, then tap Done. There is room for three columns (rows, held upright), so make room before adding more; the arrangement is saved. The timer tile shows the time left with Reset, +1 and Start / Pause. Swipe up or down on it for the flip style; tap the time to type a new length.
+
+<p align="center">
+  <img src="docs/summary-widgets.gif" width="75%" alt="Summary panel: remove a widget with the minus, a plus appears, add the timer, swipe it to the flip style">
+</p>
 
 <p align="center">
   <img src="docs/summary-cards.gif" width="75%" alt="Summary panel: cards deal in, then are rearranged by dragging">
@@ -136,7 +142,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 - **Weather:** animated Apple-style scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location, with Fahrenheit, forecast and second-city pages (swipe up and down).
 - **Calendar:** today or the whole month (swipe up or down).
 - **Music:** now playing with a sharp album cover over a soft blurred backdrop, transport, 10-second skips, hold-the-progress-bar to seek, a device menu and Spotify volume.
-- **Summary:** time here and in a second city, the date, the weather and the music card in one rearrangeable panel. Tap the music or weather tile to open its settings.
+- **Summary:** time here and in a second city, the date, the weather, the music card and the timer in one panel. Rearrange it, take widgets away with the - and add them back with the +. Tap the music or weather tile to open its settings.
 - **Timer:** big digital or flip countdown with a running horse or football player, quick lengths, typed lengths, +1/+5/+10 minutes, and its own colors and end sound.
 
 **Spotify**

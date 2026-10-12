@@ -12,6 +12,18 @@ enum CalendarStyle { day, month }
 /// The separately colorable parts of a clock face.
 enum ClockPart { hours, colon, minutes, detail, label }
 
+/// The timer's own colors laid over the clock's, so the flip cards and the
+/// digits can be drawn with the same code as the clock's.
+extension TimerLook on StandbySettings {
+  StandbySettings get timerLook => timerColor == 0
+      ? this
+      : copyWith(
+          hoursColor: timerColor,
+          minutesColor: timerColor,
+          colonColor: timerColor,
+        );
+}
+
 /// What each clock style actually shows, so settings only offer what applies.
 extension ClockStyleInfo on ClockStyle {
   /// Styles that can display seconds (digits, or a second hand).

@@ -9,6 +9,7 @@ import 'settings/city_page.dart';
 import 'settings/clock_settings.dart';
 import 'settings/controls.dart' show clockLabel;
 import 'settings/simple_settings.dart';
+import 'settings/summary_add.dart';
 import 'widgets/clock_faces.dart';
 import 'widgets/integration_cards.dart';
 import 'widgets/music_sources_sheet.dart';
@@ -17,6 +18,7 @@ import 'widgets/spotify_search.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/timer_card.dart';
 import 'widgets/timer_entry.dart';
+import 'widgets/timer_tile.dart';
 
 const cardColor = Color(0xFF1C1C1E); // iOS secondary system background
 
@@ -380,6 +382,31 @@ class Dashboard extends StatelessWidget {
         : ''}',
   );
 
+  // The timer as a Summary tile.
+  Widget _timerTile() => TimerTile(
+    settings: settings,
+    leftMs: controller.timerLeftMs,
+    totalMs: controller.timerTotalMs,
+    running: controller.timerRunning,
+    started: controller.timerStarted,
+    done: controller.timerDone,
+    onStart: controller.timerStart,
+    onPause: controller.timerPause,
+    onReset: controller.timerReset,
+    onAddMinute: () => controller.timerAdd(const Duration(minutes: 1)),
+    // not started: the set-timer window; running: the timer's settings
+    onOpen: controller.timerStarted
+        ? () => _open(StandbyWidgetType.timer)
+        : _typeTimer,
+    onSwipe: controller.toggleTimerStyle,
+  );
+
+  // The "+" on the Summary panel: choose a widget to add.
+  void _addTile() => openDock(
+    'Add a widget',
+    () => SummaryAdd(controller: controller, onDone: closeDock),
+  );
+
   // Type a timer length on our number pad.
   void _typeTimer() => openDock(
     'Set timer',
@@ -415,6 +442,8 @@ class Dashboard extends StatelessWidget {
         weather: _weatherCard(),
         onWeatherSwipe: controller.cycleWeatherPage,
         music: _musicCard(context),
+        timer: _timerTile(),
+        onAddTile: _addTile,
         onLayout: (encoded) => controller.updateSettings(
           settings.copyWith(summaryLayout: encoded),
         ),

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/features/standby/widgets/timer_card.dart';
 import 'package:standby_pro/src/features/standby/widgets/timer_entry.dart';
+import 'package:standby_pro/src/features/standby/widgets/timer_tile.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
 
 void main() {
@@ -213,5 +214,44 @@ void main() {
     expect(back.timerColor, 0xFF30D158);
     expect(back.timerFigureColor, 0xFFFF9F0A);
     expect(back.hoursColor, 0xFFFF453A); // the clock keeps its own
+  });
+
+  testWidgets('the Summary timer tile: tap opens, swipe switches the style', (
+    tester,
+  ) async {
+    var opened = 0, swiped = 0;
+    Widget tile(TimerStyle style) => MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 300,
+          height: 220,
+          child: TimerTile(
+            settings: StandbySettings(timerStyle: style),
+            leftMs: 187000,
+            totalMs: 300000,
+            running: false,
+            started: false,
+            done: false,
+            onStart: () {},
+            onPause: () {},
+            onReset: () {},
+            onAddMinute: () {},
+            onOpen: () => opened++,
+            onSwipe: () => swiped++,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(tile(TimerStyle.digital));
+    expect(find.text('03:07'), findsOneWidget); // digital: one text
+    await tester.tap(find.text('03:07'));
+    expect(opened, 1);
+    await tester.fling(find.text('03:07'), const Offset(0, -150), 1000);
+    expect(swiped, 1);
+    await tester.pumpWidget(tile(TimerStyle.flip));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('03:07'), findsNothing); // flip: one card per digit
+    expect(find.text('Start'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

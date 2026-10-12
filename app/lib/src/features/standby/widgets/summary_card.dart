@@ -23,10 +23,12 @@ class SummaryCard extends StatefulWidget {
     required this.settings,
     required this.weather,
     required this.music,
+    this.timer = const SizedBox.shrink(),
     this.onWeatherSwipe,
     this.onLayout,
     this.onCityTap,
     this.onOpenMusic,
+    this.onAddTile,
     this.onOpenWeather,
     this.onEditing,
   });
@@ -48,6 +50,12 @@ class SummaryCard extends StatefulWidget {
   /// The now-playing card itself (the one the Music panel shows), so Summary
   /// has all of its controls: seek, devices, volume, queue and search.
   final Widget music;
+
+  /// The timer tile (time left, a mini track and three buttons).
+  final Widget timer;
+
+  /// The "+" tile was tapped: choose a widget to add.
+  final VoidCallback? onAddTile;
 
   /// Called with the new arrangement (as [SummaryLayout.encode]) after a drop.
   final ValueChanged<String>? onLayout;
@@ -122,18 +130,52 @@ class _SummaryCardState extends State<SummaryCard>
 
   void _drop(String dragged, String target) {
     final layout = _layout;
-    SummaryLayout? next;
-    final dragTile = SummaryTile.values.where((t) => t.name == dragged);
-    final targetTile = SummaryTile.values.where((t) => t.name == target);
-    if (dragged == _musicId && targetTile.isNotEmpty) {
-      next = layout.withMusicColumn(layout.columnOf(targetTile.first));
-    } else if (dragTile.isNotEmpty && targetTile.isNotEmpty) {
-      next = layout.swap(dragTile.first, targetTile.first);
-    }
-    if (next != null && next != layout) {
+    final a = SummaryTile.values.where((t) => t.name == dragged);
+    final b = SummaryTile.values.where((t) => t.name == target);
+    if (a.isEmpty || b.isEmpty) return;
+    final next = layout.swap(a.first, b.first);
+    if (next != layout) {
       tick();
       widget.onLayout?.call(next.encode());
     }
+  }
+
+  // tiles on their way out (the "-" was tapped): they shrink and fade, then go
+  final _removing = <String>{};
+  // tiles already on screen: a new one pops in, the first ones deal in
+  final _seen = <String>{};
+
+  // A tile dropped on the empty place ("+"): it moves there, and its old place
+  // is the empty one now.
+  void _moveToEmpty(String dragged, int plusAt, List<String> ids) {
+    final tile = SummaryTile.values.where((t) => t.name == dragged);
+    if (tile.isEmpty || plusAt < 0) return;
+    final layout = _layout;
+    final at = ids.take(plusAt).where((id) => id != dragged).length;
+    final list = [...layout.tiles]
+      ..remove(tile.first)
+      ..insert(at, tile.first);
+    final next = SummaryLayout(list);
+    if (next.fits && next != layout) {
+      tick();
+      widget.onLayout?.call(next.encode());
+    }
+  }
+
+  void _remove(String id) {
+    tick();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _commitRemove(id);
+    } else {
+      setState(() => _removing.add(id));
+    }
+  }
+
+  void _commitRemove(String id) {
+    _removing.remove(id);
+    final tile = SummaryTile.values.where((t) => t.name == id);
+    if (tile.isEmpty) return;
+    widget.onLayout?.call(_layout.without(tile.first).encode());
   }
 
   Widget _tile(SummaryTile t) => switch (t) {
@@ -144,6 +186,17 @@ class _SummaryCardState extends State<SummaryCard>
       child: _ThereTile(now: widget.now, settings: widget.settings),
     ),
     SummaryTile.date => _DateTile(now: widget.now, settings: widget.settings),
+    SummaryTile.timer => ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: widget.timer,
+    ),
+    SummaryTile.music => ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: GestureDetector(
+        onTap: _editing ? null : widget.onOpenMusic,
+        child: widget.music,
+      ),
+    ),
     SummaryTile.weather => ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: GestureDetector(
@@ -171,8 +224,7 @@ class _SummaryCardState extends State<SummaryCard>
     }
     final phase = (id.hashCode % 7) / 7;
     return DragTarget<String>(
-      onWillAcceptWithDetails: (d) =>
-          d.data != id && !(d.data != _musicId && id == _musicId),
+      onWillAcceptWithDetails: (d) => d.data != id,
       onAcceptWithDetails: (d) => _drop(d.data, id),
       builder: (context, candidates, rejected) {
         final hot = candidates.isNotEmpty;
@@ -191,8 +243,26 @@ class _SummaryCardState extends State<SummaryCard>
                 curve: easeOutStrong,
                 child: Stack(
                   fit: StackFit.passthrough,
+                  clipBehavior: Clip.none,
                   children: [
                     AbsorbPointer(child: content),
+                    // the "-" that takes this widget away, on the corner
+                    Positioned(
+                      top: -6,
+                      left: -6,
+                      child: Semantics(
+                        button: true,
+                        label: 'Remove this widget',
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _remove(id),
+                          child: const _Badge(
+                            icon: Icons.remove_rounded,
+                            color: Color(0xFFFF453A),
+                          ),
+                        ),
+                      ),
+                    ),
                     // the tile you are about to swap with: a soft white wash
                     Positioned.fill(
                       child: IgnorePointer(
@@ -259,43 +329,43 @@ class _SummaryCardState extends State<SummaryCard>
     );
   }
 
-  // Where each tile goes in a box of [size]: three columns when it is wide,
-  // three rows when it is not (the music tile takes a whole column or row).
-  Map<String, Rect> _rects(Size size, SummaryLayout layout) {
-    final cols = layout.columns;
+  // Where each tile goes in a box of [size]: columns when it is wide, rows
+  // when it is not. The music tile takes a whole column (a double-height row);
+  // a tile alone in its column fills it.
+  Map<String, Rect> _rects(Size size, List<List<String>> cols) {
     final out = <String, Rect>{};
+    if (cols.isEmpty) return out;
     final wide = size.width > size.height * 1.25;
+    double weight(List<String> col) => col.contains(_musicId) ? 1.1 : 1.0;
+    final total = cols.fold(0.0, (sum, c) => sum + weight(c));
     if (wide) {
-      final flex = [
-        for (var i = 0; i < 3; i++)
-          cols[i] == null ? 11.0 : (i == 0 ? 11.0 : 10.0),
-      ];
-      final room = size.width - 2 * _gap;
+      final room = size.width - (cols.length - 1) * _gap;
       var x = 0.0;
-      for (var i = 0; i < 3; i++) {
-        final w = room * flex[i] / (flex[0] + flex[1] + flex[2]);
-        final pair = cols[i];
-        if (pair == null) {
-          out[_musicId] = Rect.fromLTWH(x, 0, w, size.height);
+      for (final col in cols) {
+        final w = room * weight(col) / total;
+        final h = (size.height - _gap) / 2;
+        if (col.length == 1) {
+          out[col[0]] = Rect.fromLTWH(x, 0, w, size.height);
         } else {
-          final h = (size.height - _gap) / 2;
-          out[pair[0].name] = Rect.fromLTWH(x, 0, w, h);
-          out[pair[1].name] = Rect.fromLTWH(x, h + _gap, w, h);
+          out[col[0]] = Rect.fromLTWH(x, 0, w, h);
+          out[col[1]] = Rect.fromLTWH(x, h + _gap, w, h);
         }
         x += w + _gap;
       }
     } else {
-      final room = size.height - 2 * _gap;
+      // rows: music is twice as tall as a pair of small tiles
+      double rowWeight(List<String> col) => col.contains(_musicId) ? 2.0 : 1.0;
+      final sum = cols.fold(0.0, (s, c) => s + rowWeight(c));
+      final room = size.height - (cols.length - 1) * _gap;
       var y = 0.0;
-      for (var i = 0; i < 3; i++) {
-        final h = room * (cols[i] == null ? 2 : 1) / 4;
-        final pair = cols[i];
-        if (pair == null) {
-          out[_musicId] = Rect.fromLTWH(0, y, size.width, h);
+      for (final col in cols) {
+        final h = room * rowWeight(col) / sum;
+        final w = (size.width - _gap) / 2;
+        if (col.length == 1) {
+          out[col[0]] = Rect.fromLTWH(0, y, size.width, h);
         } else {
-          final w = (size.width - _gap) / 2;
-          out[pair[0].name] = Rect.fromLTWH(0, y, w, h);
-          out[pair[1].name] = Rect.fromLTWH(w + _gap, y, w, h);
+          out[col[0]] = Rect.fromLTWH(0, y, w, h);
+          out[col[1]] = Rect.fromLTWH(w + _gap, y, w, h);
         }
         y += h + _gap;
       }
@@ -327,27 +397,40 @@ class _SummaryCardState extends State<SummaryCard>
     );
   }
 
+  static const _plusId = 'plus';
+
   @override
   Widget build(BuildContext context) {
     final layout = _layout;
     final still = MediaQuery.disableAnimationsOf(context);
     final content = <String, Widget>{
-      _musicId: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: GestureDetector(
-          onTap: _editing ? null : widget.onOpenMusic,
-          child: widget.music,
-        ),
-      ),
-      for (final t in SummaryTile.values) t.name: _tile(t),
+      for (final t in layout.tiles) t.name: _tile(t),
     };
+    // while editing, a "+" takes the next free place, if there is room for it
+    final ids = [for (final t in layout.tiles) t.name];
+    if (_editing && layout.missing.isNotEmpty) {
+      // the "+" goes where a new widget would fit (the end, else the first
+      // place from the end that still fits in three columns)
+      for (var at = ids.length; at >= 0; at--) {
+        final tryIds = [...ids]..insert(at, _plusId);
+        if (SummaryLayout.pack(tryIds, (id) => id == _musicId).length <=
+            SummaryLayout.maxColumns) {
+          ids
+            ..clear()
+            ..addAll(tryIds);
+          break;
+        }
+      }
+    }
+    final cols = SummaryLayout.pack(ids, (id) => id == _musicId);
+    final settled = _enter.isCompleted;
     return Stack(
       children: [
         Padding(
           padding: const EdgeInsets.all(_gap),
           child: LayoutBuilder(
             builder: (context, c) {
-              final rects = _rects(Size(c.maxWidth, c.maxHeight), layout);
+              final rects = _rects(Size(c.maxWidth, c.maxHeight), cols);
               // the order the tiles arrive in: left to right, top to bottom
               final arrival = rects.keys.toList()
                 ..sort((a, b) {
@@ -358,26 +441,63 @@ class _SummaryCardState extends State<SummaryCard>
                 });
               // Each tile is placed by its own rectangle, so when the order
               // changes the tiles glide to their new places instead of jumping.
+              final children = <Widget>[];
+              for (final id in ids) {
+                final fresh = settled && !_seen.contains(id);
+                final removing = _removing.contains(id);
+                final Widget body = id == _plusId
+                    ? _PlusTile(
+                        onTap: widget.onAddTile,
+                        onDrop: (dragged) =>
+                            _moveToEmpty(dragged, ids.indexOf(_plusId), ids),
+                      )
+                    : _slot(id, content[id]!);
+                children.add(
+                  AnimatedPositioned(
+                    key: ValueKey(id),
+                    duration: still
+                        ? Duration.zero
+                        : const Duration(milliseconds: 420),
+                    curve: easeOutStrong,
+                    left: rects[id]!.left,
+                    top: rects[id]!.top,
+                    width: rects[id]!.width,
+                    height: rects[id]!.height,
+                    child: _arrive(
+                      arrival.indexOf(id),
+                      _Pop(
+                        fresh: fresh && !still,
+                        child: AnimatedScale(
+                          scale: removing ? 0.85 : 1,
+                          duration: still
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          curve: easeOutStrong,
+                          child: AnimatedOpacity(
+                            opacity: removing ? 0 : 1,
+                            duration: still
+                                ? Duration.zero
+                                : const Duration(milliseconds: 180),
+                            onEnd: removing ? () => _commitRemove(id) : null,
+                            child: body,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              _seen.addAll(ids);
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  for (final id in [
-                    _musicId,
-                    ...SummaryTile.values.map((t) => t.name),
-                  ])
-                    AnimatedPositioned(
-                      key: ValueKey(id),
-                      duration: still
-                          ? Duration.zero
-                          : const Duration(milliseconds: 420),
-                      curve: easeOutStrong,
-                      left: rects[id]!.left,
-                      top: rects[id]!.top,
-                      width: rects[id]!.width,
-                      height: rects[id]!.height,
-                      child: _arrive(
-                        arrival.indexOf(id),
-                        _slot(id, content[id]!),
+                  ...children,
+                  if (ids.isEmpty)
+                    Center(
+                      child: GestureDetector(
+                        onTap: widget.onAddTile,
+                        onLongPress: () => _setEditing(true),
+                        child: Text('Hold to add widgets', style: _caption(16)),
                       ),
                     ),
                 ],
@@ -645,6 +765,122 @@ class _DateTile extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// A small round badge on a tile's corner ("-" to remove it).
+class _Badge extends StatelessWidget {
+  const _Badge({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 6)],
+      ),
+      child: SizedBox(
+        width: 26,
+        height: 26,
+        child: Icon(icon, size: 18, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// The "+" that takes a free place while editing: tap it to choose a widget.
+class _PlusTile extends StatelessWidget {
+  const _PlusTile({required this.onTap, required this.onDrop});
+
+  final VoidCallback? onTap;
+
+  /// a tile was dropped on this empty place
+  final ValueChanged<String> onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) => onDrop(d.data),
+      builder: (context, candidates, rejected) =>
+          _plus(context, hot: candidates.isNotEmpty),
+    );
+  }
+
+  Widget _plus(BuildContext context, {required bool hot}) {
+    return Semantics(
+      button: true,
+      label: 'Add a widget',
+      excludeSemantics: true,
+      child: Pressable(
+        scale: 0.96,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            tick();
+            onTap?.call();
+          },
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              // lights up while a tile is held over it
+              color: Colors.white.withValues(alpha: hot ? 0.16 : 0.05),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: hot ? 0.6 : 0.22),
+                width: 1.5,
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.14),
+                    ),
+                    child: const Icon(Icons.add_rounded, size: 30),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Add widget', style: _caption(13, Colors.white70)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A tile that has just been added: it grows and fades in. (Tiles that were
+/// already there, or that deal in with the panel, are left alone.)
+class _Pop extends StatelessWidget {
+  const _Pop({required this.fresh, required this.child});
+
+  final bool fresh;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: fresh ? 0 : 1, end: 1),
+      duration: const Duration(milliseconds: 300),
+      curve: easeOutStrong,
+      builder: (context, v, child) => v >= 1
+          ? child!
+          : Opacity(
+              opacity: v.clamp(0.0, 1.0),
+              child: Transform.scale(scale: 0.9 + 0.1 * v, child: child),
+            ),
+      child: child,
     );
   }
 }
