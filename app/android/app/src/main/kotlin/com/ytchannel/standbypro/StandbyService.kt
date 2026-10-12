@@ -29,7 +29,7 @@ import android.view.View
 import android.view.WindowManager
 
 /**
- * Watches for "charging + propped up" and opens Dockwise by itself.
+ * Watches for "charging + propped up" and opens Hushdock by itself.
  *
  * Battery: the tilt sensor is only listened to while a charger is connected
  * (and at a low rate); on battery the service just waits for the plug event.
@@ -84,7 +84,7 @@ class StandbyService : Service(), SensorEventListener {
         createChannels()
         val note = Notification.Builder(this, WATCH_CHANNEL)
             .setSmallIcon(applicationInfo.icon)
-            .setContentTitle("Dockwise is ready")
+            .setContentTitle("Hushdock is ready")
             .setContentText("Opens when you charge the phone and prop it up")
             .setOngoing(true)
             .build()
@@ -142,7 +142,7 @@ class StandbyService : Service(), SensorEventListener {
         // the CPU awake while charging (screen stays off; the phone is on power anyway).
         if (wake == null) {
             wake = (getSystemService(POWER_SERVICE) as PowerManager)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "dockwise:posture")
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "hushdock:posture")
                 .apply { setReferenceCounted(false); acquire() }
         }
     }
@@ -231,7 +231,7 @@ class StandbyService : Service(), SensorEventListener {
         val n = Notification.Builder(this, OPEN_CHANNEL)
             .setSmallIcon(applicationInfo.icon)
             .setContentTitle("Charging and propped up")
-            .setContentText("Tap to open Dockwise")
+            .setContentText("Tap to open Hushdock")
             .setCategory(Notification.CATEGORY_ALARM)
             .setContentIntent(open)
             .setFullScreenIntent(open, true) // opens by itself if Android allows it
@@ -244,10 +244,10 @@ class StandbyService : Service(), SensorEventListener {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
             NotificationChannel(WATCH_CHANNEL, "Auto-start", NotificationManager.IMPORTANCE_MIN)
-                .apply { description = "Keeps Dockwise ready to open when you dock the phone" })
+                .apply { description = "Keeps Hushdock ready to open when you dock the phone" })
         nm.createNotificationChannel(
-            NotificationChannel(OPEN_CHANNEL, "Open Dockwise", NotificationManager.IMPORTANCE_HIGH)
-                .apply { description = "Shown when Dockwise cannot open on its own" })
+            NotificationChannel(OPEN_CHANNEL, "Open Hushdock", NotificationManager.IMPORTANCE_HIGH)
+                .apply { description = "Shown when Hushdock cannot open on its own" })
     }
 
     override fun onDestroy() {

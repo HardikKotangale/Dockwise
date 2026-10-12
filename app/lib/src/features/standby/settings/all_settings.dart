@@ -114,7 +114,7 @@ class AllSettings extends StatelessWidget {
             SettingsSection(
               title: 'Auto-start',
               subtitle:
-                  'Open Dockwise by itself when the phone is charging and propped up.',
+                  'Open Hushdock by itself when the phone is charging and propped up.',
               child: AutoStartSection(controller: controller),
             ),
           SettingsSection(
@@ -306,7 +306,7 @@ class AllSettings extends StatelessWidget {
                   onChanged: (v) => set(settings.copyWith(lowBatteryAlert: v)),
                   title: const Text('Low battery prompt'),
                   subtitle: const Text(
-                    'When low and not charging, ask to charge the phone before using Dockwise',
+                    'When low and not charging, ask to charge the phone before using Hushdock',
                   ),
                 ),
                 if (settings.lowBatteryAlert)
@@ -492,7 +492,7 @@ class _AutoStartSectionState extends State<AutoStartSection> {
                         ? 'Reading the tilt sensor…'
                         : 'Now: leaning ${now.lean.round()}° · '
                               '${now.roll >= 45 ? 'landscape' : 'portrait'}\n'
-                              '${now.matches ? 'This would start Dockwise (while charging)' : 'Not propped up enough yet'}',
+                              '${now.matches ? 'This would start Hushdock (while charging)' : 'Not propped up enough yet'}',
                     style: const TextStyle(fontSize: 13.5),
                   ),
                 ),

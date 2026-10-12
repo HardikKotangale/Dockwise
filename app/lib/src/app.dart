@@ -29,7 +29,7 @@ class StandbyProApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dockwise',
+      title: 'Hushdock',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,
       scrollBehavior: const AppleScrollBehavior(),

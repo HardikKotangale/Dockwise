@@ -596,7 +596,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   /// Plays on [deviceId], carrying on with whatever was playing. If that is
   /// this phone and Spotify is not awake here (it has to be running to be
   /// available), the Spotify app is opened and the transfer is tried again.
-  /// If you come back to Dockwise before it worked, it tries once more.
+  /// If you come back to Hushdock before it worked, it tries once more.
   Future<bool> playOnSpotifyDevice(String deviceId, {bool wake = true}) async {
     var ok = await _spotify.transferTo(deviceId);
     var woke = false;
@@ -616,7 +616,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     if (ok) _pendingDevice = null;
-    if (ok && woke) unawaited(_backToDockwise());
+    if (ok && woke) unawaited(_backToHushdock());
     musicError = ok ? null : _spotify.lastError;
     if (ok) _refreshSoon();
     return ok;
@@ -643,14 +643,14 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     final ok = await playOnSpotifyDevice(id, wake: false);
-    if (ok) unawaited(_backToDockwise());
+    if (ok) unawaited(_backToHushdock());
     return ok;
   }
 
-  /// After waking Spotify, bring Dockwise back. Android only: iOS does not let
+  /// After waking Spotify, bring Hushdock back. Android only: iOS does not let
   /// an app open itself from the background. Android may also refuse unless
-  /// Dockwise is allowed to display over other apps.
-  Future<void> _backToDockwise() async {
+  /// Hushdock is allowed to display over other apps.
+  Future<void> _backToHushdock() async {
     if (defaultTargetPlatform == TargetPlatform.iOS) return;
     await Future<void>.delayed(const Duration(milliseconds: 600));
     await _systemService.launchApp('com.ytchannel.standbypro');

@@ -2253,7 +2253,7 @@ void main() {
     testWidgets('prompt: at 20% and not charging, asks to charge', (t) async {
       await app(t, (level: 20, charging: false, full: false));
       expect(find.text('Charge your phone'), findsOneWidget);
-      expect(find.text('Plug it in to keep using Dockwise.'), findsOneWidget);
+      expect(find.text('Plug it in to keep using Hushdock.'), findsOneWidget);
       await finish(t);
     });
 

@@ -1,6 +1,6 @@
 # Formal specs (PlusCal + TLC)
 
-Two small PlusCal models of the Kotlin logic that decides when Dockwise opens and closes itself, checked with the TLC model checker. TLC found four real problems in the Kotlin code. Each is fixed, pinned by a JVM regression test, and the fix is proven in the model by a switch (`Fix*` constant) that turns the model from "code as it was" to "code as it is now".
+Two small PlusCal models of the Kotlin logic that decides when Hushdock opens and closes itself, checked with the TLC model checker. TLC found four real problems in the Kotlin code. Each is fixed, pinned by a JVM regression test, and the fix is proven in the model by a switch (`Fix*` constant) that turns the model from "code as it was" to "code as it is now".
 
 ```
 ./spec/run_tlc.sh        # downloads tla2tools.jar once, runs all 12 configs, exit 0 = all behave as expected

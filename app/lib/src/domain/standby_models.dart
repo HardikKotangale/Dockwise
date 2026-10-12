@@ -516,7 +516,7 @@ class StandbySettings {
   /// ARGB int; 0 = Apple red. Independent of the clock's own colors.
   final int appAccent;
 
-  /// Auto-start: open Dockwise by itself when the phone is charging and
+  /// Auto-start: open Hushdock by itself when the phone is charging and
   /// propped up (see StandbyService on the Android side).
   final bool autoStart;
   final double autoLeanDeg; // how far from lying flat counts as "propped up"

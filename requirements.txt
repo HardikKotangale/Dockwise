@@ -1,4 +1,4 @@
-# Dockwise requirements
+# Hushdock requirements
 # =====================
 # Flutter apps do not use pip, so this is a plain checklist of what must be
 # installed. The scripts below install everything that is missing for you:
@@ -28,5 +28,5 @@ apple-id-for-signing      # free Apple ID is enough; free apps expire after 7 da
 
 # ---------- optional ----------
 spotify-client-id         # https://developer.spotify.com/dashboard
-                          # redirect URI: dockwise://spotify-callback
+                          # redirect URI: hushdock://spotify-callback
                           # put it in app/lib/src/services/spotify_config.dart

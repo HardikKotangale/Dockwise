@@ -1,10 +1,10 @@
-# Dockwise
+# Hushdock
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: Android / iOS](https://img.shields.io/badge/Platform-Android%20%2F%20iOS-blue.svg)](#platforms)
 [![Tech: Flutter](https://img.shields.io/badge/Tech-Flutter-02569B.svg)](#)
 
-Dockwise turns a charging phone into a bedside display: big readable clocks, live weather, a calendar, a timer and a Spotify now-playing card, designed for a dark room. It is built with Flutter for Android and iPhone, and is based on the open-source Standby Pro project.
+Hushdock turns a charging phone into a bedside display: big readable clocks, live weather, a calendar, a timer and a Spotify now-playing card, designed for a dark room. It is built with Flutter for Android and iPhone, and is based on the open-source Standby Pro project.
 
 The look is inspired by iOS StandBy, but the layouts, themes, controls and motion are original. The interface is built to feel like iOS: springs instead of fixed-time animations, glass surfaces, press feedback on touch-down, and layouts that rearrange themselves when you turn the phone.
 
@@ -127,8 +127,8 @@ Sign in with Spotify to control playback on any device: a Mac, a speaker, a TV o
 
 ### Rotation and auto-start
 
-- If the screen is not turned the way you hold the phone (for example iPhone rotation lock is on), Dockwise follows the phone by itself after a moment, using the gravity sensor, and notices a 180-degree flip. It never rotates while you are touching the screen.
-- **Android only:** Dockwise opens itself when the phone is charging and propped up in landscape, and closes when you unplug (see [Android auto-start](#android-auto-start)).
+- If the screen is not turned the way you hold the phone (for example iPhone rotation lock is on), Hushdock follows the phone by itself after a moment, using the gravity sensor, and notices a 180-degree flip. It never rotates while you are touching the screen.
+- **Android only:** Hushdock opens itself when the phone is charging and propped up in landscape, and closes when you unplug (see [Android auto-start](#android-auto-start)).
 
 ### Accessibility
 
@@ -152,7 +152,7 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 
 ### Android auto-start
 
-When enabled, a small foreground service watches the charger. While charging, it reads the gravity sensor at a low rate and opens Dockwise once the phone has been propped up (default 40° or more from flat) in landscape for 1.5 seconds. It closes the app as soon as you unplug, but only if it opened itself and you have not taken over the screen (opened it yourself, or pressed Home). To launch from the background it uses "Display over other apps" and a full-screen notification over the lock screen. In the app go to Settings > All settings > Auto-start; a checklist there shows what still needs to be allowed (overlay, notifications, battery set to Unrestricted).
+When enabled, a small foreground service watches the charger. While charging, it reads the gravity sensor at a low rate and opens Hushdock once the phone has been propped up (default 40° or more from flat) in landscape for 1.5 seconds. It closes the app as soon as you unplug, but only if it opened itself and you have not taken over the screen (opened it yourself, or pressed Home). To launch from the background it uses "Display over other apps" and a full-screen notification over the lock screen. In the app go to Settings > All settings > Auto-start; a checklist there shows what still needs to be allowed (overlay, notifications, battery set to Unrestricted).
 
 ## Permissions
 
@@ -219,12 +219,12 @@ Always open `ios/Runner.xcworkspace`, never `Runner.xcodeproj`, or Xcode will sa
 ### 5. First run on the phone
 
 - Allow **location** when asked (weather and your city name). You can say no; the clock still works.
-- Optional, Android only: Settings > All settings > **Auto-start** to open Dockwise when you dock the phone. A checklist there shows what still needs to be allowed.
+- Optional, Android only: Settings > All settings > **Auto-start** to open Hushdock when you dock the phone. A checklist there shows what still needs to be allowed.
 - Tap any panel to change clock style, colors and layout. Pinch with two fingers to switch between one and two panels.
 
 ### 6. Spotify (optional)
 
-1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `dockwise://spotify-callback`.
+1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback`.
 2. Copy `app/lib/src/services/spotify_config.example.dart` to `app/lib/src/services/spotify_config.dart` and paste your Client ID. That file is git-ignored, so your Spotify app is never committed. (The setup scripts create the file for you.)
 3. Or pass it at build time: `flutter run --dart-define=SPOTIFY_CLIENT_ID=your_id`.
 4. In the app, open the music card's settings and tap **Connect Spotify**. Spotify Premium is needed to control playback.
@@ -248,7 +248,7 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 | Xcode: `Module 'flutter_web_auth_2' not found` | Open `ios/Runner.xcworkspace`, not the `.xcodeproj` |
 | iPhone says the developer is not trusted | Settings > General > VPN & Device Management > trust your Apple ID |
 | iPhone app stops opening after 7 days | A free Apple ID expires after 7 days; run it from Xcode or `flutter run` again |
-| Spotify login opens but does not come back | The redirect URI in the Spotify dashboard must be exactly `dockwise://spotify-callback` |
+| Spotify login opens but does not come back | The redirect URI in the Spotify dashboard must be exactly `hushdock://spotify-callback` |
 | Spotify says it needs a Client ID | Create `spotify_config.dart` as described above |
 
 ## Project Layout

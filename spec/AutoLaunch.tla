@@ -1,7 +1,7 @@
 ------------------------------ MODULE AutoLaunch ------------------------------
 (***************************************************************************)
 (* PlusCal model of the auto-launch feature: how StandbyService decides to *)
-(* open Dockwise when the phone is docked, and how MainActivity closes it  *)
+(* open Hushdock when the phone is docked, and how MainActivity closes it  *)
 (* again when the charger is unplugged.                                    *)
 (*                                                                         *)
 (*   StandbyService.setCharging / onSensorChanged / openApp / notifyToOpen *)
@@ -21,7 +21,7 @@
 (*      opened or took over themselves.                                    *)
 (*  R2  Nothing the watcher opened is left open after the charger is out.  *)
 (*  R3  When docked and charging, the user is eventually either shown      *)
-(*      Dockwise or offered a "tap to open" notification.                  *)
+(*      Hushdock or offered a "tap to open" notification.                  *)
 (*                                                                         *)
 (* FIX SWITCHES (FALSE = the code as it was, TRUE = the fix):              *)
 (*  FixNewIntent  onNewIntent must not claim a screen already visible      *)
@@ -113,7 +113,7 @@ ASSUME /\ FixNewIntent \in BOOLEAN /\ FixLeave \in BOOLEAN
         };
       } or {
         \* ---- the user taps the launcher icon ----
-        \* (only possible when Dockwise is NOT on screen: the launcher is)
+        \* (only possible when Hushdock is NOT on screen: the launcher is)
         await AllowUser /\ ~visible;
         if (~appTask) { appTask := TRUE; launchedByAuto := FALSE; };   \* onCreate, no extra
         visible := TRUE; userOwned := TRUE;
