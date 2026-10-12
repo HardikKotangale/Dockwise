@@ -111,6 +111,9 @@ class _SummaryCardState extends State<SummaryCard>
 
   @override
   void dispose() {
+    // leaving while editing must not leave the screen thinking a tile is still
+    // being dragged (that would stop every swipe)
+    if (_editing) widget.onEditing?.call(false);
     _enter.dispose();
     _jiggle.dispose();
     super.dispose();
