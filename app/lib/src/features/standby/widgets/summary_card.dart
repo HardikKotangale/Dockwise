@@ -247,18 +247,26 @@ class _SummaryCardState extends State<SummaryCard>
                   children: [
                     AbsorbPointer(child: content),
                     // the "-" that takes this widget away, on the corner
+                    // The drawn badge is 26 px, but the part of this box that is
+                    // inside the tile (about 52 px square) takes the tap, so a
+                    // finger does not have to be exact.
                     Positioned(
-                      top: -6,
-                      left: -6,
+                      top: -8,
+                      left: -8,
+                      width: 60,
+                      height: 60,
                       child: Semantics(
                         button: true,
                         label: 'Remove this widget',
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: () => _remove(id),
-                          child: const _Badge(
-                            icon: Icons.remove_rounded,
-                            color: Color(0xFFFF453A),
+                          child: const Align(
+                            alignment: Alignment.topLeft,
+                            child: _Badge(
+                              icon: Icons.remove_rounded,
+                              color: Color(0xFFFF453A),
+                            ),
                           ),
                         ),
                       ),
@@ -424,112 +432,134 @@ class _SummaryCardState extends State<SummaryCard>
     }
     final cols = SummaryLayout.pack(ids, (id) => id == _musicId);
     final settled = _enter.isCompleted;
-    return Stack(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(_gap),
-          child: LayoutBuilder(
-            builder: (context, c) {
-              final rects = _rects(Size(c.maxWidth, c.maxHeight), cols);
-              // the order the tiles arrive in: left to right, top to bottom
-              final arrival = rects.keys.toList()
-                ..sort((a, b) {
-                  final byX = rects[a]!.left.compareTo(rects[b]!.left);
-                  return byX != 0
-                      ? byX
-                      : rects[a]!.top.compareTo(rects[b]!.top);
-                });
-              // Each tile is placed by its own rectangle, so when the order
-              // changes the tiles glide to their new places instead of jumping.
-              final children = <Widget>[];
-              for (final id in ids) {
-                final fresh = settled && !_seen.contains(id);
-                final removing = _removing.contains(id);
-                final Widget body = id == _plusId
-                    ? _PlusTile(
-                        onTap: widget.onAddTile,
-                        onDrop: (dragged) =>
-                            _moveToEmpty(dragged, ids.indexOf(_plusId), ids),
-                      )
-                    : _slot(id, content[id]!);
-                children.add(
-                  AnimatedPositioned(
-                    key: ValueKey(id),
-                    duration: still
-                        ? Duration.zero
-                        : const Duration(milliseconds: 420),
-                    curve: easeOutStrong,
-                    left: rects[id]!.left,
-                    top: rects[id]!.top,
-                    width: rects[id]!.width,
-                    height: rects[id]!.height,
-                    child: _arrive(
-                      arrival.indexOf(id),
-                      _Pop(
-                        fresh: fresh && !still,
-                        child: AnimatedScale(
-                          scale: removing ? 0.85 : 1,
-                          duration: still
-                              ? Duration.zero
-                              : const Duration(milliseconds: 180),
-                          curve: easeOutStrong,
-                          child: AnimatedOpacity(
-                            opacity: removing ? 0 : 1,
+    // While editing, a strip at the top is kept for the Done button, so it
+    // never sits on a tile's "-". Taps on the panel while editing stay here
+    // (they must not fall through and open All settings).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _editing ? () {} : null,
+      child: Stack(
+        children: [
+          AnimatedPadding(
+            duration: still ? Duration.zero : const Duration(milliseconds: 260),
+            curve: easeOutStrong,
+            padding: EdgeInsets.fromLTRB(
+              _gap,
+              _editing ? 54 : _gap,
+              _gap,
+              _gap,
+            ),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final rects = _rects(Size(c.maxWidth, c.maxHeight), cols);
+                // the order the tiles arrive in: left to right, top to bottom
+                final arrival = rects.keys.toList()
+                  ..sort((a, b) {
+                    final byX = rects[a]!.left.compareTo(rects[b]!.left);
+                    return byX != 0
+                        ? byX
+                        : rects[a]!.top.compareTo(rects[b]!.top);
+                  });
+                // Each tile is placed by its own rectangle, so when the order
+                // changes the tiles glide to their new places instead of jumping.
+                final children = <Widget>[];
+                for (final id in ids) {
+                  final fresh = settled && !_seen.contains(id);
+                  final removing = _removing.contains(id);
+                  final Widget body = id == _plusId
+                      ? _PlusTile(
+                          onTap: widget.onAddTile,
+                          onDrop: (dragged) =>
+                              _moveToEmpty(dragged, ids.indexOf(_plusId), ids),
+                        )
+                      : _slot(id, content[id]!);
+                  children.add(
+                    AnimatedPositioned(
+                      key: ValueKey(id),
+                      duration: still
+                          ? Duration.zero
+                          : const Duration(milliseconds: 420),
+                      curve: easeOutStrong,
+                      left: rects[id]!.left,
+                      top: rects[id]!.top,
+                      width: rects[id]!.width,
+                      height: rects[id]!.height,
+                      child: _arrive(
+                        arrival.indexOf(id),
+                        _Pop(
+                          fresh: fresh && !still,
+                          child: AnimatedScale(
+                            scale: removing ? 0.85 : 1,
                             duration: still
                                 ? Duration.zero
                                 : const Duration(milliseconds: 180),
-                            onEnd: removing ? () => _commitRemove(id) : null,
-                            child: body,
+                            curve: easeOutStrong,
+                            child: AnimatedOpacity(
+                              opacity: removing ? 0 : 1,
+                              duration: still
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 180),
+                              onEnd: removing ? () => _commitRemove(id) : null,
+                              child: body,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  );
+                }
+                _seen.addAll(ids);
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ...children,
+                    if (ids.isEmpty)
+                      Center(
+                        child: GestureDetector(
+                          onTap: widget.onAddTile,
+                          onLongPress: () => _setEditing(true),
+                          child: Text(
+                            'Hold to add widgets',
+                            style: _caption(16),
+                          ),
+                        ),
+                      ),
+                  ],
                 );
-              }
-              _seen.addAll(ids);
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ...children,
-                  if (ids.isEmpty)
-                    Center(
-                      child: GestureDetector(
-                        onTap: widget.onAddTile,
-                        onLongPress: () => _setEditing(true),
-                        child: Text('Hold to add widgets', style: _caption(16)),
-                      ),
-                    ),
-                ],
-              );
-            },
+              },
+            ),
           ),
-        ),
-        if (_editing)
-          Positioned(
-            top: 14,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Pressable(
-                scale: 0.95,
-                child: GestureDetector(
-                  onTap: () => _setEditing(false),
-                  child: const Glass(
-                    radius: 99,
-                    blur: 18,
-                    opacity: 0.7,
+          if (_editing)
+            Positioned(
+              top: 4,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Pressable(
+                  scale: 0.95,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _setEditing(false),
+                    // a roomy target: much bigger than the pill you see
                     child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 9,
-                      ),
-                      child: Text(
-                        'Done',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
+                      padding: const EdgeInsets.all(8),
+                      child: const Glass(
+                        radius: 99,
+                        blur: 18,
+                        opacity: 0.7,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 26,
+                            vertical: 11,
+                          ),
+                          child: Text(
+                            'Done',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -537,8 +567,8 @@ class _SummaryCardState extends State<SummaryCard>
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

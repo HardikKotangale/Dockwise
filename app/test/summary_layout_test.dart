@@ -155,7 +155,9 @@ void main() {
     await tester.pumpWidget(host(card(onEditing: editing.add)));
     expect(find.text('Done'), findsNothing);
     await tester.longPress(find.text('SUNDAY'));
-    await tester.pump();
+    await tester.pump(
+      const Duration(milliseconds: 700),
+    ); // tiles make room for Done
     expect(find.text('Done'), findsOneWidget);
     expect(editing, [true]);
     await tester.tap(find.text('Done'));
@@ -168,7 +170,9 @@ void main() {
     String? saved;
     await tester.pumpWidget(host(card(onLayout: (v) => saved = v)));
     await tester.longPress(find.text('SUNDAY'));
-    await tester.pump();
+    await tester.pump(
+      const Duration(milliseconds: 700),
+    ); // tiles make room for Done
     final date = tester.getCenter(find.text('SUNDAY'));
     final here = tester.getCenter(find.textContaining('Here').first);
     final g = await tester.startGesture(date);
@@ -187,7 +191,9 @@ void main() {
     String? saved;
     await tester.pumpWidget(host(card(onLayout: (v) => saved = v)));
     await tester.longPress(find.text('SUNDAY'));
-    await tester.pump();
+    await tester.pump(
+      const Duration(milliseconds: 700),
+    ); // tiles make room for Done
     final music = tester.getCenter(find.text('MUSIC'));
     final here = tester.getCenter(find.textContaining('Here').first);
     final g = await tester.startGesture(music);
@@ -230,7 +236,9 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 2));
     await tester.longPress(find.text('SUNDAY'));
-    await tester.pump();
+    await tester.pump(
+      const Duration(milliseconds: 700),
+    ); // tiles make room for Done
     // the panel is full: no "+" yet, and a "-" on every tile
     expect(find.bySemanticsLabel('Add a widget'), findsNothing);
     expect(find.bySemanticsLabel('Remove this widget'), findsNWidgets(5));
@@ -302,9 +310,11 @@ void main() {
         ),
       ),
     );
-    final before = tester.getCenter(find.text('SUNDAY'));
     await tester.longPress(find.text('SUNDAY'));
-    await tester.pump();
+    await tester.pump(
+      const Duration(milliseconds: 700),
+    ); // tiles make room for Done
+    final before = tester.getCenter(find.text('SUNDAY'));
     final g = await tester.startGesture(before);
     await tester.pump(const Duration(milliseconds: 200));
     await g.moveTo(tester.getCenter(find.textContaining('Here').first));
@@ -583,5 +593,43 @@ void main() {
       SummaryTile.here,
       SummaryTile.music,
     ]);
+  });
+
+  testWidgets('editing: the - has a roomy target, Done is clear of it, and a '
+      'tap on the panel does not reach what is behind it', (tester) async {
+    var behind = 0;
+    String? saved;
+    await tester.pumpWidget(
+      host(
+        GestureDetector(
+          onTap: () => behind++, // like the panel, which opens All settings
+          child: SummaryCard(
+            now: DateTime(2026, 10, 11, 14, 5),
+            settings: const StandbySettings(),
+            weather: const ColoredBox(color: Colors.blue),
+            music: const ColoredBox(color: Colors.purple),
+            onLayout: (v) => saved = v,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.longPress(find.text('SUNDAY'));
+    await tester.pump(const Duration(milliseconds: 600));
+    // Done sits above every tile, not over a "-"
+    final done = tester.getRect(find.text('Done'));
+    for (final badge in find.byIcon(Icons.remove_rounded).evaluate()) {
+      final r = tester.getRect(find.byWidget(badge.widget));
+      expect(r.overlaps(done), isFalse);
+    }
+    // a tap well off the drawn "-" (but inside its target) still removes
+    final first = tester.getRect(find.byIcon(Icons.remove_rounded).first);
+    await tester.tapAt(first.center + const Offset(14, 14));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(saved, isNotNull);
+    // and a tap on empty panel while editing does not fall through
+    await tester.tapAt(const Offset(2, 2));
+    expect(behind, 0);
   });
 }
