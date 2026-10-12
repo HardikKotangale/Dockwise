@@ -21,9 +21,13 @@ SCENES = {
     "flip-clock": "flip-clock.gif",
     "weather-scenes": "weather-scenes.gif",
     "low-battery": "low-battery-prompt.gif",
+    "timer-horse": "timer-horse.gif",
+    "timer-touchdown": "timer-touchdown.gif",
+    "timer-type": "timer-type.gif",
+    "summary-widgets": "summary-widgets.gif",
 }
 # a narrower picture for the busy ones keeps the file small
-WIDTHS = {"weather-scenes": 340, "weather-pages": 420}
+WIDTHS = {"weather-scenes": 340, "weather-pages": 420, "timer-type": 400, "timer-touchdown": 400, "timer-horse": 440, "summary-widgets": 480}
 WIDTH = 520  # px: small enough for a README, sharp enough to read
 
 
@@ -57,5 +61,8 @@ def build(scene: str, name: str) -> None:
 
 
 if __name__ == "__main__":
+    # with names (python3 tool/frames_to_gif.py timer-horse ...) only those
+    only = sys.argv[1:]
     for scene, name in SCENES.items():
-        build(scene, name)
+        if not only or scene in only:
+            build(scene, name)

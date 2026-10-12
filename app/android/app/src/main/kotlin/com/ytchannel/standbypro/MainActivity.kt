@@ -23,6 +23,12 @@ import android.media.session.PlaybackState
 import android.provider.Settings
 import java.io.ByteArrayOutputStream
 import android.media.AudioManager
+import android.media.RingtoneManager
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.view.KeyEvent
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -95,6 +101,36 @@ class MainActivity : FlutterActivity() {
     // and is started by the first request.
     private var lightListener: SensorEventListener? = null
     private var lastLux: Float? = null
+
+    // The timer's end: a sound unless the phone is on silent or vibrate, and a
+    // buzz when it is (or when "Vibrate" is on).
+    private fun timerAlert(sound: String, vibrate: Boolean) {
+        val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val quiet = audio.ringerMode != AudioManager.RINGER_MODE_NORMAL
+        if (!quiet && sound != "none") {
+            val type = when (sound) {
+                "chime" -> RingtoneManager.TYPE_NOTIFICATION
+                "fanfare" -> RingtoneManager.TYPE_RINGTONE
+                else -> RingtoneManager.TYPE_ALARM
+            }
+            val tone = RingtoneManager.getRingtone(
+                applicationContext,
+                RingtoneManager.getDefaultUri(type),
+            )
+            tone?.play()
+            Handler(Looper.getMainLooper()).postDelayed({ tone?.stop() }, 2500)
+        }
+        if (quiet || vibrate) {
+            val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
+                    ?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 400, 150, 400), -1))
+        }
+    }
 
     private fun ambientLux(): Double? {
         if (lightListener == null) {
@@ -259,6 +295,13 @@ class MainActivity : FlutterActivity() {
                             landscapeOnly = getArgument<Boolean>(call.arguments, "landscapeOnly") ?: true))
                         result.success(mapOf("lean" to r.leanDeg, "roll" to r.rollDeg, "matches" to logic.matches(r)))
                     }
+                }
+                "timerAlert" -> {
+                    timerAlert(
+                        getArgument<String>(call.arguments, "sound") ?: "alarm",
+                        getArgument<Boolean>(call.arguments, "vibrate") ?: true,
+                    )
+                    result.success(true)
                 }
                 "deviceModel" -> result.success(android.os.Build.MODEL)
                 // which way the screen is turned now: ROTATION_90 = top of the phone to the left

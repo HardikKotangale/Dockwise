@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/palette.dart';
 import '../../../../domain/standby_models.dart';
 
 class AnalogClockFace extends StatelessWidget {
@@ -52,7 +53,7 @@ class _AnalogClockPainter extends CustomPainter {
         ? theme.clockColor
         : Color(settings.minutesColor);
     final secondInk = settings.detailColor == 0
-        ? const Color(0xFFFF9F0A)
+        ? Palette.orange
         : Color(settings.detailColor);
     final tickPaint = Paint()
       ..color = marks

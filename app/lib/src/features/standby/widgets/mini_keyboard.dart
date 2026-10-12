@@ -123,6 +123,75 @@ class MiniKeyboard extends StatelessWidget {
   }
 }
 
+/// The same keys as [MiniKeyboard], as a number pad (for the timer): 1-9,
+/// 00, 0 and backspace. Keys type the moment the finger lands.
+class MiniNumberPad extends StatelessWidget {
+  const MiniNumberPad({
+    super.key,
+    required this.onDigits,
+    required this.onBackspace,
+    this.keyHeight,
+  });
+
+  /// a fixed key height, when there is more room than the default
+  final double? keyHeight;
+  final ValueChanged<String> onDigits;
+  final VoidCallback onBackspace;
+
+  static const _rows = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['00', '0', '<'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final portrait = MediaQuery.orientationOf(context) == Orientation.portrait;
+    final h = keyHeight ?? (portrait ? 56.0 : 40.0);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final row in _rows)
+                SizedBox(
+                  height: h,
+                  child: Row(
+                    children: [
+                      for (final k in row)
+                        Expanded(
+                          child: k == '<'
+                              ? _Key(
+                                  icon: Icons.backspace_outlined,
+                                  label: 'Backspace',
+                                  scale: portrait ? 1 : 0,
+                                  onTap: onBackspace,
+                                )
+                              : _Key(
+                                  label: k,
+                                  scale: portrait ? 1 : 0,
+                                  onTap: () => onDigits(k),
+                                ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Key extends StatefulWidget {
   const _Key({
     required this.label,

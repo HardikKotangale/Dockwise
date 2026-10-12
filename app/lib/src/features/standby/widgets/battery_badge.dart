@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show MethodChannel, MissingPluginException, PlatformException;
 
+import '../../../core/palette.dart';
+
 /// What the screen needs to know about the battery.
 typedef BatteryReading = ({int level, bool charging, bool full});
 
@@ -77,8 +79,8 @@ class BatteryMonitor extends ChangeNotifier {
   }
 }
 
-const _red = Color(0xFFFF453A);
-const _green = Color(0xFF30D158);
+const _red = Palette.red;
+const _green = Palette.green;
 
 /// Extremely quiet battery readout for the corner: a hairline battery and a
 /// small number. It only appears when there is something to tell: on battery,

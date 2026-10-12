@@ -14,6 +14,7 @@ class SpringDock extends StatefulWidget {
     required this.extent,
     required this.onClosed,
     required this.builder,
+    this.overlay = false,
   });
 
   /// horizontal: slides in from the right; vertical: up from the bottom
@@ -21,6 +22,11 @@ class SpringDock extends StatefulWidget {
 
   /// the panel's full width (horizontal) or height (vertical)
   final double extent;
+
+  /// A sheet laid over the screen: the panel keeps its full size and simply
+  /// slides in from the edge (instead of the slot growing and pushing the
+  /// dashboard aside).
+  final bool overlay;
 
   /// called once it has finished leaving
   final VoidCallback onClosed;
@@ -46,6 +52,25 @@ class SpringDockHandle {
   final void Function(double velocity) dragEnd;
 }
 
+/// Hands the dock's [SpringDockHandle] to whatever is inside it, so content
+/// other than the header (e.g. the timer's number display) can drag the dock
+/// closed too.
+class SpringDockScope extends InheritedWidget {
+  const SpringDockScope({
+    super.key,
+    required this.handle,
+    required super.child,
+  });
+
+  final SpringDockHandle handle;
+
+  static SpringDockHandle? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SpringDockScope>()?.handle;
+
+  @override
+  bool updateShouldNotify(SpringDockScope old) => false;
+}
+
 class SpringDockState extends State<SpringDock>
     with SingleTickerProviderStateMixin {
   // how far the panel is from fully open, in px along the axis (0 = open)
@@ -64,7 +89,7 @@ class SpringDockState extends State<SpringDock>
     if (MediaQuery.disableAnimationsOf(context)) {
       _c.value = 0;
     } else {
-      _spring(0, 0, damping: 1, response: 0.42);
+      _spring(0, 0, damping: 1, response: 0.36);
     }
   }
 
@@ -81,6 +106,11 @@ class SpringDockState extends State<SpringDock>
         _c.value,
         target,
         velocity,
+        // "arrived" at half a pixel, not at the spring's last invisible
+        // wobble: otherwise it keeps the dock around for a second after it
+        // has visibly gone
+        tolerance: const Tolerance(distance: 0.5, velocity: 12),
+        snapToEnd: true, // and lands exactly on the target when it is done
       ),
     );
   }
@@ -93,7 +123,7 @@ class SpringDockState extends State<SpringDock>
       widget.onClosed();
       return;
     }
-    _spring(widget.extent, _c.velocity, response: 0.38);
+    _spring(widget.extent, _c.velocity, response: 0.26);
     _watchClosed();
   }
 
@@ -145,7 +175,7 @@ class SpringDockState extends State<SpringDock>
         widget.extent,
         velocity,
         damping: velocity.abs() > 500 ? 0.9 : 1,
-        response: 0.38,
+        response: 0.26,
       );
       _watchClosed();
     } else {
@@ -169,9 +199,25 @@ class SpringDockState extends State<SpringDock>
       dragUpdate: _dragUpdate,
       dragEnd: _dragEnd,
     );
+    // built once per rebuild, not once per frame: the settings inside are a
+    // long list, and rebuilding them 60 times a second is what made it stutter
+    final content = RepaintBoundary(child: builderChild(context, handle));
+    if (widget.overlay) {
+      return AnimatedBuilder(
+        animation: _c,
+        child: content,
+        builder: (context, content) => ClipRect(
+          child: Transform.translate(
+            offset: horizontal ? Offset(_c.value, 0) : Offset(0, _c.value),
+            child: content,
+          ),
+        ),
+      );
+    }
     return AnimatedBuilder(
       animation: _c,
-      builder: (context, _) {
+      child: content,
+      builder: (context, content) {
         final shown = (1 - _c.value / widget.extent).clamp(0.0, 1.0);
         // the slot grows and shrinks with the panel; the panel stays at full
         // size inside it, anchored to the near edge, so it slides rather than
@@ -185,7 +231,7 @@ class SpringDockState extends State<SpringDock>
           maxHeight: horizontal ? null : widget.extent,
           child: Transform.translate(
             offset: horizontal ? Offset(-stretch, 0) : Offset(0, -stretch),
-            child: builderChild(context, handle),
+            child: content,
           ),
         );
         panel = ClipRect(child: panel);

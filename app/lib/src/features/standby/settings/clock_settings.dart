@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../state/standby_controller.dart';
 import '../widgets/clock_faces.dart';
@@ -219,7 +220,9 @@ class ClockColors extends StatelessWidget {
     final active = selected == part;
     return KeyedSubtree(
       key: rowKeys[part],
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         key: ValueKey('row-${part.name}${active ? '-active' : ''}'),
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(10),
@@ -252,7 +255,9 @@ class ClockColors extends StatelessWidget {
                     label: '$label ${c.name}',
                     child: GestureDetector(
                       onTap: () => onChanged(_apply(part, c.argb)),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
@@ -333,7 +338,9 @@ class AccentPicker extends StatelessWidget {
             label: 'Accent ${c.name}',
             child: GestureDetector(
               onTap: () => onChanged(settings.copyWith(appAccent: c.argb)),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
@@ -341,9 +348,7 @@ class AccentPicker extends StatelessWidget {
                   color: Color(c.argb),
                   border: Border.all(
                     color: current == c.argb
-                        ? (c.argb == 0xFFFFFFFF
-                              ? const Color(0xFF0A84FF)
-                              : Colors.white)
+                        ? (c.argb == 0xFFFFFFFF ? Palette.blue : Colors.white)
                         : Colors.white24,
                     width: current == c.argb ? 3 : 1,
                   ),
@@ -432,14 +437,13 @@ class PreviewTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                DecoratedBox(
-                  position: DecorationPosition.foreground,
-                  decoration: BoxDecoration(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  foregroundDecoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: selected
-                          ? const Color(0xFF0A84FF)
-                          : Colors.white24,
+                      color: selected ? Palette.blue : Colors.white24,
                       width: selected ? 3 : 1,
                     ),
                   ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/palette.dart';
 import '../../../services/spotify_service.dart';
 import '../../../state/standby_controller.dart';
 
@@ -69,12 +70,40 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
   void dispose() {
     c.removeListener(_onController);
     _poll?.cancel();
+    _commit?.cancel();
     super.dispose();
   }
 
+  Timer? _commit;
+  bool _dirty = false; // a new order not yet sent: do not overwrite it
+
+  void _reorder(int from, int to) {
+    final q = _queue;
+    if (q == null) return;
+    if (to == from) return;
+    final next = [...q.next];
+    next.insert(to, next.removeAt(from));
+    widget.onTouch?.call();
+    setState(() {
+      _queue = SpotifyQueue(q.now, next);
+      _dirty = true;
+    });
+    // several moves in a row become one call
+    _commit?.cancel();
+    _commit = Timer(const Duration(milliseconds: 500), _send);
+  }
+
+  void _send() {
+    final q = _queue;
+    if (q == null || q.now == null) return;
+    c.reorderSpotifyQueue(q.now!, q.next); // takes effect when the song ends
+    _dirty = false;
+  }
+
   Future<void> _load() async {
+    if (_dirty) return;
     final q = await c.spotifyQueue();
-    if (!mounted) return;
+    if (!mounted || _dirty) return;
     setState(() {
       _queue = q ?? _queue; // keep the old list on screen if a refresh fails
       _loading = false;
@@ -85,7 +114,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
   Future<void> _skipTo(int index, SpotifyHit hit) async {
     widget.onTouch?.call();
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await c.skipInQueue(index);
+    final ok = await c.skipInQueue(index, _queue!.next);
     if (!mounted) return;
     if (!ok) {
       messenger
@@ -146,6 +175,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
     SpotifyHit hit, {
     required VoidCallback? onTap,
     bool playing = false,
+    Widget? handle,
   }) {
     return InkWell(
       onTap: onTap,
@@ -167,7 +197,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: playing ? const Color(0xFF30D158) : Colors.white,
+                      color: playing ? Palette.green : Colors.white,
                     ),
                   ),
                   if (hit.subtitle.isNotEmpty)
@@ -186,12 +216,9 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
             if (playing)
               const Padding(
                 padding: EdgeInsets.only(left: 8),
-                child: Icon(
-                  Icons.graphic_eq,
-                  size: 18,
-                  color: Color(0xFF30D158),
-                ),
+                child: Icon(Icons.graphic_eq, size: 18, color: Palette.green),
               ),
+            ?handle,
           ],
         ),
       ),
@@ -261,25 +288,68 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                         widget.onTouch?.call(); // scrolling counts as using it
                         return false;
                       },
-                      child: ListView(
+                      child: ReorderableListView.builder(
                         padding: const EdgeInsets.only(right: 8),
-                        children: [
-                          if (q.now != null) ...[
-                            _label('Now playing'),
-                            _row(q.now!, onTap: null, playing: true),
+                        buildDefaultDragHandles: false,
+                        onReorderItem: _reorder,
+                        proxyDecorator: (child, index, animation) =>
+                            AnimatedBuilder(
+                              animation: animation,
+                              builder: (context, child) {
+                                final t = Curves.easeOut.transform(
+                                  animation.value,
+                                );
+                                return Transform.scale(
+                                  scale: 1 + 0.03 * t,
+                                  child: Material(
+                                    color: const Color(0xFF1C1C1F),
+                                    elevation: 8 * t,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: child,
+                            ),
+                        header: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (q.now != null) ...[
+                              _label('Now playing'),
+                              _row(q.now!, onTap: null, playing: true),
+                            ],
+                            _label('Next in queue'),
+                            if (q.next.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
+                                child: Text(
+                                  'Queue is empty',
+                                  style: TextStyle(color: Colors.white60),
+                                ),
+                              ),
                           ],
-                          _label('Next in queue'),
-                          if (q.next.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
-                              child: Text(
-                                'Queue is empty',
-                                style: TextStyle(color: Colors.white38),
+                        ),
+                        itemCount: q.next.length,
+                        itemBuilder: (context, i) =>
+                            ReorderableDelayedDragStartListener(
+                              key: ValueKey('${q.next[i].uri}#$i'),
+                              index: i,
+                              child: _row(
+                                q.next[i],
+                                onTap: () => _skipTo(i, q.next[i]),
+                                handle: ReorderableDragStartListener(
+                                  index: i,
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child: Icon(
+                                      Icons.drag_handle_rounded,
+                                      size: 22,
+                                      color: Colors.white38,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          for (var i = 0; i < q.next.length; i++)
-                            _row(q.next[i], onTap: () => _skipTo(i, q.next[i])),
-                        ],
                       ),
                     ),
             ),

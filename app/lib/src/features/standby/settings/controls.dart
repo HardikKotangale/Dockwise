@@ -159,6 +159,7 @@ String widgetLabel(StandbyWidgetType type) {
     StandbyWidgetType.calendar => 'Calendar',
     StandbyWidgetType.music => 'Music',
     StandbyWidgetType.summary => 'Summary',
+    StandbyWidgetType.timer => 'Timer',
   };
 }
 
@@ -182,4 +183,5 @@ IconData widgetIcon(StandbyWidgetType type) => switch (type) {
   StandbyWidgetType.calendar => Icons.calendar_today_rounded,
   StandbyWidgetType.music => Icons.music_note_rounded,
   StandbyWidgetType.summary => Icons.dashboard_rounded,
+  StandbyWidgetType.timer => Icons.timer_rounded,
 };

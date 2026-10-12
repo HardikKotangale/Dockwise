@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/standby_system_service.dart';
 import '../../../state/standby_controller.dart';
@@ -11,6 +12,7 @@ import '../widgets/dock.dart';
 import '../widgets/music_sources_sheet.dart';
 import 'clock_settings.dart';
 import 'controls.dart';
+import 'simple_settings.dart';
 
 // Every setting, in sections. Changes show live on the panels beside/above.
 class AllSettings extends StatelessWidget {
@@ -148,6 +150,12 @@ class AllSettings extends StatelessWidget {
               display: (v) => v == CalendarStyle.day ? 'Today' : 'Whole month',
               onChanged: (v) => set(settings.copyWith(calendarStyle: v)),
             ),
+          ),
+          SettingsSection(
+            title: 'Timer',
+            subtitle:
+                'Its own colors, separate from the clock, and what happens when it ends.',
+            child: TimerBody(controller: controller),
           ),
           SettingsSection(
             title: 'Display & battery',
@@ -403,7 +411,7 @@ class _AutoStartSectionState extends State<AutoStartSection> {
       dense: true,
       leading: Icon(
         ok ? Icons.check_circle : Icons.error_outline,
-        color: ok ? const Color(0xFF30D158) : const Color(0xFFFF9F0A),
+        color: ok ? Palette.green : Palette.orange,
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Text(why, style: const TextStyle(fontSize: 12)),
@@ -475,9 +483,7 @@ class _AutoStartSectionState extends State<AutoStartSection> {
                   now?.matches == true
                       ? Icons.check_circle
                       : Icons.screen_rotation_alt_outlined,
-                  color: now?.matches == true
-                      ? const Color(0xFF30D158)
-                      : Colors.white54,
+                  color: now?.matches == true ? Palette.green : Colors.white54,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

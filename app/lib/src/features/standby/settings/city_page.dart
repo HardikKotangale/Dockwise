@@ -1,5 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/city_search.dart';
 import '../../../state/standby_controller.dart';
@@ -135,7 +138,7 @@ class _CityPageState extends State<CityPage> {
             onTap: () => setState(() => _keyboard = true),
             decoration: InputDecoration(
               hintText: 'Search any city in the world',
-              hintStyle: const TextStyle(color: Colors.white38),
+              hintStyle: const TextStyle(color: Colors.white60),
               prefixIcon: const Icon(
                 Icons.search_rounded,
                 color: Colors.white54,
@@ -200,9 +203,7 @@ class _CityPageState extends State<CityPage> {
                   ),
                 if (c.settings.worldZone.isNotEmpty)
                   TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFFF453A),
-                    ),
+                    style: TextButton.styleFrom(foregroundColor: Palette.red),
                     onPressed: () {
                       c.updateSettings(
                         c.settings.copyWith(

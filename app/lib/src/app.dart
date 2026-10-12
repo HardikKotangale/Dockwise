@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 import 'core/apple.dart';
+import 'core/palette.dart';
 import 'core/screen_fit.dart';
 import 'domain/standby_models.dart';
 import 'features/standby/standby_screen.dart';
@@ -43,8 +44,8 @@ class StandbyProApp extends StatelessWidget {
   }
 }
 
-const _blue = Color(0xFF0A84FF); // iOS system blue (dark)
-const _green = Color(0xFF30D158); // iOS system green (dark)
+const _blue = Palette.blue; // iOS system blue (dark)
+const _green = Palette.green; // iOS system green (dark)
 
 /// The whole app in an iOS look: the platform's own font (SF on iPhone), tracking
 /// that tightens as text grows, pill-shaped chips and buttons, green switches,

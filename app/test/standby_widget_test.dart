@@ -17,12 +17,14 @@ import 'package:standby_pro/src/features/standby/widgets/clock_faces.dart';
 import 'package:standby_pro/src/features/standby/widgets/integration_cards.dart';
 import 'package:standby_pro/src/features/standby/widgets/orientation_hint.dart';
 import 'package:standby_pro/src/features/standby/widgets/summary_card.dart';
+import 'package:standby_pro/src/features/standby/widgets/timer_card.dart';
 import 'package:standby_pro/src/features/standby/widgets/weather_scene.dart';
 import 'package:standby_pro/src/services/city_search.dart';
 import 'package:standby_pro/src/services/spotify_service.dart'
     show SpotifyDevice;
 import 'package:standby_pro/src/services/weather_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
+import 'temp_finder.dart';
 
 void main() {
   testWidgets('renders the StandBy screen with duo widgets and customization', (
@@ -401,7 +403,8 @@ void main() {
 
     expect(find.text('TUESDAY'), findsOneWidget);
     expect(find.text('6'), findsOneWidget);
-    expect(find.text('October 2026'), findsOneWidget);
+    expect(find.text('October'), findsOneWidget);
+    expect(find.text('2026'), findsOneWidget);
   });
 
   testWidgets('weather card shows city and converts to Fahrenheit', (
@@ -426,7 +429,7 @@ void main() {
     );
 
     expect(find.text('Pune'), findsOneWidget);
-    expect(find.text('68°'), findsOneWidget); // 20C
+    expect(bigTemp('68'), findsOneWidget); // 20C
     expect(find.text('H:77°   L:59°'), findsOneWidget);
   });
 
@@ -580,7 +583,134 @@ void main() {
     expect(find.text('2026'), findsOneWidget);
     expect(find.text('31'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
-    expect(find.text('S'), findsNWidgets(2)); // Sunday + Saturday initials
+    // weekday names are spelled out ('Sun'..'Sat') when a column is wide enough
+    expect(find.text('Sun'), findsOneWidget);
+    expect(find.text('Sat'), findsOneWidget);
+  });
+
+  testWidgets('turning the phone glides the calendar parts, not swaps them', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Widget calendar(Size size) => MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox.fromSize(
+            size: size,
+            child: CalendarCard(
+              settings: const StandbySettings(),
+              now: DateTime(2026, 10, 6),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(calendar(const Size(400, 700)));
+    await tester.pump(const Duration(seconds: 2));
+    final before = tester.getTopLeft(find.text('TUESDAY'));
+    await tester.pumpWidget(calendar(const Size(780, 360)));
+    await tester.pump(); // the layout changes and the glide is set up...
+    await tester.pump(const Duration(milliseconds: 16)); // ...and starts
+    await tester.pump(const Duration(milliseconds: 120));
+    final mid = tester.getTopLeft(find.text('TUESDAY'));
+    await tester.pump(const Duration(seconds: 1));
+    final after = tester.getTopLeft(find.text('TUESDAY'));
+    // part-way at 120 ms: neither where it was nor where it ends up
+    expect(mid, isNot(before));
+    expect(mid, isNot(after));
+  });
+
+  testWidgets('turning the phone glides the weather and timer parts too', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Widget boxed(Size size, Widget child) => MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox.fromSize(size: size, child: child),
+        ),
+      ),
+    );
+    final snap = WeatherSnapshot(
+      city: 'Austin',
+      condition: 'Partly cloudy',
+      temperatureCelsius: 19,
+      highCelsius: 22,
+      lowCelsius: 14,
+      code: 2,
+      isDay: true,
+      updatedAt: DateTime(2026, 10, 12),
+    );
+    Widget weather(Size s) => boxed(
+      s,
+      WeatherNowView(snapshot: snap, settings: const StandbySettings()),
+    );
+    Widget timer(Size s) => boxed(
+      s,
+      TimerCard(
+        settings: const StandbySettings(),
+        leftMs: 187000,
+        totalMs: 300000,
+        running: false,
+        started: false,
+        done: false,
+        onStart: () {},
+        onPause: () {},
+        onReset: () {},
+        onAdd: (_) {},
+        onPreset: (_) {},
+        onType: () {},
+        roomy: true,
+        horizontal: false,
+      ),
+    );
+    for (final (build, probe) in <(Widget Function(Size), String)>[
+      (weather, 'Austin'),
+      (timer, 'Start'),
+    ]) {
+      await tester.pumpWidget(build(const Size(400, 700)));
+      await tester.pump(const Duration(seconds: 2));
+      final before = tester.getTopLeft(find.text(probe));
+      await tester.pumpWidget(build(const Size(780, 360)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 120));
+      final mid = tester.getTopLeft(find.text(probe));
+      await tester.pump(const Duration(seconds: 1));
+      final after = tester.getTopLeft(find.text(probe));
+      expect(mid, isNot(before), reason: probe);
+      expect(mid, isNot(after), reason: probe);
+    }
+  });
+
+  testWidgets('the month arrives day by day, then everything is at rest', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        CalendarCard(
+          settings: const StandbySettings(calendarStyle: CalendarStyle.month),
+          now: DateTime(2026, 10, 6),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    double opacityOf(String text) => find
+        .ancestor(of: find.text(text), matching: find.byType(Opacity))
+        .evaluate()
+        .map((e) => (e.widget as Opacity).opacity)
+        .fold(1.0, (a, b) => a < b ? a : b);
+    // the first day is further along than the last one
+    expect(opacityOf('1'), greaterThan(opacityOf('31')));
+    await tester.pump(const Duration(seconds: 2));
+    expect(
+      find.ancestor(of: find.text('31'), matching: find.byType(Opacity)),
+      findsNothing, // settled: no leftover fade layers
+    );
   });
 
   testWidgets('swiping the calendar flips between today and the month', (
@@ -1092,6 +1222,7 @@ void main() {
             ),
           ),
         );
+        await tester.pump(const Duration(milliseconds: 400)); // eases to size
         return tester.getSize(find.byType(FittedBox).first).width;
       }
 
