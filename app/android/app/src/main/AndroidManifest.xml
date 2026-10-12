@@ -14,7 +14,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
-        android:label="Dockwise"
+        android:label="Hushdock"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -59,13 +59,13 @@
         <service
             android:name=".MediaListenerService"
             android:exported="true"
-            android:label="Dockwise"
+            android:label="Hushdock"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
-        <!-- Spotify OAuth redirect: dockwise://spotify-callback -->
+        <!-- Spotify OAuth redirect: hushdock://spotify-callback -->
         <activity
             android:name=".SpotifyCallbackActivity"
             android:exported="true">
@@ -73,7 +73,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="dockwise" />
+                <data android:scheme="hushdock" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

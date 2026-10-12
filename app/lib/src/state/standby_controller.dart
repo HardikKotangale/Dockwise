@@ -10,6 +10,7 @@ import '../core/clock_cadence.dart';
 import '../core/room_light.dart';
 import '../data/settings_repository.dart';
 import '../domain/standby_models.dart';
+import '../services/spotify_remote.dart';
 import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
@@ -571,8 +572,15 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
+  final _remote = SpotifyRemote();
+
   Future<bool> playSpotifyUri(String uri) async {
-    final ok = await _spotify.playUri(uri);
+    final sw = Stopwatch()..start();
+    // iOS: try the Spotify app directly first, the web API is the fallback
+    final ok =
+        (uri.startsWith('spotify:track:') ? await _remote.play(uri) : null) ??
+        await _spotify.playUri(uri);
+    debugPrint('PLAY total ${sw.elapsedMilliseconds} ms');
     musicError = ok ? null : _spotify.lastError;
     if (ok) _refreshSoon();
     return ok;
@@ -596,7 +604,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   /// Plays on [deviceId], carrying on with whatever was playing. If that is
   /// this phone and Spotify is not awake here (it has to be running to be
   /// available), the Spotify app is opened and the transfer is tried again.
-  /// If you come back to Dockwise before it worked, it tries once more.
+  /// If you come back to Hushdock before it worked, it tries once more.
   Future<bool> playOnSpotifyDevice(String deviceId, {bool wake = true}) async {
     var ok = await _spotify.transferTo(deviceId);
     var woke = false;
@@ -616,7 +624,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     if (ok) _pendingDevice = null;
-    if (ok && woke) unawaited(_backToDockwise());
+    if (ok && woke) unawaited(_backToHushdock());
     musicError = ok ? null : _spotify.lastError;
     if (ok) _refreshSoon();
     return ok;
@@ -643,14 +651,14 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     final ok = await playOnSpotifyDevice(id, wake: false);
-    if (ok) unawaited(_backToDockwise());
+    if (ok) unawaited(_backToHushdock());
     return ok;
   }
 
-  /// After waking Spotify, bring Dockwise back. Android only: iOS does not let
+  /// After waking Spotify, bring Hushdock back. Android only: iOS does not let
   /// an app open itself from the background. Android may also refuse unless
-  /// Dockwise is allowed to display over other apps.
-  Future<void> _backToDockwise() async {
+  /// Hushdock is allowed to display over other apps.
+  Future<void> _backToHushdock() async {
     if (defaultTargetPlatform == TargetPlatform.iOS) return;
     await Future<void>.delayed(const Duration(milliseconds: 600));
     await _systemService.launchApp('com.ytchannel.standbypro');
@@ -699,6 +707,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     final ok = await _spotify.connect();
     notifyListeners();
     if (ok) unawaited(refreshMusic());
+    if (ok) unawaited(_remote.connect());
     return ok;
   }
 

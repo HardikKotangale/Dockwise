@@ -210,7 +210,7 @@ class _LowBatteryPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'Plug it in to keep using Dockwise.',
+                  'Plug it in to keep using Hushdock.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white54,

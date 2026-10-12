@@ -67,7 +67,7 @@ class SpotifyService {
     // --dart-define=SPOTIFY_CLIENT_ID=... overrides it
     defaultValue: spotifyClientIdDefault,
   );
-  static const _scheme = 'dockwise';
+  static const _scheme = 'hushdock';
   static const _redirect = '$_scheme://spotify-callback';
   static const _scopes =
       'user-read-playback-state user-modify-playback-state '
@@ -312,17 +312,26 @@ class SpotifyService {
   Future<bool> playPlaylist(String uri, {String? deviceId}) =>
       playUri(uri, deviceId: deviceId);
 
-  /// The songs in a playlist (the first 100).
+  /// The songs in a playlist (the first 100). Spotify only lists the songs of
+  /// playlists you own or collaborate on (anything else answers 403).
   Future<List<SpotifyHit>> playlistTracks(String playlistUri) async {
     final res = await _call(
       'GET',
-      '/playlists/${playlistUri.split(':').last}/tracks?limit=100',
+      '/playlists/${playlistUri.split(':').last}/items?limit=100',
     );
+    if (res?.statusCode == 403) {
+      lastError =
+          'Spotify only lets apps list the songs of your own playlists. '
+          'Tap Play to start this one.';
+      return const [];
+    }
     if (!_ok(res)) return const [];
     return [
       for (final i in (jsonDecode(res!.body)['items'] as List?) ?? const [])
-        if (i is Map<String, dynamic> && _queueItem(i['track']) != null)
-          _queueItem(i['track'])!,
+        // "item" is the current name, "track" the one it replaced
+        if (i is Map<String, dynamic> &&
+            _queueItem(i['item'] ?? i['track']) != null)
+          _queueItem(i['item'] ?? i['track'])!,
     ];
   }
 

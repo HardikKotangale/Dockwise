@@ -1,4 +1,4 @@
-# Dockwise setup for Windows. Safe to run again: it only installs what is missing.
+# Hushdock setup for Windows. Safe to run again: it only installs what is missing.
 #   .\scripts\setup_windows.ps1           install what is missing, then prepare the project
 #   .\scripts\setup_windows.ps1 -Check    only report what is installed
 # Run it in a normal PowerShell window (not "Run as administrator"); Windows may
@@ -27,7 +27,7 @@ function Install-Winget($label, $id, $test) {
   }
 }
 
-Write-Host "Dockwise setup (Windows)"
+Write-Host "Hushdock setup (Windows)"
 Write-Host ""
 
 if (-not (Have winget)) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dockwise setup for macOS. Safe to run again: it only installs what is missing.
+# Hushdock setup for macOS. Safe to run again: it only installs what is missing.
 #   ./scripts/setup_mac.sh            install what is missing, then prepare the project
 #   ./scripts/setup_mac.sh --check    only report what is installed
 set -uo pipefail
@@ -24,7 +24,7 @@ install_brew() {
   fi
 }
 
-echo "Dockwise setup (macOS)"
+echo "Hushdock setup (macOS)"
 echo
 
 if ! have brew; then

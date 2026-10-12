@@ -6,8 +6,8 @@ import android.os.Bundle
 import com.linusu.flutter_web_auth_2.FlutterWebAuth2Plugin
 
 /**
- * Spotify's redirect (dockwise://spotify-callback) lands here. Same as the plugin's
- * own CallbackActivity (which is final), plus: pull Dockwise back in front of the browser.
+ * Spotify's redirect (hushdock://spotify-callback) lands here. Same as the plugin's
+ * own CallbackActivity (which is final), plus: pull Hushdock back in front of the browser.
  */
 class SpotifyCallbackActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
