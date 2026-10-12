@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../state/standby_controller.dart';
 import '../widgets/clock_faces.dart';
@@ -347,9 +348,7 @@ class AccentPicker extends StatelessWidget {
                   color: Color(c.argb),
                   border: Border.all(
                     color: current == c.argb
-                        ? (c.argb == 0xFFFFFFFF
-                              ? const Color(0xFF0A84FF)
-                              : Colors.white)
+                        ? (c.argb == 0xFFFFFFFF ? Palette.blue : Colors.white)
                         : Colors.white24,
                     width: current == c.argb ? 3 : 1,
                   ),
@@ -444,9 +443,7 @@ class PreviewTile extends StatelessWidget {
                   foregroundDecoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: selected
-                          ? const Color(0xFF0A84FF)
-                          : Colors.white24,
+                      color: selected ? Palette.blue : Colors.white24,
                       width: selected ? 3 : 1,
                     ),
                   ),

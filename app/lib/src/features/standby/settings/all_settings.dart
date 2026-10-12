@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/standby_system_service.dart';
 import '../../../state/standby_controller.dart';
@@ -410,7 +411,7 @@ class _AutoStartSectionState extends State<AutoStartSection> {
       dense: true,
       leading: Icon(
         ok ? Icons.check_circle : Icons.error_outline,
-        color: ok ? const Color(0xFF30D158) : const Color(0xFFFF9F0A),
+        color: ok ? Palette.green : Palette.orange,
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Text(why, style: const TextStyle(fontSize: 12)),
@@ -482,9 +483,7 @@ class _AutoStartSectionState extends State<AutoStartSection> {
                   now?.matches == true
                       ? Icons.check_circle
                       : Icons.screen_rotation_alt_outlined,
-                  color: now?.matches == true
-                      ? const Color(0xFF30D158)
-                      : Colors.white54,
+                  color: now?.matches == true ? Palette.green : Colors.white54,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import 'celebration.dart';
 import 'clock/clock_text.dart';
@@ -61,9 +64,10 @@ class TimerCard extends StatefulWidget {
   State<TimerCard> createState() => _TimerCardState();
 }
 
-const _green = Color(0xFF30D158);
-const _orange = Color(0xFFFF9F0A);
-const _red = Color(0xFFFF453A);
+const _green = Palette.green;
+const _orange = Palette.orange;
+// a little lighter than iOS red so the "Stop" label reads at 4.9:1 on its tint
+const _red = Palette.redText;
 
 class _TimerCardState extends State<TimerCard>
     with SingleTickerProviderStateMixin {
@@ -540,93 +544,115 @@ class _TimerCardState extends State<TimerCard>
     return LayoutBuilder(
       builder: (context, c) {
         _short = c.maxHeight < 300;
+        final still = MediaQuery.disableAnimationsOf(context);
         // two panels never use the side-by-side layout: a short panel (the
         // settings dock is open) would squeeze it
         final wide = !widget.horizontal && c.maxWidth > c.maxHeight * 1.25;
+
+        // The card is two blocks: the time with its track (and, beside it in
+        // landscape, the +minute row), and the buttons. Each has a place for
+        // landscape (side by side) and one for portrait (one over the other);
+        // when the phone turns, they glide from one to the other.
+        late final Rect main, rest;
+        late final Alignment restAt;
+        late final double restWidth;
         if (wide) {
           final side = widget.roomy ? 360.0 : 190.0;
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 14, 14),
-            child: Row(
-              children: [
-                Expanded(child: _face(false, above: _addRow())),
-                // the side column slides away once it runs, and the time takes
-                // the whole width
-                AnimatedContainer(
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 260),
-                  curve: easeOutStrong,
-                  width: widget.started ? 0 : side + 14,
-                  child: ClipRect(
-                    child: OverflowBox(
-                      alignment: Alignment.centerRight,
-                      minWidth: side,
-                      maxWidth: side,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 14),
-                        // a short panel shrinks the column instead of overflowing
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: SizedBox(
-                            width: side - 14,
-                            child: Column(
-                              children: [
+          const l = 20.0, t = 14.0, r = 14.0, b = 14.0;
+          final iw = c.maxWidth - l - r, ih = c.maxHeight - t - b;
+          // it runs: the side column slides away, the time takes the width
+          final sideW = widget.started ? 0.0 : side;
+          main = Rect.fromLTWH(
+            l,
+            t,
+            widget.started ? iw : iw - side - 14,
+            ih,
+          );
+          rest = Rect.fromLTWH(l + iw - sideW, t, sideW, ih);
+          restAt = Alignment.center;
+          restWidth = side - 14;
+        } else {
+          final l = _short ? 10.0 : 16.0;
+          final t = _short ? 4.0 : 12.0;
+          final r = l;
+          final b = _short ? 8.0 : 14.0;
+          final iw = c.maxWidth - l - r, ih = c.maxHeight - t - b;
+          // how tall the buttons are (a close estimate: if it is short, they
+          // shrink a little to fit; if it is long, there is a little air)
+          final row = _short ? 28.5 : (widget.horizontal ? 37.0 : 49.0);
+          final chips = widget.started || widget.horizontal ? 0.0 : 118.0;
+          final natural = chips + 2 * row + (widget.horizontal ? 6.0 : 10.0);
+          final bottom = math.min(natural, c.maxHeight * (_short ? 0.4 : 0.5));
+          final gap = _short ? 6.0 : 10.0;
+          main = Rect.fromLTWH(l, t, iw, math.max(0.0, ih - bottom - gap));
+          rest = Rect.fromLTWH(l, t + ih - bottom, iw, bottom);
+          restAt = Alignment.topCenter;
+          restWidth = _short ? c.maxWidth - 20 : iw;
+        }
+
+        final duration = still ? Duration.zero : const Duration(milliseconds: 520);
+        return Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            AnimatedPositioned(
+              key: const ValueKey('main'),
+              duration: duration,
+              curve: easeOutStrong,
+              left: main.left,
+              top: main.top,
+              width: main.width,
+              height: main.height,
+              child: _face(
+                !wide && !widget.horizontal,
+                above: wide ? _addRow() : null,
+              ),
+            ),
+            AnimatedPositioned(
+              key: const ValueKey('rest'),
+              duration: duration,
+              curve: easeOutStrong,
+              left: rest.left,
+              top: rest.top,
+              width: rest.width,
+              height: rest.height,
+              child: ClipRect(
+                child: OverflowBox(
+                  alignment: wide ? Alignment.centerRight : Alignment.topCenter,
+                  minWidth: restWidth,
+                  maxWidth: restWidth,
+                  minHeight: 0,
+                  maxHeight: double.infinity,
+                  child: SizedBox(
+                    width: restWidth,
+                    height: rest.height,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: restAt,
+                      child: _Compact(
+                        on: _short,
+                        child: SizedBox(
+                          width: restWidth,
+                          child: Column(
+                            children: [
+                              _folding(
                                 Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _chips(3),
+                                  padding: EdgeInsets.only(
+                                    bottom: wide ? 12 : 10,
+                                  ),
+                                  child: _chips(wide ? 3 : 4),
                                 ),
-                                _controls(withAdd: false),
-                              ],
-                            ),
+                              ),
+                              _controls(withAdd: !wide),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
-          );
-        }
-        // tall: the time on top, everything else under it, never taking more
-        // than half the height so the time always has room
-        final inner = c.maxWidth - 32;
-        return Padding(
-          padding: _short
-              ? const EdgeInsets.fromLTRB(10, 4, 10, 8)
-              : const EdgeInsets.fromLTRB(16, 12, 16, 14),
-          child: Column(
-            children: [
-              Expanded(child: _face(!widget.horizontal)),
-              SizedBox(height: _short ? 6 : 10),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: c.maxHeight * (_short ? 0.4 : 0.5),
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: _Compact(
-                    on: _short,
-                    child: SizedBox(
-                      width: _short ? c.maxWidth - 20 : inner,
-                      child: Column(
-                        children: [
-                          _folding(
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _chips(4),
-                            ),
-                          ),
-                          _controls(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
@@ -699,7 +725,7 @@ class _Chip extends StatelessWidget {
             curve: Curves.easeOutCubic,
             padding: EdgeInsets.symmetric(
               horizontal: box ? 12 : 14,
-              vertical: tiny ? 5 : (dense ? 10 : (box ? 15 : 8)),
+              vertical: tiny ? 7 : (dense ? 10 : (box ? 15 : 8)),
             ),
             alignment: box ? Alignment.center : null,
             decoration: BoxDecoration(

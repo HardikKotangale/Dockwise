@@ -22,6 +22,30 @@ The look is inspired by iOS StandBy, but the layouts, themes, controls and motio
 
 *The clock screenshots are from an Android phone. The settings dock and the music screenshots below are rendered from the app's own widgets with sample data (`app/tool`), so they show the current look.*
 
+## What's new in v4
+
+**The calendar, redesigned for big text.** The text used to stop growing at a small size; now it scales with the panel in both orientations. *Today* puts a very large weekday and month around the day number (portrait), or the number on the left with the words stacked on the right (landscape). *Month* spells the weekday names out (Sun, Mon...) in a brighter grey, fills the cells with bold numbers (never under 14), and puts the month and year big above the grid (portrait) or beside it (landscape). It reads as one sentence to a screen reader ("Today is Monday 12 October 2026").
+
+**Turning the phone glides.** The calendar, the weather card and the timer no longer swap one layout for another when the phone is turned: every part has a place for portrait and a place for landscape and glides between them in about half a second (quick ease-out, parts stay inside the card). The calendar's days also land one after another when it appears or switches between Today and Month. With Animations off, or the phone's Reduce Motion on, the parts just switch places.
+
+<p align="center">
+  <img src="docs/calendar-rotate.gif" width="30%" alt="Calendar: the day and the month glide between portrait and landscape arrangements">
+  <img src="docs/weather-rotate.gif" width="30%" alt="Weather: the temperature and the words glide between portrait and landscape">
+  <img src="docs/timer-rotate.gif" width="30%" alt="Timer: the time and the buttons glide between portrait and landscape">
+</p>
+<p align="center">
+  <img src="docs/calendar-switch.gif" width="30%" alt="Calendar: Today and Month arrive part by part, the days landing one after another">
+</p>
+
+**Weather.** The degree sign is a small mark at the top of the number (as Apple does it), so it no longer swells into a ring over the sun. In landscape the temperature takes the left half and the city, condition and high/low stack on the right, sized from the height.
+
+**Accessibility, from a design review against Apple's guidelines** (the `apple-design` skill):
+- Controls are at least 28 pt (the page dots are 30 pt tall; the squeezed timer tile's buttons are 28 pt).
+- Hint and empty-state text is lighter (7:1 instead of 3.5:1), and the red Stop label reads at 4.9:1.
+- Screen readers: every page dot is a labelled button, a clock reads as one sentence, each panel opens its settings and has "Next panel" / "Previous panel" actions, and each Summary tile has "Move earlier", "Move later" and "Remove from Summary" actions, so nothing depends on a swipe or a hold-and-drag.
+- The six colors used for meaning are in one file (`core/palette.dart`), ready for high-contrast variants.
+- `test/accessibility_test.dart` keeps these true (sizes, screen-reader labels, nothing breaking at twice the text size).
+
 ## What's new in v3
 
 **Clocks follow the phone's orientation.** Held upright, Digital, Mono, Flip, Float and World stack the hours over the minutes so the digits fill the tall screen; turned sideways they go back on one line. The parts glide between the two arrangements on a spring: the hours rise to the top, the minutes settle at the bottom, the colon folds away. With two panels, World and Flip stay on one line whichever way the phone is held.
@@ -140,7 +164,7 @@ The music card has three small buttons in its header: **queue**, **search** and 
 
 **Cards**
 - **Weather:** animated Apple-style scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location, with Fahrenheit, forecast and second-city pages (swipe up and down).
-- **Calendar:** today or the whole month (swipe up or down).
+- **Calendar:** today or the whole month (swipe up or down), with text that scales with the panel in both orientations.
 - **Music:** now playing with a sharp album cover over a soft blurred backdrop, transport, 10-second skips, hold-the-progress-bar to seek, a device menu and Spotify volume.
 - **Summary:** time here and in a second city, the date, the weather, the music card and the timer in one panel. Rearrange it, take widgets away with the - and add them back with the +. Tap the music or weather tile to open its settings.
 - **Timer:** big digital or flip countdown with a running horse or football player, quick lengths, typed lengths, +1/+5/+10 minutes, and its own colors and end sound.

@@ -27,11 +27,18 @@ class ClockFace extends StatelessWidget {
   Widget build(BuildContext context) {
     // the panel's own shape (before the face is scaled to fit) decides how
     // Float is arranged
-    return LayoutBuilder(
-      // A tall (or squarish) panel stacks the hours over the minutes; a wide
-      // one keeps them on a line. The faces glide between the two.
-      builder: (context, c) =>
-          _scaled(context, stacked: c.maxHeight > c.maxWidth * 0.85),
+    final spoken = timeOfDayText(time, settings);
+    return Semantics(
+      // one sentence for a screen reader, not the digits one by one
+      label:
+          'Time ${spoken.text}${spoken.suffix == null ? '' : ' ${spoken.suffix}'}',
+      excludeSemantics: true,
+      child: LayoutBuilder(
+        // A tall (or squarish) panel stacks the hours over the minutes; a wide
+        // one keeps them on a line. The faces glide between the two.
+        builder: (context, c) =>
+            _scaled(context, stacked: c.maxHeight > c.maxWidth * 0.85),
+      ),
     );
   }
 

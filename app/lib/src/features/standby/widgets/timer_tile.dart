@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import 'clock/flip_clock.dart';
 import 'timer_track.dart';
@@ -120,7 +121,7 @@ class TimerTile extends StatelessWidget {
       height: 0.95,
       fontWeight: FontWeight.w300,
       letterSpacing: -4,
-      color: done ? const Color(0xFFFF453A) : look.hoursInk,
+      color: done ? Palette.red : look.hoursInk,
       fontFeatures: const [FontFeature.tabularFigures()],
       decoration: TextDecoration.none,
     );
@@ -142,10 +143,10 @@ class TimerTile extends StatelessWidget {
         : look.hoursInk;
     final progress = totalMs <= 0 ? 0.0 : (leftMs / totalMs).clamp(0.0, 1.0);
     final go = done
-        ? ('Stop', const Color(0xFFFF453A), onReset)
+        ? ('Stop', Palette.redText, onReset)
         : running
-        ? ('Pause', const Color(0xFFFF9F0A), onPause)
-        : (started ? 'Resume' : 'Start', const Color(0xFF30D158), onStart);
+        ? ('Pause', Palette.orange, onPause)
+        : (started ? 'Resume' : 'Start', Palette.green, onStart);
 
     Widget buttons({required bool column, double height = 34}) {
       final kids = [
@@ -158,7 +159,7 @@ class TimerTile extends StatelessWidget {
         ),
         _Mini(
           height: height,
-          label: '+1',
+          label: '+1 min',
           spoken: 'Add one minute',
           onTap: onAddMinute,
         ),
@@ -288,7 +289,7 @@ class TimerTile extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 6, bottom: 8),
                       child: track(24),
                     ),
-                  buttons(column: false, height: short ? 26 : 34),
+                  buttons(column: false, height: short ? 28 : 34),
                 ],
               );
             },

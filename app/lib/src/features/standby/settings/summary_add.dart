@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/summary_layout.dart';
 import '../../../state/standby_controller.dart';
 import '../widgets/dock.dart';
@@ -125,7 +126,7 @@ class SummaryAdd extends StatelessWidget {
                                 ),
                                 const Icon(
                                   Icons.add_circle_rounded,
-                                  color: Color(0xFF30D158),
+                                  color: Palette.green,
                                   size: 28,
                                 ),
                               ],

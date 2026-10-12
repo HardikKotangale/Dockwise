@@ -40,7 +40,7 @@ class PageDots extends StatefulWidget {
 }
 
 class _PageDotsState extends State<PageDots> {
-  double get _slot => widget.icons == null ? 22.0 : 30.0; // finger-friendly
+  double get _slot => 30.0; // finger-friendly: the least HIG allows is 28
   final _link = LayerLink();
   OverlayEntry? _strip; // the glass strip, drawn above everything else
   int? _lit; // the page under the finger, or just chosen
@@ -178,7 +178,7 @@ class _PageDotsState extends State<PageDots> {
         link: _link,
         child: SizedBox(
           width: n * _slot,
-          height: 22,
+          height: 30, // tall enough to hit (28 pt is the minimum)
           child: Listener(
             behavior: HitTestBehavior.opaque,
             onPointerDown: (e) => _down_(e, n),
@@ -192,35 +192,44 @@ class _PageDotsState extends State<PageDots> {
               child: Row(
                 children: [
                   for (var i = 0; i < n; i++)
-                    SizedBox(
-                      width: _slot,
-                      height: 22,
-                      child: Center(
-                        child: icons == null
-                            ? AnimatedContainer(
-                                duration: d(200),
-                                curve: easeOutStrong,
-                                width: i == active ? 8 : 6,
-                                height: i == active ? 8 : 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withValues(
-                                    alpha: i == active ? 0.95 : 0.4,
+                    // a labelled button for screen readers (the touch itself is
+                    // handled by the Listener above)
+                    Semantics(
+                      button: true,
+                      selected: i == active,
+                      label: widget.labels[i],
+                      onTap: () => widget.onSelect(i),
+                      excludeSemantics: true,
+                      child: SizedBox(
+                        width: _slot,
+                        height: 30, // tall enough to hit (28 pt is the minimum)
+                        child: Center(
+                          child: icons == null
+                              ? AnimatedContainer(
+                                  duration: d(200),
+                                  curve: easeOutStrong,
+                                  width: i == active ? 8 : 6,
+                                  height: i == active ? 8 : 6,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withValues(
+                                      alpha: i == active ? 0.95 : 0.4,
+                                    ),
+                                  ),
+                                )
+                              : AnimatedScale(
+                                  scale: i == active ? 1.15 : 0.9,
+                                  duration: d(200),
+                                  curve: easeOutStrong,
+                                  child: Icon(
+                                    icons[i],
+                                    size: 16,
+                                    color: Colors.white.withValues(
+                                      alpha: i == active ? 0.95 : 0.4,
+                                    ),
                                   ),
                                 ),
-                              )
-                            : AnimatedScale(
-                                scale: i == active ? 1.15 : 0.9,
-                                duration: d(200),
-                                curve: easeOutStrong,
-                                child: Icon(
-                                  icons[i],
-                                  size: 16,
-                                  color: Colors.white.withValues(
-                                    alpha: i == active ? 0.95 : 0.4,
-                                  ),
-                                ),
-                              ),
+                        ),
                       ),
                     ),
                 ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/weather_service.dart';
 import '../../../state/standby_controller.dart';
@@ -147,7 +149,7 @@ class ColorRow extends StatelessWidget {
                         border: Border.all(
                           color: value == c.argb
                               ? (c.argb == 0xFFFFFFFF
-                                    ? const Color(0xFF0A84FF)
+                                    ? Palette.blue
                                     : Colors.white)
                               : Colors.white24,
                           width: value == c.argb ? 3 : 1,

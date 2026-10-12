@@ -522,8 +522,8 @@ void main() {
         ),
       );
       final center = tester.getCenter(find.byType(PageDots));
-      final box = Rect.fromCenter(center: center, width: 110, height: 22);
-      Offset dot(int i) => Offset(box.left + 22.0 * i + 11, box.center.dy);
+      final box = Rect.fromCenter(center: center, width: 150, height: 30);
+      Offset dot(int i) => Offset(box.left + 30.0 * i + 15, box.center.dy);
 
       // hidden at first: a touch only brings the dots back
       await tester.tapAt(dot(3));

@@ -164,7 +164,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 17,
-                    color: empty ? Colors.white38 : Colors.white,
+                    color: empty ? Colors.white60 : Colors.white,
                   ),
                 ),
               ),
@@ -231,7 +231,7 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
             ? const CircularProgressIndicator(strokeWidth: 2)
             : Text(
                 _searched ? 'No results' : 'Type to search',
-                style: const TextStyle(color: Colors.white38, fontSize: 16),
+                style: const TextStyle(color: Colors.white60, fontSize: 16),
               ),
       );
     }

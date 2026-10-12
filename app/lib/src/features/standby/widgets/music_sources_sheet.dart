@@ -394,7 +394,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
           const SizedBox(height: 8),
           FilledButton(
             onPressed: c.openNotificationAccess,
-            child: const Text('Open Notification access settings'),
+            child: const Text('Open notification access settings'),
           ),
         ],
         if (widget.onAllSettings != null) ...[

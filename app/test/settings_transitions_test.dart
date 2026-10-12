@@ -4,6 +4,7 @@ import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/features/standby/widgets/clock_faces.dart';
 import 'package:standby_pro/src/features/standby/widgets/weather_card.dart';
 import 'package:standby_pro/src/services/weather_service.dart';
+import 'temp_finder.dart';
 
 // A setting that changes how things look eases in instead of jumping.
 void main() {
@@ -148,12 +149,12 @@ void main() {
     );
     await tester.pumpWidget(card(false));
     await tester.pumpAndSettle();
-    expect(find.text('20°'), findsOneWidget);
+    expect(bigTemp('20'), findsOneWidget);
     await tester.pumpWidget(card(true));
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('20°'), findsOneWidget); // fading out
-    expect(find.text('68°'), findsOneWidget); // fading in
+    expect(bigTemp('20'), findsOneWidget); // fading out
+    expect(bigTemp('68'), findsOneWidget); // fading in
     await tester.pumpAndSettle();
-    expect(find.text('20°'), findsNothing);
+    expect(bigTemp('20'), findsNothing);
   });
 }

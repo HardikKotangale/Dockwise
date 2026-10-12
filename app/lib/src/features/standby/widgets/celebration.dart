@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../../core/palette.dart';
 
 /// Confetti and fireworks over the whole card from the moment [active] turns
 /// on (the timer reached zero: touchdown) until it turns off again (Stop).
@@ -44,11 +45,11 @@ class _Burst {
 }
 
 const _palette = [
-  Color(0xFFFFD60A),
-  Color(0xFFFF453A),
-  Color(0xFF0A84FF),
-  Color(0xFF30D158),
-  Color(0xFFFF9F0A),
+  Palette.yellow,
+  Palette.red,
+  Palette.blue,
+  Palette.green,
+  Palette.orange,
   Colors.white,
 ];
 

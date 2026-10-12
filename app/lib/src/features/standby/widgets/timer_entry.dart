@@ -141,7 +141,7 @@ class _TimerEntryState extends State<TimerEntry> {
           const SizedBox(height: 16),
           const Text(
             'Swipe up or down to go back',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
+            style: TextStyle(color: Colors.white60, fontSize: 13),
           ),
         ],
       ),

@@ -1,9 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:intl/intl.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../domain/summary_layout.dart';
 import 'clock_faces.dart';
@@ -215,11 +217,38 @@ class _SummaryCardState extends State<SummaryCard>
 
   // One tile in its slot: normally just the tile (hold to start editing); in
   // edit mode it jiggles, can be picked up, and is a place to drop onto.
+  // What a screen reader can do with a tile instead of holding and dragging.
+  Map<CustomSemanticsAction, VoidCallback> _tileActions(String id) {
+    final tile = SummaryTile.values.where((t) => t.name == id);
+    if (tile.isEmpty) return const {};
+    final layout = _layout;
+    final at = layout.tiles.indexOf(tile.first);
+    void swapWith(int other) {
+      final next = layout.swap(tile.first, layout.tiles[other]);
+      if (next != layout) widget.onLayout?.call(next.encode());
+    }
+
+    return {
+      if (at > 0)
+        const CustomSemanticsAction(label: 'Move earlier'): () =>
+            swapWith(at - 1),
+      if (at >= 0 && at < layout.tiles.length - 1)
+        const CustomSemanticsAction(label: 'Move later'): () =>
+            swapWith(at + 1),
+      const CustomSemanticsAction(label: 'Remove from Summary'): () =>
+          _commitRemove(id),
+    };
+  }
+
   Widget _slot(String id, Widget content) {
     if (!_editing) {
-      return GestureDetector(
-        onLongPress: () => _setEditing(true),
-        child: content,
+      return Semantics(
+        container: false,
+        customSemanticsActions: _tileActions(id),
+        child: GestureDetector(
+          onLongPress: () => _setEditing(true),
+          child: content,
+        ),
       );
     }
     final phase = (id.hashCode % 7) / 7;
@@ -265,7 +294,7 @@ class _SummaryCardState extends State<SummaryCard>
                             alignment: Alignment.topLeft,
                             child: _Badge(
                               icon: Icons.remove_rounded,
-                              color: Color(0xFFFF453A),
+                              color: Palette.red,
                             ),
                           ),
                         ),
@@ -879,7 +908,7 @@ class _PlusTile extends StatelessWidget {
                     child: const Icon(Icons.add_rounded, size: 30),
                   ),
                   const SizedBox(height: 8),
-                  Text('Add widget', style: _caption(13, Colors.white70)),
+                  Text('Add a widget', style: _caption(13, Colors.white70)),
                 ],
               ),
             ),

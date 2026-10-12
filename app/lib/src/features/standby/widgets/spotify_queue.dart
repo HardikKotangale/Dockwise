@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/palette.dart';
 import '../../../services/spotify_service.dart';
 import '../../../state/standby_controller.dart';
 
@@ -196,7 +197,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: playing ? const Color(0xFF30D158) : Colors.white,
+                      color: playing ? Palette.green : Colors.white,
                     ),
                   ),
                   if (hit.subtitle.isNotEmpty)
@@ -215,11 +216,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
             if (playing)
               const Padding(
                 padding: EdgeInsets.only(left: 8),
-                child: Icon(
-                  Icons.graphic_eq,
-                  size: 18,
-                  color: Color(0xFF30D158),
-                ),
+                child: Icon(Icons.graphic_eq, size: 18, color: Palette.green),
               ),
             ?handle,
           ],
@@ -327,7 +324,7 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                                 padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
                                 child: Text(
                                   'Queue is empty',
-                                  style: TextStyle(color: Colors.white38),
+                                  style: TextStyle(color: Colors.white60),
                                 ),
                               ),
                           ],

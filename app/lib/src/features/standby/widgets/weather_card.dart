@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/weather_service.dart';
 import 'clock/zones.dart' show zoneLabel;
@@ -92,6 +93,43 @@ class WeatherNowView extends StatelessWidget {
   String _deg(int celsius) =>
       '${settings.fahrenheit ? (celsius * 9 / 5 + 32).round() : celsius}°';
 
+  // The temperature, with a small degree sign at the top (Apple's way): the
+  // number carries the card, and the sign no longer swells into a big ring that
+  // sits over the sun.
+  Widget _temp(int celsius, double size, double spacing) {
+    final n = settings.fahrenheit ? (celsius * 9 / 5 + 32).round() : celsius;
+    return Text.rich(
+      key: ValueKey(settings.fahrenheit),
+      TextSpan(
+        children: [
+          TextSpan(text: '$n'),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.top,
+            child: Padding(
+              padding: EdgeInsets.only(top: size * 0.08),
+              child: Text(
+                '°',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: size * 0.2,
+                  height: 1,
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: size,
+        height: 0.95,
+        fontWeight: FontWeight.w200,
+        letterSpacing: spacing,
+      ),
+    );
+  }
+
   String get _message => switch (problem) {
     WeatherProblem.permission =>
       'Allow location access to see the weather here',
@@ -99,6 +137,161 @@ class WeatherNowView extends StatelessWidget {
     WeatherProblem.offline => 'Weather unavailable. Check your connection',
     null => message ?? 'Loading weather…',
   };
+
+  // The full card. Its parts have a place for a tall panel (the city on top,
+  // the temperature, the condition and the high and low under it) and one for
+  // a wide panel (the temperature on the left, the words on the right); when
+  // the phone turns they glide from one to the other.
+  Widget _morphing(
+    BuildContext context,
+    WeatherSnapshot w,
+    ({List<Color> tint, IconData icon}) look,
+  ) {
+    final still = MediaQuery.disableAnimationsOf(context);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final bw = box.maxWidth, bh = box.maxHeight;
+        final wide = bw > bh * 1.25;
+        final unit = math.min(bw, bh);
+        Rect rect(String id) => _weatherRects(bw, bh, wide, unit)[id]!;
+        Widget fit(Widget child, {Alignment at = Alignment.centerLeft}) =>
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: at,
+                child: child,
+              ),
+            );
+        TextStyle t(
+          double size,
+          FontWeight weight, {
+          Color? color,
+          double? ls,
+        }) => TextStyle(
+          color: color ?? Colors.white,
+          fontSize: size,
+          fontWeight: weight,
+          letterSpacing: ls,
+        );
+        final parts = <String, Widget>{
+          'city': fit(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.near_me_rounded,
+                  size: 56,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  w.city,
+                  maxLines: 1,
+                  style: t(80, FontWeight.w600, ls: -1),
+                ),
+              ],
+            ),
+          ),
+          'temp': fit(
+            AnimatedSwitcher(
+              // °C <-> °F: the number fades to the other unit
+              duration: still
+                  ? Duration.zero
+                  : const Duration(milliseconds: 300),
+              child: _temp(w.temperatureCelsius, 400, -12),
+            ),
+            at: wide ? Alignment.centerLeft : Alignment.bottomLeft,
+          ),
+          'cond': fit(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(look.icon, size: 64, color: Colors.white),
+                const SizedBox(width: 16),
+                Text(
+                  w.condition,
+                  maxLines: 1,
+                  style: t(70, FontWeight.w500, ls: -0.8),
+                ),
+              ],
+            ),
+          ),
+          'hilo': fit(
+            Text(
+              'H:${_deg(w.highCelsius)}   L:${_deg(w.lowCelsius)}',
+              maxLines: 1,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 60,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.6,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        };
+        return Stack(
+          // parts on the move stay inside the card
+          clipBehavior: Clip.hardEdge,
+          children: [
+            for (final e in parts.entries)
+              AnimatedPositioned(
+                key: ValueKey(e.key),
+                duration: still
+                    ? Duration.zero
+                    : const Duration(milliseconds: 520),
+                curve: easeOutStrong,
+                left: rect(e.key).left,
+                top: rect(e.key).top,
+                width: rect(e.key).width,
+                height: rect(e.key).height,
+                child: e.value,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Map<String, Rect> _weatherRects(
+    double w,
+    double h,
+    bool wide,
+    double unit,
+  ) {
+    if (wide) {
+      // sized by the height, so the words are big in landscape too
+      final cityH = (h * 0.13).clamp(18.0, 40.0) * 1.3;
+      final condH = (h * 0.11).clamp(16.0, 34.0) * 1.35;
+      final hiloH = (h * 0.09).clamp(14.0, 28.0) * 1.3;
+      final gap = h * 0.03;
+      final stack = cityH + condH + hiloH + gap * 2;
+      final top = (h - stack) / 2;
+      final left = w * 0.5;
+      final x = left + h * 0.06;
+      final rw = math.max(0.0, w - x);
+      return {
+        'temp': Rect.fromLTWH(0, 0, left, h),
+        'city': Rect.fromLTWH(x, top, rw, cityH),
+        'cond': Rect.fromLTWH(x, top + cityH + gap, rw, condH),
+        'hilo': Rect.fromLTWH(x, top + cityH + condH + gap * 2, rw, hiloH),
+      };
+    }
+    final cityH = (unit / 12).clamp(16.0, 26.0) * 1.3;
+    final condH = (unit / 13).clamp(15.0, 24.0) * 1.4;
+    final hiloH = (unit / 15).clamp(14.0, 22.0) * 1.3;
+    return {
+      'city': Rect.fromLTWH(0, 0, w, cityH),
+      'temp': Rect.fromLTWH(
+        0,
+        cityH,
+        w,
+        math.max(0.0, h - cityH - condH - hiloH - 8),
+      ),
+      'cond': Rect.fromLTWH(0, h - condH - hiloH - 2, w, condH),
+      'hilo': Rect.fromLTWH(0, h - hiloH, w, hiloH),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,103 +344,103 @@ class WeatherNowView extends StatelessWidget {
             children: [
               // live backdrop: clouds drift, rain falls, snow floats...
               WeatherScene(spec: sceneFor(w.code, w.isDay)),
-              Padding(
-                padding: EdgeInsets.all(pad),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.near_me_rounded,
-                          size: (unit / 16).clamp(14.0, 20.0),
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            w.city,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: (unit / 12).clamp(16.0, 26.0),
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    // the temperature takes what is left and shrinks to fit, so a
-                    // small tile (the Summary panel) never overflows
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.bottomLeft,
-                        child: AnimatedSwitcher(
-                          // °C <-> °F: the number fades to the other unit
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 300),
-                          child: Text(
-                            _deg(w.temperatureCelsius),
-                            key: ValueKey(settings.fahrenheit),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: (unit * 0.42).clamp(56.0, 160.0),
-                              height: 0.95,
-                              fontWeight: FontWeight.w200,
-                              letterSpacing: -3,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (!compact) ...[
-                      const SizedBox(height: 6),
+              if (!compact)
+                Padding(
+                  padding: EdgeInsets.all(pad),
+                  child: _morphing(context, w, look),
+                )
+              else
+                Padding(
+                  padding: EdgeInsets.all(pad),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Row(
                         children: [
                           Icon(
-                            look.icon,
-                            size: (unit / 12).clamp(18.0, 28.0),
+                            Icons.near_me_rounded,
+                            size: (unit / 16).clamp(14.0, 20.0),
                             color: Colors.white,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              w.condition,
+                              w.city,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: (unit / 13).clamp(15.0, 24.0),
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: -0.3,
+                                fontSize: (unit / 12).clamp(16.0, 26.0),
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.4,
                               ),
                             ),
                           ),
                         ],
                       ),
-                    ],
-                    const SizedBox(height: 2),
-                    Text(
-                      compact
-                          ? '${w.condition}  H:${_deg(w.highCelsius)} L:${_deg(w.lowCelsius)}'
-                          : 'H:${_deg(w.highCelsius)}   L:${_deg(w.lowCelsius)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: (unit / 15).clamp(14.0, 22.0),
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.2,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                      // the temperature takes what is left and shrinks to fit, so a
+                      // small tile (the Summary panel) never overflows
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.bottomLeft,
+                          child: AnimatedSwitcher(
+                            // °C <-> °F: the number fades to the other unit
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 300),
+                            child: _temp(
+                              w.temperatureCelsius,
+                              (unit * 0.42).clamp(56.0, 160.0),
+                              -3,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      if (!compact) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              look.icon,
+                              size: (unit / 12).clamp(18.0, 28.0),
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                w.condition,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: (unit / 13).clamp(15.0, 24.0),
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 2),
+                      Text(
+                        compact
+                            ? '${w.condition}  H:${_deg(w.highCelsius)} L:${_deg(w.lowCelsius)}'
+                            : 'H:${_deg(w.highCelsius)}   L:${_deg(w.lowCelsius)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: (unit / 15).clamp(14.0, 22.0),
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.2,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         );
@@ -674,7 +867,7 @@ class _RangeBar extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF64D2FF), Color(0xFFFFD60A)],
+                      colors: [Color(0xFF64D2FF), Palette.yellow],
                     ),
                   ),
                 ),

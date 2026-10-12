@@ -173,7 +173,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                               child: Column(
                                 children: [
                                   SizedBox(
-                                    height: 22,
+                                    height: 30,
                                     child: Stack(
                                       alignment: Alignment.center,
                                       children: [

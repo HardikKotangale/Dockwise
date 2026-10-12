@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../../core/apple.dart';
 import '../../core/pinch_layout.dart';
@@ -7,7 +8,7 @@ import '../../state/standby_controller.dart';
 import 'settings/all_settings.dart';
 import 'settings/city_page.dart';
 import 'settings/clock_settings.dart';
-import 'settings/controls.dart' show clockLabel;
+import 'settings/controls.dart' show clockLabel, widgetLabel;
 import 'settings/simple_settings.dart';
 import 'settings/summary_add.dart';
 import 'widgets/clock_faces.dart';
@@ -261,107 +262,122 @@ class Dashboard extends StatelessWidget {
       child: RepaintBoundary(
         child: Pressable(
           scale: 0.985,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          // For a screen reader the panel is a button that opens its settings,
+          // with the swipes that change the panel as actions (a swipe is
+          // hard to make with VoiceOver or TalkBack on).
+          child: Semantics(
+            container: true,
+            label: '${widgetLabel(type)} panel',
+            hint: 'Opens its settings',
             onTap: () => _open(type),
-            onHorizontalDragEnd: (d) => _swiped(
-              context,
-              Axis.horizontal,
-              d.primaryVelocity ?? 0,
-              type,
-              isLeft,
-            ),
-            onVerticalDragEnd: (d) => _swiped(
-              context,
-              Axis.vertical,
-              d.primaryVelocity ?? 0,
-              type,
-              isLeft,
-            ),
-            // the panel's color eases to a new theme's, instead of jumping
-            child: AnimatedContainer(
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 320),
-              curve: Curves.easeOutCubic,
-              decoration: BoxDecoration(
-                color: isClock || type == StandbyWidgetType.timer
-                    ? (settings.theme.panelColor ?? Colors.transparent)
-                    : cardColor,
-                borderRadius: BorderRadius.circular(32),
+            customSemanticsActions: {
+              const CustomSemanticsAction(label: 'Next panel'): () =>
+                  controller.cyclePanelWidget(left: isLeft, step: 1),
+              const CustomSemanticsAction(label: 'Previous panel'): () =>
+                  controller.cyclePanelWidget(left: isLeft, step: -1),
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _open(type),
+              onHorizontalDragEnd: (d) => _swiped(
+                context,
+                Axis.horizontal,
+                d.primaryVelocity ?? 0,
+                type,
+                isLeft,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(32),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    AnimatedSwitcher(
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 420),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      layoutBuilder: (current, previous) => Stack(
-                        fit: StackFit.expand,
-                        children: [...previous, ?current],
-                      ),
-                      // A swipe slides the new card in from the side you swiped
-                      // toward while the old one eases away; anything else fades.
-                      transitionBuilder: (child, animation) {
-                        final dir = touch.swipeDir;
-                        final incoming = child.key == _currentKey(type);
-                        final travel = incoming ? dir : -dir;
-                        return AnimatedBuilder(
-                          animation: animation,
-                          builder: (context, c) {
-                            final gone = 1 - animation.value;
-                            return FractionalTranslation(
-                              translation: travel * (0.18 * gone),
-                              child: Opacity(
-                                opacity: animation.value.clamp(0.0, 1.0),
-                                child: c,
-                              ),
-                            );
-                          },
-                          child: child,
-                        );
-                      },
-                      child: KeyedSubtree(
-                        key: ValueKey(
-                          '${type.name}-${isClock
-                              ? settings.clockStyle.name
-                              : type == StandbyWidgetType.calendar
-                              ? settings.calendarStyle.name
-                              : type == StandbyWidgetType.timer
-                              ? settings.timerStyle.name
-                              : ''}',
+              onVerticalDragEnd: (d) => _swiped(
+                context,
+                Axis.vertical,
+                d.primaryVelocity ?? 0,
+                type,
+                isLeft,
+              ),
+              // the panel's color eases to a new theme's, instead of jumping
+              child: AnimatedContainer(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: isClock || type == StandbyWidgetType.timer
+                      ? (settings.theme.panelColor ?? Colors.transparent)
+                      : cardColor,
+                  borderRadius: BorderRadius.circular(32),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(32),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 420),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        layoutBuilder: (current, previous) => Stack(
+                          fit: StackFit.expand,
+                          children: [...previous, ?current],
                         ),
-                        child: content,
+                        // A swipe slides the new card in from the side you swiped
+                        // toward while the old one eases away; anything else fades.
+                        transitionBuilder: (child, animation) {
+                          final dir = touch.swipeDir;
+                          final incoming = child.key == _currentKey(type);
+                          final travel = incoming ? dir : -dir;
+                          return AnimatedBuilder(
+                            animation: animation,
+                            builder: (context, c) {
+                              final gone = 1 - animation.value;
+                              return FractionalTranslation(
+                                translation: travel * (0.18 * gone),
+                                child: Opacity(
+                                  opacity: animation.value.clamp(0.0, 1.0),
+                                  child: c,
+                                ),
+                              );
+                            },
+                            child: child,
+                          );
+                        },
+                        child: KeyedSubtree(
+                          key: ValueKey(
+                            '${type.name}-${isClock
+                                ? settings.clockStyle.name
+                                : type == StandbyWidgetType.calendar
+                                ? settings.calendarStyle.name
+                                : type == StandbyWidgetType.timer
+                                ? settings.timerStyle.name
+                                : ''}',
+                          ),
+                          child: content,
+                        ),
                       ),
-                    ),
-                    // Up and down swipes: small dots and a name for where it
-                    // took you (the clock's styles, the calendar's views)
-                    if (type == StandbyWidgetType.clock)
-                      SwipeRail(
-                        key: const ValueKey('clock-rail'),
-                        index: settings.clockStyle.index,
-                        labels: [
-                          for (final st in ClockStyle.values) clockLabel(st),
-                        ],
-                      )
-                    else if (type == StandbyWidgetType.calendar)
-                      SwipeRail(
-                        key: const ValueKey('calendar-rail'),
-                        index: settings.calendarStyle.index,
-                        labels: const ['Today', 'Month'],
-                      )
-                    else if (type == StandbyWidgetType.timer)
-                      SwipeRail(
-                        key: const ValueKey('timer-rail'),
-                        index: settings.timerStyle.index,
-                        labels: const ['Digital', 'Flip'],
-                      ),
-                  ],
+                      // Up and down swipes: small dots and a name for where it
+                      // took you (the clock's styles, the calendar's views)
+                      if (type == StandbyWidgetType.clock)
+                        SwipeRail(
+                          key: const ValueKey('clock-rail'),
+                          index: settings.clockStyle.index,
+                          labels: [
+                            for (final st in ClockStyle.values) clockLabel(st),
+                          ],
+                        )
+                      else if (type == StandbyWidgetType.calendar)
+                        SwipeRail(
+                          key: const ValueKey('calendar-rail'),
+                          index: settings.calendarStyle.index,
+                          labels: const ['Today', 'Month'],
+                        )
+                      else if (type == StandbyWidgetType.timer)
+                        SwipeRail(
+                          key: const ValueKey('timer-rail'),
+                          index: settings.timerStyle.index,
+                          labels: const ['Digital', 'Flip'],
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),

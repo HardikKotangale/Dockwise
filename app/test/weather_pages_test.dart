@@ -6,6 +6,7 @@ import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/features/standby/widgets/weather_card.dart';
 import 'package:standby_pro/src/services/weather_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
+import 'temp_finder.dart';
 
 // The weather card's pages, swiped up and down:
 // 0 now, 1 Fahrenheit only, 2 forecast, 3 the second city.
@@ -80,7 +81,7 @@ void main() {
     );
     await tester.pumpWidget(at(0));
     await tester.pumpAndSettle();
-    expect(find.text('19°'), findsOneWidget);
+    expect(bigTemp('19'), findsOneWidget);
     expect(find.text('Partly cloudy'), findsOneWidget);
     expect(find.text('Springfield'), findsOneWidget);
     expect(find.textContaining('H:20°'), findsOneWidget);
@@ -88,11 +89,11 @@ void main() {
     await tester.pumpWidget(at(1));
     await tester.pumpAndSettle(const Duration(seconds: 2));
     // same look: the city, the condition, the backdrop; only the unit differs
-    expect(find.text('66°'), findsOneWidget); // 19 C
+    expect(bigTemp('66'), findsOneWidget); // 19 C
     expect(find.text('Partly cloudy'), findsOneWidget);
     expect(find.text('Springfield'), findsOneWidget);
     expect(find.textContaining('H:68°'), findsOneWidget); // 20 C
-    expect(find.text('19°'), findsNothing);
+    expect(bigTemp('19'), findsNothing);
   });
 
   testWidgets('page 2 is the forecast: hours and the days ahead', (

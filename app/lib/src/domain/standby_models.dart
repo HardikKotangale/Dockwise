@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../core/palette.dart';
 
 enum StandbyLayoutMode { duo, single }
 
@@ -565,15 +566,14 @@ class StandbySettings {
   /// Accent for everything that is not the clock (the date card, today's
   /// circle, the music card's fallback): the one set under Theme in All
   /// settings. Changing the clock never changes it.
-  Color get appAccentInk =>
-      appAccent != 0 ? Color(appAccent) : const Color(0xFFFF453A);
+  Color get appAccentInk => appAccent != 0 ? Color(appAccent) : Palette.red;
 
   /// Accent derived from the clock's own look (used only by clock parts such as
   /// the World clock's city names): the minutes color if picked, else the
   /// theme's accent (Apple red on the default white look).
   Color get clockAccentInk => minutesColor != 0
       ? Color(minutesColor)
-      : (theme.id == 'aurora' ? const Color(0xFFFF453A) : theme.accentColor);
+      : (theme.id == 'aurora' ? Palette.red : theme.accentColor);
 
   /// Effective clock colors: a picked color, else the theme's.
   Color get hoursInk => hoursColor == 0 ? theme.clockColor : Color(hoursColor);
