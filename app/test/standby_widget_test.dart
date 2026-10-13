@@ -175,7 +175,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final texts = find.byType(Text);
+        // the four digits (the colon between them is not one)
+        final texts = find.byWidgetPredicate(
+          (w) => w is Text && w.data != ':' && (w.data?.length ?? 0) == 1,
+        );
         return [
           for (var i = 0; i < 4; i++) tester.getCenter(texts.at(i)),
         ]; // 1, 0, 0, 9
@@ -880,7 +883,8 @@ void main() {
     expect(ClockStyle.frame.partLabel(ClockPart.label), 'Tick color');
     expect(ClockStyle.values.map((x) => x.name), isNot(contains('solar')));
     expect(ClockStyle.text.parts, isNot(contains(ClockPart.colon)));
-    expect(ClockStyle.float.parts, isNot(contains(ClockPart.colon)));
+    expect(ClockStyle.float.parts, contains(ClockPart.colon)); // it floats
+    expect(ClockStyle.float.partLabel(ClockPart.colon), 'Colon');
     expect(ClockStyle.analog.partLabel(ClockPart.hours), 'Hour hand');
     expect(ClockStyle.flip.partLabel(ClockPart.minutes), 'Minutes tile');
     expect(ClockStyle.text.partLabel(ClockPart.hours), 'Hour word');
@@ -2249,6 +2253,15 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
     }
+
+    testWidgets('battery number and line: only when there is news', (t) async {
+      await app(t, (level: 73, charging: false, full: false), alert: false);
+      expect(find.bySemanticsLabel('Battery 73 percent'), findsOneWidget);
+      await t.pumpWidget(const SizedBox());
+      await app(t, (level: 100, charging: true, full: true), alert: false);
+      expect(find.bySemanticsLabel('Battery 100 percent'), findsNothing);
+      await finish(t);
+    });
 
     testWidgets('prompt: at 20% and not charging, asks to charge', (t) async {
       await app(t, (level: 20, charging: false, full: false));

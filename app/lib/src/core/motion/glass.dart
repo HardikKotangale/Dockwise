@@ -106,7 +106,7 @@ class GlassLabel extends StatelessWidget {
     // arrives from a little smaller, never from nothing
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 160),
+      duration: Motion.quick,
       curve: easeOutStrong,
       builder: (context, t, child) => Opacity(
         opacity: t,

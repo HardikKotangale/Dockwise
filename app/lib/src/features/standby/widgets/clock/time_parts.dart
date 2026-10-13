@@ -103,7 +103,7 @@ class TimeParts extends StatelessWidget {
         tween: Tween(end: stacked ? 0.34 : 1.0),
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : const Duration(milliseconds: 420),
+            : Motion.slow,
         curve: easeOutStrong,
         builder: (context, k, _) {
           final size = (base.fontSize ?? 100) * k;

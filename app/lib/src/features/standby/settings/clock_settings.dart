@@ -77,8 +77,8 @@ class _ClockBodyState extends State<ClockBody> {
       Scrollable.ensureVisible(
         ctx,
         alignment: 0.15,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
+        duration: calm(context, Motion.fast),
+        curve: easeOutStrong,
       );
     });
   }
@@ -214,15 +214,15 @@ class ClockColors extends StatelessWidget {
     ClockPart.label => settings.copyWith(labelColor: c),
   };
 
-  Widget _row(ClockPart part) {
+  Widget _row(BuildContext context, ClockPart part) {
     final label = settings.clockStyle.partLabel(part);
     final value = _value(part);
     final active = selected == part;
     return KeyedSubtree(
       key: rowKeys[part],
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
+        duration: calm(context, Motion.fast),
+        curve: easeOutStrong,
         key: ValueKey('row-${part.name}${active ? '-active' : ''}'),
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(10),
@@ -256,8 +256,8 @@ class ClockColors extends StatelessWidget {
                     child: GestureDetector(
                       onTap: () => onChanged(_apply(part, c.argb)),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutCubic,
+                        duration: calm(context, Motion.fast),
+                        curve: easeOutStrong,
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
@@ -293,7 +293,7 @@ class ClockColors extends StatelessWidget {
         : all;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [for (final p in parts) _row(p)],
+      children: [for (final p in parts) _row(context, p)],
     );
   }
 }
@@ -339,8 +339,8 @@ class AccentPicker extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onChanged(settings.copyWith(appAccent: c.argb)),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
+                duration: calm(context, Motion.fast),
+                curve: easeOutStrong,
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
@@ -438,8 +438,8 @@ class PreviewTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOutCubic,
+                  duration: calm(context, Motion.fast),
+                  curve: easeOutStrong,
                   foregroundDecoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(

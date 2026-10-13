@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../core/motion/motion.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/weather_service.dart';
@@ -139,8 +140,8 @@ class ColorRow extends StatelessWidget {
                   child: GestureDetector(
                     onTap: () => onChanged(c.argb),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutCubic,
+                      duration: calm(context, Motion.fast),
+                      curve: easeOutStrong,
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(

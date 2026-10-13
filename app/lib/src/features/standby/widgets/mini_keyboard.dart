@@ -30,7 +30,7 @@ class MiniKeyboard extends StatelessWidget {
       tween: Tween(end: portrait ? 1.0 : 0.0),
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
-          : const Duration(milliseconds: 380),
+          : Motion.medium,
       curve: easeOutStrong,
       builder: (context, t, _) => _build(t),
     );

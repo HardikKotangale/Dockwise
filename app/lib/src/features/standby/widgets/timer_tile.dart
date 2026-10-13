@@ -206,7 +206,7 @@ class TimerTile extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, box) {
               final shown = AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                duration: calm(context, Motion.fast),
                 child: KeyedSubtree(
                   key: ValueKey('${settings.timerStyle.name}$stacked$wide'),
                   child: flip
@@ -333,8 +333,8 @@ class _Mini extends StatelessWidget {
             onTap();
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
+            duration: calm(context, Motion.fast),
+            curve: easeOutStrong,
             height: height,
             alignment: Alignment.center,
             decoration: BoxDecoration(
