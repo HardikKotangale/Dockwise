@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show MethodChannel, MissingPluginException, PlatformException;
 
+import '../../../core/motion/motion.dart';
 import '../../../core/palette.dart';
 
 /// What the screen needs to know about the battery.
@@ -82,13 +83,21 @@ class BatteryMonitor extends ChangeNotifier {
 const _red = Palette.red;
 const _green = Palette.green;
 
-/// Extremely quiet battery readout for the corner: a hairline battery and a
-/// small number. It only appears when there is something to tell: on battery,
-/// or charging but not yet full. Green = charging, red = low.
+/// Extremely quiet battery readout: a hairline battery and a small number.
+/// It only shows when there is something to tell: on battery, or charging but
+/// not yet full (unless [always]). Green = charging, red = low.
 class BatteryBadge extends StatelessWidget {
-  const BatteryBadge({super.key, required this.monitor, this.lowAt = 20});
+  const BatteryBadge({
+    super.key,
+    required this.monitor,
+    this.lowAt = 20,
+    this.always = false,
+  });
 
   final BatteryMonitor monitor;
+
+  /// Show even when full on the charger (when asked for on purpose).
+  final bool always;
 
   /// At or below this (and not charging) the badge turns red.
   final int lowAt;
@@ -99,7 +108,7 @@ class BatteryBadge extends StatelessWidget {
     builder: (context, _) {
       final r = monitor.value;
       if (r == null) return const SizedBox.shrink();
-      if (r.full || (r.charging && r.level >= 100)) {
+      if (!always && (r.full || (r.charging && r.level >= 100))) {
         return const SizedBox.shrink(); // full on the charger: nothing to say
       }
       final color = !r.charging && r.level <= lowAt
@@ -131,6 +140,96 @@ class BatteryBadge extends StatelessWidget {
   );
 }
 
+/// The level as a number and a short line, for the free room around the
+/// cards (beside the island, or in the side margin): it takes no room from
+/// the cards and shows only when there is something to tell (on battery, or
+/// charging but not yet full). Green = charging, red = low.
+class BatteryLine extends StatelessWidget {
+  const BatteryLine({
+    super.key,
+    required this.monitor,
+    this.lowAt = 20,
+    this.column = false,
+  });
+
+  final BatteryMonitor monitor;
+  final int lowAt;
+
+  /// number over the line (a narrow side margin), else side by side
+  final bool column;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: monitor,
+    builder: (context, _) {
+      final r = monitor.value;
+      final show = r != null && !(r.full || (r.charging && r.level >= 100));
+      final color = r == null
+          ? Colors.white54
+          : !r.charging && r.level <= lowAt
+          ? _red
+          : r.charging
+          ? _green
+          : Colors.white54;
+      final number = Text(
+        '${r?.level ?? 0}%',
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.3,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      );
+      final line = SizedBox(
+        width: 26,
+        height: 3,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: AnimatedFractionallySizedBox(
+              duration: calm(context, Motion.slow),
+              curve: easeOutStrong,
+              widthFactor: ((r?.level ?? 0) / 100).clamp(0.04, 1.0),
+              heightFactor: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return ExcludeSemantics(
+        excluding: !show,
+        child: Semantics(
+          label: r == null ? null : 'Battery ${r.level} percent',
+          excludeSemantics: true,
+          child: AnimatedOpacity(
+            opacity: show ? 1 : 0,
+            duration: calm(context, Motion.medium),
+            child: column
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [number, const SizedBox(height: 4), line],
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [number, const SizedBox(width: 6), line],
+                  ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 /// Full-screen "charge your phone" prompt: shown while the battery is at or
 /// at or below [lowAt] percent and not charging; goes away by itself once the
 /// charger is plugged in.
@@ -156,7 +255,7 @@ class LowBatteryAlert extends StatelessWidget {
         ignoring: !show, // while hidden, touches go to the app underneath
         child: AnimatedOpacity(
           opacity: show ? 1 : 0,
-          duration: const Duration(milliseconds: 350),
+          duration: calm(context, Motion.medium),
           child: show
               ? _LowBatteryPage(level: r.level)
               : const SizedBox.expand(),

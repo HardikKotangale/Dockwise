@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -139,7 +140,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                 fit: StackFit.expand,
                 children: [
                   SafeArea(
-                    minimum: const EdgeInsets.all(12),
+                    minimum: const EdgeInsets.all(8),
                     child: LayoutBuilder(
                       builder: (context, c) {
                         // Landscape: dock on the right; portrait: dock at the bottom.
@@ -175,67 +176,12 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                         )
                                       : moved;
                                 },
-                                // a thin strip on top is always reserved for the battery
-                                // badge, so cards never resize when it appears or hides
-                                child: Column(
+                                // the cards fill the screen; the page dots (one panel
+                                // only) sit over the top edge of the card
+                                child: Stack(
+                                  fit: StackFit.expand,
                                   children: [
-                                    SizedBox(
-                                      height: 30,
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          // page dots (one panel only): tap or
-                                          // slide across them to change page
-                                          if (settings.layoutMode ==
-                                              StandbyLayoutMode.single)
-                                            PageDots(
-                                              labels: [
-                                                for (final t
-                                                    in StandbyWidgetType.values)
-                                                  widgetLabel(t),
-                                              ],
-                                              icons: [
-                                                for (final t
-                                                    in StandbyWidgetType.values)
-                                                  widgetIcon(t),
-                                              ],
-                                              index: settings.leftWidget.index,
-                                              bright: _dotsVisible,
-                                              onSelect: (i) {
-                                                final to =
-                                                    StandbyWidgetType.values[i];
-                                                if (to == settings.leftWidget) {
-                                                  return;
-                                                }
-                                                _touch.swipeDir = Offset(
-                                                  i > settings.leftWidget.index
-                                                      ? 1
-                                                      : -1,
-                                                  0,
-                                                );
-                                                _controller.updateSettings(
-                                                  settings.copyWith(
-                                                    leftWidget: to,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                right: 6,
-                                              ),
-                                              child: BatteryBadge(
-                                                monitor: _battery,
-                                                lowAt: settings.lowBatteryLevel,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
+                                    Positioned.fill(
                                       child: Dashboard(
                                         controller: _controller,
                                         settings: settings,
@@ -264,6 +210,44 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                         },
                                       ),
                                     ),
+                                    if (settings.layoutMode ==
+                                        StandbyLayoutMode.single)
+                                      Positioned(
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        height: 30,
+                                        child: PageDots(
+                                          labels: [
+                                            for (final t
+                                                in StandbyWidgetType.values)
+                                              widgetLabel(t),
+                                          ],
+                                          icons: [
+                                            for (final t
+                                                in StandbyWidgetType.values)
+                                              widgetIcon(t),
+                                          ],
+                                          index: settings.leftWidget.index,
+                                          bright: _dotsVisible,
+                                          onSelect: (i) {
+                                            final to =
+                                                StandbyWidgetType.values[i];
+                                            if (to == settings.leftWidget) {
+                                              return;
+                                            }
+                                            _touch.swipeDir = Offset(
+                                              i > settings.leftWidget.index
+                                                  ? 1
+                                                  : -1,
+                                              0,
+                                            );
+                                            _controller.updateSettings(
+                                              settings.copyWith(leftWidget: to),
+                                            );
+                                          },
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -337,6 +321,43 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                   dock,
                                 ],
                               );
+                      },
+                    ),
+                  ),
+                  // the level, in the room around the cards (never over them)
+                  Positioned.fill(
+                    child: Builder(
+                      builder: (context) {
+                        final pad = MediaQuery.paddingOf(context);
+                        final beside = pad.top >= 30; // room next to the camera
+                        final side = !beside && pad.right >= 30; // or beside it
+                        final line = BatteryLine(
+                          monitor: _battery,
+                          lowAt: settings.lowBatteryLevel,
+                          column: side,
+                        );
+                        return Align(
+                          alignment: Alignment.topRight,
+                          child: Padding(
+                            padding: beside
+                                // in the top margin, right of the camera
+                                ? EdgeInsets.only(
+                                    top: pad.top / 2 - 8,
+                                    right: pad.right + 22,
+                                  )
+                                : side
+                                // sideways: in the side margin
+                                ? EdgeInsets.only(
+                                    top: 28,
+                                    right: math.max(pad.right / 2 - 14, 6),
+                                  )
+                                // no camera room at all: tucked into the
+                                // top-right corner of the card (nothing sits
+                                // there, and the card keeps its size)
+                                : const EdgeInsets.only(top: 16, right: 34),
+                            child: IgnorePointer(child: line),
+                          ),
+                        );
                       },
                     ),
                   ),

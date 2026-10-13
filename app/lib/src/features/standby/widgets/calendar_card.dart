@@ -34,7 +34,7 @@ class CalendarCard extends StatelessWidget {
       tween: ColorTween(end: settings.appAccentInk),
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
-          : const Duration(milliseconds: 300),
+          : Motion.fast,
       builder: (context, tinted, _) =>
           _content(context, tinted ?? settings.appAccentInk),
     );
@@ -80,9 +80,7 @@ class CalendarCard extends StatelessWidget {
                     for (final e in parts.entries)
                       AnimatedPositioned(
                         key: ValueKey('${month ? 'm' : 'd'}-${e.key}'),
-                        duration: still
-                            ? Duration.zero
-                            : const Duration(milliseconds: 520),
+                        duration: still ? Duration.zero : Motion.verySlow,
                         curve: easeOutStrong,
                         left: rects[e.key]!.left,
                         top: rects[e.key]!.top,

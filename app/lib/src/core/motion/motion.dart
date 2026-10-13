@@ -29,3 +29,20 @@ void tick() => HapticFeedback.selectionClick();
 /// A strong ease-out for things arriving or answering a touch: it starts fast,
 /// so it feels responsive, then settles. (Built-in Curves.easeOut is too weak.)
 const easeOutStrong = Cubic(0.23, 1, 0.32, 1);
+
+/// One small bounce, for things that spring back (the skill's --ease-bounce).
+const easeBounce = Cubic(0.34, 1.36, 0.64, 1);
+
+/// The motion scale every transition picks from (transitions.dev tokens).
+class Motion {
+  const Motion._();
+  static const quick = Duration(milliseconds: 150); // presses, closes
+  static const fast = Duration(milliseconds: 250); // most opens and swaps
+  static const medium = Duration(milliseconds: 350); // panels, morph fades
+  static const slow = Duration(milliseconds: 400); // panels opening
+  static const verySlow = Duration(milliseconds: 500); // emphasis, morph moves
+}
+
+/// [d], or no time at all when the person turned animations off.
+Duration calm(BuildContext context, Duration d) =>
+    MediaQuery.disableAnimationsOf(context) ? Duration.zero : d;

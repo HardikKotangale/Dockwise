@@ -50,8 +50,14 @@ extension ClockStyleInfo on ClockStyle {
     ],
     // + the city names (world) / the seconds ticks (frame)
     ClockStyle.world || ClockStyle.frame => ClockPart.values,
-    ClockStyle.text || ClockStyle.float => const [
+    ClockStyle.text => const [
       ClockPart.hours,
+      ClockPart.minutes,
+      ClockPart.detail,
+    ],
+    ClockStyle.float => const [
+      ClockPart.hours,
+      ClockPart.colon,
       ClockPart.minutes,
       ClockPart.detail,
     ],
@@ -75,6 +81,7 @@ extension ClockStyleInfo on ClockStyle {
     ClockStyle.float => switch (part) {
       ClockPart.hours => 'Top row (hours)',
       ClockPart.minutes => 'Bottom row (minutes)',
+      ClockPart.colon => 'Colon',
       ClockPart.label => 'Labels',
       _ => 'AM/PM',
     },

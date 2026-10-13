@@ -238,7 +238,7 @@ class _TimerCardState extends State<TimerCard>
     // the horse and the player keep the same colors to the end
     final color = _figureColor;
     final digits = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
+      duration: Motion.fast,
       child: KeyedSubtree(
         key: ValueKey('${st.timerStyle.name}$stacked'),
         child: flip ? _flip(parts, stacked) : _digital(parts, stacked),
@@ -514,11 +514,11 @@ class _TimerCardState extends State<TimerCard>
   Widget _folding(Widget child) => AnimatedSize(
     duration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 240),
+        : Motion.fast,
     curve: easeOutStrong,
     alignment: Alignment.topCenter,
     child: AnimatedOpacity(
-      duration: const Duration(milliseconds: 160),
+      duration: Motion.quick,
       opacity: widget.started ? 0 : 1,
       child: widget.started ? const SizedBox(width: double.infinity) : child,
     ),
@@ -585,9 +585,7 @@ class _TimerCardState extends State<TimerCard>
           restWidth = _short ? c.maxWidth - 20 : iw;
         }
 
-        final duration = still
-            ? Duration.zero
-            : const Duration(milliseconds: 520);
+        final duration = still ? Duration.zero : Motion.verySlow;
         return Stack(
           clipBehavior: Clip.hardEdge,
           children: [
@@ -718,8 +716,8 @@ class _Chip extends StatelessWidget {
             onTap();
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
+            duration: Motion.fast,
+            curve: easeOutStrong,
             padding: EdgeInsets.symmetric(
               horizontal: box ? 12 : 14,
               vertical: tiny ? 7 : (dense ? 10 : (box ? 15 : 8)),

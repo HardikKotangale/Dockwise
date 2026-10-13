@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/motion/motion.dart';
 import '../../../../domain/standby_models.dart';
 import 'clock_text.dart';
 
@@ -123,8 +124,8 @@ class FrameClockFace extends StatelessWidget {
                     // settle into the new arrangement
                     duration: MediaQuery.disableAnimationsOf(context)
                         ? Duration.zero
-                        : const Duration(milliseconds: 420),
-                    switchInCurve: Curves.easeOutCubic,
+                        : Motion.slow,
+                    switchInCurve: easeOutStrong,
                     child: KeyedSubtree(
                       key: ValueKey(
                         '${tall && parts.length == 2}-${wide && t.suffix != null}',

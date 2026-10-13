@@ -1,8 +1,10 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
-
 import 'package:flutter/material.dart';
+
+import '../../../core/motion/motion.dart';
 import '../../../services/spotify_service.dart';
 import '../../../state/standby_controller.dart';
 
@@ -144,13 +146,14 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
 
   void _openPlaylist(SpotifyPlaylist? p) => setState(() {
     _open = p;
-    _songs = p == null ? null : c.spotifyPlaylistTracks(p.uri);
+    // a play-only playlist cannot be listed: no request, just the explanation
+    _songs = p == null || !p.canBrowse ? null : c.spotifyPlaylistTracks(p.uri);
   });
 
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
-    duration: const Duration(milliseconds: 220),
-    switchInCurve: Curves.easeOutCubic,
+    duration: calm(context, Motion.fast),
+    switchInCurve: easeOutStrong,
     child: KeyedSubtree(
       key: ValueKey(_open?.uri),
       child: _open == null ? _main(context) : _songList(_open!),
@@ -187,53 +190,64 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
             ),
           ],
         ),
-        FutureBuilder<List<SpotifyHit>>(
-          future: _songs,
-          builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Padding(
-                padding: EdgeInsets.only(top: 24),
-                child: LinearProgressIndicator(),
-              );
-            }
-            final songs = snap.data ?? const <SpotifyHit>[];
-            if (songs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 24, left: 8),
-                child: Text(c.musicError ?? 'No songs'),
-              );
-            }
-            return Column(
-              children: [
-                for (final h in songs)
-                  ListTile(
-                    contentPadding: const EdgeInsets.only(left: 8),
-                    leading: h.imageUrl == null
-                        ? const Icon(Icons.music_note_rounded)
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.network(
-                              h.imageUrl!,
-                              width: 44,
-                              height: 44,
+        if (!p.canBrowse)
+          const Padding(
+            padding: EdgeInsets.only(top: 24, left: 8, right: 8),
+            child: Text(
+              'Spotify only shows the songs of playlists you own or share. '
+              'Tap Play: the songs that follow appear in the queue, and you '
+              'can tap one there to jump to it.',
+            ),
+          )
+        else
+          FutureBuilder<List<SpotifyHit>>(
+            future: _songs,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 24),
+                  child: LinearProgressIndicator(),
+                );
+              }
+              final songs = snap.data ?? const <SpotifyHit>[];
+              if (songs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 24, left: 8),
+                  child: Text(c.musicError ?? 'No songs'),
+                );
+              }
+              return Column(
+                children: [
+                  for (final h in songs)
+                    ListTile(
+                      contentPadding: const EdgeInsets.only(left: 8),
+                      leading: h.imageUrl == null
+                          ? const Icon(Icons.music_note_rounded)
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.network(
+                                h.imageUrl!,
+                                width: 44,
+                                height: 44,
+                              ),
                             ),
-                          ),
-                    title: Text(
-                      h.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      title: Text(
+                        h.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        h.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () =>
+                          _run(() => c.playPlaylistTrack(p.uri, h.uri)),
                     ),
-                    subtitle: Text(
-                      h.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () => _run(() => c.playPlaylistTrack(p.uri, h.uri)),
-                  ),
-              ],
-            );
-          },
-        ),
+                ],
+              );
+            },
+          ),
       ],
     );
   }
@@ -357,6 +371,17 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
             'Playlists',
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
+          for (final p in const [SpotifyPlaylist.liked, SpotifyPlaylist.recent])
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                p == SpotifyPlaylist.liked
+                    ? Icons.favorite_rounded
+                    : Icons.history_rounded,
+              ),
+              title: Text(p.name),
+              onTap: () => _openPlaylist(p),
+            ),
           FutureBuilder<List<SpotifyPlaylist>>(
             future: _playlists,
             builder: (context, snap) => Column(
@@ -364,6 +389,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                 for (final p in snap.data ?? const <SpotifyPlaylist>[])
                   ListTile(
                     contentPadding: EdgeInsets.zero,
+                    subtitle: p.canBrowse ? null : const Text('Play only'),
                     leading: p.imageUrl == null
                         ? const Icon(Icons.queue_music)
                         : ClipRRect(

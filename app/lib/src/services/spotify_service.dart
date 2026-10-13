@@ -49,10 +49,31 @@ class SpotifyQueue {
 }
 
 class SpotifyPlaylist {
-  const SpotifyPlaylist(this.uri, this.name, this.imageUrl);
+  const SpotifyPlaylist(
+    this.uri,
+    this.name,
+    this.imageUrl, {
+    this.canBrowse = true,
+  });
+
+  /// Your library's two song lists, shown beside the playlists.
+  static const liked = SpotifyPlaylist('hushdock:liked', 'Liked Songs', null);
+  static const recent = SpotifyPlaylist(
+    'hushdock:recent',
+    'Recently played',
+    null,
+  );
+
   final String uri;
   final String name;
   final String? imageUrl;
+
+  /// Spotify only shows the songs of playlists you own or share; any other
+  /// playlist can be played, but not listed.
+  final bool canBrowse;
+
+  /// Liked Songs and Recently played: a list of songs, not a Spotify playlist.
+  bool get isSongList => uri == liked.uri || uri == recent.uri;
 }
 
 /// Spotify Web API (Spotify Connect) client. Controls whichever device is
@@ -71,7 +92,8 @@ class SpotifyService {
   static const _redirect = '$_scheme://spotify-callback';
   static const _scopes =
       'user-read-playback-state user-modify-playback-state '
-      'user-read-currently-playing playlist-read-private';
+      'user-read-currently-playing playlist-read-private '
+      'user-library-read user-read-recently-played';
   static const _api = 'https://api.spotify.com/v1';
 
   final http.Client _http;
@@ -294,45 +316,103 @@ class SpotifyService {
     return all.firstWhere((d) => d.isActive, orElse: () => all.first).id;
   }
 
+  String? _userId;
+
+  /// Playlists you can list first, then the play-only ones.
   Future<List<SpotifyPlaylist>> playlists() async {
-    final res = await _call('GET', '/me/playlists?limit=30');
+    final res = await _call('GET', '/me/playlists?limit=50');
     if (res == null || res.statusCode != 200) return const [];
+    _userId ??= await _me();
     final items = (jsonDecode(res.body)['items'] as List?) ?? const [];
-    return [
+    final all = [
       for (final p in items.whereType<Map<String, dynamic>>())
         SpotifyPlaylist(
           p['uri'] as String,
           p['name'] as String? ?? '',
           ((p['images'] as List?)?.firstOrNull as Map?)?['url'] as String?,
+          // not sure who owns it (no id): assume yours, the list says if not
+          canBrowse:
+              _userId == null ||
+              p['collaborative'] == true ||
+              (p['owner'] as Map?)?['id'] == _userId ||
+              p['owner'] == null,
         ),
     ];
+    return [
+      ...all.where((p) => p.canBrowse),
+      ...all.where((p) => !p.canBrowse),
+    ];
+  }
+
+  Future<String?> _me() async {
+    final res = await _call('GET', '/me');
+    if (res == null || res.statusCode != 200) return null;
+    return (jsonDecode(res.body) as Map<String, dynamic>)['id'] as String?;
   }
 
   /// Starts a playlist on [deviceId], else the active device, else any device.
   Future<bool> playPlaylist(String uri, {String? deviceId}) =>
       playUri(uri, deviceId: deviceId);
 
-  /// The songs in a playlist (the first 100). Spotify only lists the songs of
-  /// playlists you own or collaborate on (anything else answers 403).
-  Future<List<SpotifyHit>> playlistTracks(String playlistUri) async {
-    final res = await _call(
-      'GET',
-      '/playlists/${playlistUri.split(':').last}/items?limit=100',
-    );
-    if (res?.statusCode == 403) {
-      lastError =
-          'Spotify only lets apps list the songs of your own playlists. '
-          'Tap Play to start this one.';
+  // lists already fetched, so opening one again is instant and costs no
+  // request (Spotify rate-limits an app quickly)
+  final _lists = <String, ({DateTime at, List<SpotifyHit> songs})>{};
+  static const _listTtl = Duration(minutes: 5);
+
+  /// The songs of a playlist you own or share, of Liked Songs, or of Recently
+  /// played. Spotify answers 403 for any other playlist.
+  Future<List<SpotifyHit>> playlistTracks(String uri) async {
+    final hit = _lists[uri];
+    if (hit != null && DateTime.now().difference(hit.at) < _listTtl) {
+      lastError = null;
+      return hit.songs;
+    }
+    final String path;
+    if (uri == SpotifyPlaylist.liked.uri) {
+      path = '/me/tracks?limit=50';
+    } else if (uri == SpotifyPlaylist.recent.uri) {
+      path = '/me/player/recently-played?limit=50';
+    } else {
+      path = '/playlists/${uri.split(':').last}/items?limit=100';
+    }
+    final res = await _call('GET', path);
+    if (res?.statusCode == 403 || res?.statusCode == 401) {
+      lastError = uri.startsWith('hushdock:')
+          ? 'Sign out of Spotify in Music settings and sign in again, so '
+                'Spotify can share this list.'
+          : 'Spotify only lets apps list the songs of your own playlists. '
+                'Tap Play to start this one.';
       return const [];
     }
     if (!_ok(res)) return const [];
-    return [
+    final seen = <String>{};
+    final songs = [
       for (final i in (jsonDecode(res!.body)['items'] as List?) ?? const [])
         // "item" is the current name, "track" the one it replaced
         if (i is Map<String, dynamic> &&
-            _queueItem(i['item'] ?? i['track']) != null)
+            _queueItem(i['item'] ?? i['track']) != null &&
+            seen.add(_queueItem(i['item'] ?? i['track'])!.uri))
           _queueItem(i['item'] ?? i['track'])!,
     ];
+    _lists[uri] = (at: DateTime.now(), songs: songs);
+    return songs;
+  }
+
+  /// Plays a list of songs (from Liked Songs or Recently played), starting at
+  /// [from]; the rest follow in order.
+  Future<bool> playSongs(List<String> uris, {String? from}) async {
+    if (uris.isEmpty) return false; // lastError says why the list is empty
+    final id = await _fallbackDevice();
+    return _ok(
+      await _call(
+        'PUT',
+        id == null ? '/me/player/play' : '/me/player/play?device_id=$id',
+        body: jsonEncode({
+          'uris': uris,
+          if (from != null) 'offset': {'uri': from},
+        }),
+      ),
+    );
   }
 
   /// Starts [trackUri] inside [playlistUri], so the rest of the playlist

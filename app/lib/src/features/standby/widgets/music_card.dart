@@ -581,7 +581,7 @@ class _MusicCardState extends State<MusicCard> {
                   AnimatedSwitcher(
                     duration: MediaQuery.disableAnimationsOf(context)
                         ? Duration.zero
-                        : const Duration(milliseconds: 320),
+                        : Motion.medium,
                     layoutBuilder: (current, previous) => Stack(
                       alignment: Alignment.bottomLeft,
                       children: [...previous, ?current],

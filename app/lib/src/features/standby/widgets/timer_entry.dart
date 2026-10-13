@@ -65,7 +65,7 @@ class _TimerEntryState extends State<TimerEntry> {
     mainAxisSize: MainAxisSize.min,
     children: [
       AnimatedDefaultTextStyle(
-        duration: const Duration(milliseconds: 160),
+        duration: Motion.quick,
         // on top of the surrounding text style, so the app's font carries over
         style: DefaultTextStyle.of(context).style.copyWith(
           fontSize: 56,
@@ -75,7 +75,7 @@ class _TimerEntryState extends State<TimerEntry> {
           color: Colors.white.withValues(alpha: lit ? 1 : 0.3),
         ),
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
+          duration: Motion.fast,
           // the new digit rises into place as the old one lifts away
           transitionBuilder: (child, animation) => FadeTransition(
             opacity: animation,

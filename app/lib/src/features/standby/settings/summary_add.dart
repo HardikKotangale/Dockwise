@@ -88,7 +88,7 @@ class SummaryAdd extends StatelessWidget {
                               onDone();
                             },
                       child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
+                        duration: calm(context, Motion.fast),
                         opacity: next == null ? 0.4 : 1,
                         child: DecoratedBox(
                           decoration: BoxDecoration(

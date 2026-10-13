@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/motion/motion.dart';
 import '../../../../domain/standby_models.dart';
 import 'analog_clock.dart';
 import 'clock_text.dart';
@@ -55,14 +56,10 @@ class ClockFace extends StatelessWidget {
   ].join('|');
 
   static Duration _gentle(BuildContext context) =>
-      MediaQuery.disableAnimationsOf(context)
-      ? Duration.zero
-      : const Duration(milliseconds: 320);
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : Motion.medium;
 
   static Duration _fast(BuildContext context) =>
-      MediaQuery.disableAnimationsOf(context)
-      ? Duration.zero
-      : const Duration(milliseconds: 160);
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : Motion.quick;
 
   Widget _scaled(BuildContext context, {required bool stacked}) {
     // With two panels, World and Flip stay on one line whichever way the phone

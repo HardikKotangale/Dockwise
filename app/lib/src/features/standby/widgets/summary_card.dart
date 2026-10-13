@@ -83,7 +83,7 @@ class _SummaryCardState extends State<SummaryCard>
   // drives the jiggle; only runs while editing
   late final AnimationController _jiggle = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 140),
+    duration: Motion.quick,
   );
 
   // The tiles deal in one after another when Summary appears, like little
@@ -271,7 +271,7 @@ class _SummaryCardState extends State<SummaryCard>
               },
               child: AnimatedScale(
                 scale: hot ? 0.94 : 1,
-                duration: const Duration(milliseconds: 160),
+                duration: Motion.quick,
                 curve: easeOutStrong,
                 child: Stack(
                   fit: StackFit.passthrough,
@@ -308,7 +308,7 @@ class _SummaryCardState extends State<SummaryCard>
                       child: IgnorePointer(
                         child: AnimatedOpacity(
                           opacity: hot ? 1 : 0,
-                          duration: const Duration(milliseconds: 140),
+                          duration: Motion.quick,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
@@ -473,7 +473,7 @@ class _SummaryCardState extends State<SummaryCard>
       child: Stack(
         children: [
           AnimatedPadding(
-            duration: still ? Duration.zero : const Duration(milliseconds: 260),
+            duration: still ? Duration.zero : Motion.fast,
             curve: easeOutStrong,
             padding: EdgeInsets.fromLTRB(
               _gap,
@@ -508,9 +508,7 @@ class _SummaryCardState extends State<SummaryCard>
                   children.add(
                     AnimatedPositioned(
                       key: ValueKey(id),
-                      duration: still
-                          ? Duration.zero
-                          : const Duration(milliseconds: 420),
+                      duration: still ? Duration.zero : Motion.slow,
                       curve: easeOutStrong,
                       left: rects[id]!.left,
                       top: rects[id]!.top,
@@ -522,15 +520,11 @@ class _SummaryCardState extends State<SummaryCard>
                           fresh: fresh && !still,
                           child: AnimatedScale(
                             scale: removing ? 0.85 : 1,
-                            duration: still
-                                ? Duration.zero
-                                : const Duration(milliseconds: 180),
+                            duration: still ? Duration.zero : Motion.fast,
                             curve: easeOutStrong,
                             child: AnimatedOpacity(
                               opacity: removing ? 0 : 1,
-                              duration: still
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 180),
+                              duration: still ? Duration.zero : Motion.fast,
                               onEnd: removing ? () => _commitRemove(id) : null,
                               child: body,
                             ),
@@ -678,7 +672,7 @@ class _ClockTile extends StatelessWidget {
                     // 12 <-> 24-hour (and each new minute) fades, not jumps
                     duration: MediaQuery.disableAnimationsOf(context)
                         ? Duration.zero
-                        : const Duration(milliseconds: 280),
+                        : Motion.fast,
                     layoutBuilder: (current, previous) => Stack(
                       alignment: Alignment.bottomLeft,
                       children: [...previous, ?current],
@@ -934,7 +928,7 @@ class _Pop extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: fresh ? 0 : 1, end: 1),
-      duration: const Duration(milliseconds: 300),
+      duration: Motion.fast,
       curve: easeOutStrong,
       builder: (context, v, child) => v >= 1
           ? child!

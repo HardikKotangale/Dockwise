@@ -317,7 +317,12 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<bool> playSpotifyPlaylist(String uri, {String? deviceId}) async {
-    final ok = await _spotify.playPlaylist(uri, deviceId: deviceId);
+    // Liked Songs / Recently played are song lists: play the songs themselves
+    final ok = uri.startsWith('hushdock:')
+        ? await _spotify.playSongs([
+            for (final h in await _spotify.playlistTracks(uri)) h.uri,
+          ])
+        : await _spotify.playPlaylist(uri, deviceId: deviceId);
     musicError = ok ? null : _spotify.lastError;
     if (ok) _refreshSoon();
     return ok;
@@ -330,7 +335,11 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<bool> playPlaylistTrack(String playlist, String track) async {
-    final ok = await _spotify.playInPlaylist(playlist, track);
+    final ok = playlist.startsWith('hushdock:')
+        ? await _spotify.playSongs([
+            for (final h in await _spotify.playlistTracks(playlist)) h.uri,
+          ], from: track)
+        : await _spotify.playInPlaylist(playlist, track);
     musicError = ok ? null : _spotify.lastError;
     if (ok) _refreshSoon();
     return ok;
@@ -479,7 +488,11 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   List<SpotifyHit>? _pendingNext;
   bool _applyingQueue = false;
   int _applyMs = 700; // how long starting playback took last time
-  static const _queueGapMs = 200; // the pause we aim for between the songs
+  // Start the new order this much BEFORE the old song ends (its last moments
+  // are cut), so the old next song can never begin: starting late means that
+  // song plays for a moment, which is what you hear as "another song".
+  static const _queueCutMs = 300;
+  static const _resyncMs = 6000; // read the song fresh this long before the end
 
   bool get hasPendingQueue => _pendingNext != null;
 
@@ -487,10 +500,12 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   void reorderSpotifyQueue(SpotifyHit now, List<SpotifyHit> next) {
     _pendingNow = now;
     _pendingNext = next;
+    _resynced = false;
     unawaited(_applyPendingQueue(snapshots.nowPlaying));
   }
 
   Timer? _queueTimer;
+  bool _resynced = false; // the fresh read before the hand-over, once per order
 
   // How long the song has left, counting the time since it was read.
   int _msLeft(NowPlayingSnapshot n) {
@@ -515,19 +530,35 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   /// Plays the new order without a stop in the middle of a song: when the song
   /// is about to end (or was skipped, or is paused) it starts from the new next
   /// song instead of the old one.
-  Future<void> _applyPendingQueue(NowPlayingSnapshot n) async {
+  Future<void> _applyPendingQueue(
+    NowPlayingSnapshot n, {
+    bool fresh = false,
+  }) async {
     final next = _pendingNext;
     final was = _pendingNow;
     if (next == null || was == null || _applyingQueue || !n.viaSpotifyApi) {
       return;
     }
-    final sameSong = n.title == was.title;
+    final sameSong = n.title == was.title && n.artist == was.subtitle;
     // Starting playback takes a moment, so start it a little before the end;
     // a timer, not the 1 s poll, so the end is not missed and the old next
     // song never gets to start.
     // measured from the last time, so it lands as the song ends
-    final lead = math.max(0, _applyMs - _queueGapMs);
+    final lead = _applyMs + _queueCutMs;
     final left = _msLeft(n);
+    // the last stretch: the song's position as we know it may be a second old,
+    // so read it fresh once, then time the hand-over from that
+    if (!fresh &&
+        !_resynced &&
+        sameSong &&
+        n.isPlaying &&
+        n.durationMs > 0 &&
+        left > lead &&
+        left <= lead + _resyncMs) {
+      _resynced = true;
+      final now = await _spotify.nowPlaying();
+      if (now != null) return _applyPendingQueue(now, fresh: true);
+    }
     if (sameSong && n.isPlaying && n.durationMs > 0 && left > lead) {
       _queueTimer?.cancel();
       _queueTimer = Timer(

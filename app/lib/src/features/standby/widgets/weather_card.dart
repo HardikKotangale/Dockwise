@@ -195,9 +195,7 @@ class WeatherNowView extends StatelessWidget {
           'temp': fit(
             AnimatedSwitcher(
               // °C <-> °F: the number fades to the other unit
-              duration: still
-                  ? Duration.zero
-                  : const Duration(milliseconds: 300),
+              duration: still ? Duration.zero : Motion.fast,
               child: _temp(w.temperatureCelsius, 400, -12),
             ),
             at: wide ? Alignment.centerLeft : Alignment.bottomLeft,
@@ -237,9 +235,7 @@ class WeatherNowView extends StatelessWidget {
             for (final e in parts.entries)
               AnimatedPositioned(
                 key: ValueKey(e.key),
-                duration: still
-                    ? Duration.zero
-                    : const Duration(milliseconds: 520),
+                duration: still ? Duration.zero : Motion.verySlow,
                 curve: easeOutStrong,
                 left: rect(e.key).left,
                 top: rect(e.key).top,
@@ -388,7 +384,7 @@ class WeatherNowView extends StatelessWidget {
                             // °C <-> °F: the number fades to the other unit
                             duration: MediaQuery.disableAnimationsOf(context)
                                 ? Duration.zero
-                                : const Duration(milliseconds: 300),
+                                : Motion.fast,
                             child: _temp(
                               w.temperatureCelsius,
                               (unit * 0.42).clamp(56.0, 160.0),
@@ -557,7 +553,7 @@ class _WeatherCardState extends State<WeatherCard> {
       fit: StackFit.expand,
       children: [
         AnimatedSwitcher(
-          duration: still ? Duration.zero : const Duration(milliseconds: 380),
+          duration: still ? Duration.zero : Motion.medium,
           switchInCurve: easeOutStrong,
           switchOutCurve: easeOutStrong,
           layoutBuilder: (current, previous) =>

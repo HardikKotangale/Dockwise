@@ -79,3 +79,8 @@ flutter:
     - family: BebasNeue
       fonts:
         - asset: assets/fonts/BebasNeue-Regular.ttf
+    # Fredoka (SIL Open Font License, see assets/fonts/OFL-Fredoka.txt): the
+    # round, bubbly digits of the Float clock.
+    - family: Fredoka
+      fonts:
+        - asset: assets/fonts/Fredoka.ttf

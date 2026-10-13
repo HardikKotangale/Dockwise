@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import '../../../core/motion/motion.dart';
 
 /// How the phone is physically held, from the gravity direction.
 enum HeldOrientation { unknown, portrait, landscapeLeft, landscapeRight }
@@ -235,7 +236,7 @@ class _OrientationHintState extends State<OrientationHint> {
       ignoring: target == null,
       child: AnimatedOpacity(
         opacity: target == null ? 0 : 1,
-        duration: const Duration(milliseconds: 250),
+        duration: calm(context, Motion.fast),
         child: Semantics(
           button: true,
           label: label,

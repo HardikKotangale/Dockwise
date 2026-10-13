@@ -79,7 +79,7 @@ class FlipClockFace extends StatelessWidget {
               tween: Tween(end: stacked ? 0.55 : 1.0),
               duration: MediaQuery.disableAnimationsOf(context)
                   ? Duration.zero
-                  : const Duration(milliseconds: 420),
+                  : Motion.slow,
               curve: easeOutStrong,
               builder: (context, k, _) => Row(
                 mainAxisSize: MainAxisSize.min,

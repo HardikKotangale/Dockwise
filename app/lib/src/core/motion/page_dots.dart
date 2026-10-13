@@ -268,9 +268,7 @@ class _PageStrip extends StatelessWidget {
           children: [
             for (var i = 0; i < labels.length; i++)
               AnimatedContainer(
-                duration: still
-                    ? Duration.zero
-                    : const Duration(milliseconds: 220),
+                duration: still ? Duration.zero : Motion.fast,
                 curve: easeOutStrong,
                 padding: EdgeInsets.symmetric(
                   horizontal: i == lit ? 12 : 9,
@@ -300,7 +298,7 @@ class _PageStrip extends StatelessWidget {
     if (still) return strip;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 160),
+      duration: Motion.quick,
       curve: easeOutStrong,
       builder: (context, t, child) => Opacity(
         opacity: t,

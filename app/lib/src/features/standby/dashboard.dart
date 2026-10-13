@@ -297,8 +297,8 @@ class Dashboard extends StatelessWidget {
               child: AnimatedContainer(
                 duration: MediaQuery.disableAnimationsOf(context)
                     ? Duration.zero
-                    : const Duration(milliseconds: 320),
-                curve: Curves.easeOutCubic,
+                    : Motion.medium,
+                curve: easeOutStrong,
                 decoration: BoxDecoration(
                   color: isClock || type == StandbyWidgetType.timer
                       ? (settings.theme.panelColor ?? Colors.transparent)
@@ -313,8 +313,10 @@ class Dashboard extends StatelessWidget {
                       AnimatedSwitcher(
                         duration: MediaQuery.disableAnimationsOf(context)
                             ? Duration.zero
-                            : const Duration(milliseconds: 420),
-                        switchInCurve: Curves.easeOutCubic,
+                            : Motion.slow,
+                        // leaving is quicker than arriving
+                        reverseDuration: calm(context, Motion.fast),
+                        switchInCurve: easeOutStrong,
                         switchOutCurve: Curves.easeInCubic,
                         layoutBuilder: (current, previous) => Stack(
                           fit: StackFit.expand,

@@ -82,7 +82,7 @@ class _TransportButtonState extends State<TransportButton>
   Timer? _back;
   late final AnimationController _morph = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 240),
+    duration: Motion.fast,
     value: widget.playing == true ? 1 : 0,
   );
 
@@ -155,7 +155,7 @@ class _TransportButtonState extends State<TransportButton>
                     // a quick hop one way, then it springs back
                     offset: _hop ? Offset(0.14 * widget.nudge, 0) : Offset.zero,
                     duration: Duration(milliseconds: _hop ? 90 : 300),
-                    curve: _hop ? easeOutStrong : Curves.elasticOut,
+                    curve: _hop ? easeOutStrong : easeBounce,
                     child: Center(child: glyph),
                   ),
                 ),
