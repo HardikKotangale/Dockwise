@@ -84,10 +84,10 @@ Write-Host "Preparing the project ..."
 Push-Location "$Root\app"
 flutter pub get
 Pop-Location
-$cfg = "$Root\app\lib\src\services\spotify_config.dart"
+$cfg = "$Root\app\assets\local\spotify.json"
 if (-not (Test-Path $cfg)) {
-  Copy-Item "$Root\app\lib\src\services\spotify_config.example.dart" $cfg
-  Write-Host "  created  app\lib\src\services\spotify_config.dart (add your Spotify Client ID there, optional)"
+  Copy-Item "$Root\app\assets\local\spotify.example.json" $cfg
+  Write-Host "  created  app\assets\local\spotify.json (add your Spotify Client ID there, optional)"
 }
 
 Write-Host ""

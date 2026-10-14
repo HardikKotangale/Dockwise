@@ -14,8 +14,8 @@ app/ios/.symlinks/
 *.log
 
 # --- Personal and local-only: never commit these ---
-# your own Spotify app (copy app/lib/src/services/spotify_config.example.dart)
-app/lib/src/services/spotify_config.dart
+# your own Spotify app (copy app/assets/local/spotify.example.json to spotify.json)
+app/assets/local/spotify.json
 # signing keys and service files
 *.keystore
 *.jks
@@ -74,3 +74,4 @@ app/windows/.vs/
 *.suo
 *.user
 *.sln.docstates
+.wheelhouse/

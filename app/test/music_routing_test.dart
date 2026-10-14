@@ -42,6 +42,8 @@ class _VolumeSpotify extends SpotifyService {
   @override
   bool get isConnected => true;
   @override
+  bool get isConfigured => true;
+  @override
   Future<List<SpotifyDevice>> devices() async => [
     SpotifyDevice('mac', 'Mac', 'Computer', true, volume: volume),
   ];
@@ -59,6 +61,8 @@ class _SearchSpotify extends SpotifyService {
   final jumps = <List<String>>[];
   @override
   bool get isConnected => true;
+  @override
+  bool get isConfigured => true;
   @override
   Future<SpotifyQueue?> queue() async => const SpotifyQueue(
     SpotifyHit('spotify:track:0', 'Now Song', 'Artist N', 'track', null),
@@ -105,6 +109,8 @@ class _PollSpotify extends SpotifyService {
   @override
   bool get isConnected => true;
   @override
+  bool get isConfigured => true;
+  @override
   Future<NowPlayingSnapshot?> nowPlaying() async {
     polls++;
     return NowPlayingSnapshot(
@@ -148,6 +154,8 @@ class _CountingQueueSpotify extends SpotifyService {
   @override
   bool get isConnected => true;
   @override
+  bool get isConfigured => true;
+  @override
   Future<SpotifyQueue?> queue() async {
     onQueue();
     return const SpotifyQueue(null, []);
@@ -159,6 +167,8 @@ class _FlakySpotify extends SpotifyService {
   int polls = 0;
   @override
   bool get isConnected => true;
+  @override
+  bool get isConfigured => true;
   @override
   bool get playerIdle => polls >= 4;
   @override
@@ -189,6 +199,8 @@ class _SlowSwitchSpotify extends SpotifyService {
   int staleAnswers = 0;
   @override
   bool get isConnected => true;
+  @override
+  bool get isConfigured => true;
   @override
   Future<List<SpotifyDevice>> devices() async {
     if (target != null && staleAnswers-- <= 0) {

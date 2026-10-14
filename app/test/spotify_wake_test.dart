@@ -16,6 +16,8 @@ class _Spotify extends SpotifyService {
 
   @override
   bool get isConnected => true;
+  @override
+  bool get isConfigured => true;
 
   @override
   Future<List<SpotifyDevice>> devices() async => const [
