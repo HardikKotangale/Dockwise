@@ -392,7 +392,7 @@ void main() {
     home: Scaffold(body: SizedBox(width: 360, height: 360, child: child)),
   );
 
-  testWidgets('date card shows only the weekday, day number and month', (
+  testWidgets('date card: weekday, day, month and year, and this week', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -403,11 +403,49 @@ void main() {
         ),
       ),
     );
+    await tester.pump(const Duration(seconds: 1));
 
+    // a square card stacks them: month and year share a line, and the week
+    // runs along the foot in letters, so the date is the only number
     expect(find.text('TUESDAY'), findsOneWidget);
+    expect(find.text('October 2026'), findsOneWidget);
     expect(find.text('6'), findsOneWidget);
+    expect(find.text('S'), findsNWidgets(2)); // Sunday first, Saturday last
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && RegExp(r'\d').hasMatch(w.data ?? ''),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a wide date card puts the words and the week beside it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 900,
+            height: 420,
+            child: CalendarCard(
+              settings: const StandbySettings(),
+              now: DateTime(2026, 10, 6),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('October'), findsOneWidget);
     expect(find.text('2026'), findsOneWidget);
+    // the number sits left of the words
+    expect(
+      tester.getCenter(find.text('6')).dx,
+      lessThan(tester.getTopLeft(find.text('TUESDAY')).dx),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('weather card shows city and converts to Fahrenheit', (
@@ -558,6 +596,25 @@ void main() {
       }
     }
     // removing the scene must cancel its timer (test fails on a pending timer)
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the weather waits for its card, moves 2 s, then rests', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host(WeatherScene(spec: sceneFor(63, true))));
+    WeatherSceneState scene() => tester.state(find.byType(WeatherScene));
+    expect(scene().playing, isTrue); // waiting for the slide to finish
+    await tester.pump(WeatherScene.settleFirst);
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(scene().playing, isTrue);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(scene().playing, isFalse); // a still picture: no timer, no frames
+    // new weather plays again, at once (the card is already there)
+    await tester.pumpWidget(host(WeatherScene(spec: sceneFor(73, true))));
+    expect(scene().playing, isTrue);
+    await tester.pump(WeatherScene.playFor + const Duration(milliseconds: 100));
+    expect(scene().playing, isFalse);
     await tester.pumpWidget(const SizedBox());
   });
 

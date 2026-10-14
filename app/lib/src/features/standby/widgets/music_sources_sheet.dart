@@ -229,6 +229,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                                 h.imageUrl!,
                                 width: 44,
                                 height: 44,
+                                filterQuality: FilterQuality.medium,
                               ),
                             ),
                       title: Text(
@@ -400,6 +401,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                               p.imageUrl!,
                               width: 44,
                               height: 44,
+                              filterQuality: FilterQuality.medium,
                             ),
                           ),
                     title: Text(

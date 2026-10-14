@@ -28,6 +28,11 @@ class StandbySystemService {
     return _invokeBool('setKeepAwake', {'enabled': enabled});
   }
 
+  /// Windows: borderless over the whole monitor the window is on, or back to
+  /// the window it was. False where there is no such thing (phones, tests).
+  Future<bool> setFullscreen(bool enabled) =>
+      _invokeBool('setFullscreen', {'enabled': enabled});
+
   /// Room light in lux, or null when this device has no light sensor we can
   /// read (iPhone does not let apps read it) or it has not reported yet.
   Future<double?> ambientLux() async {

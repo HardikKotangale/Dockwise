@@ -207,6 +207,8 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
         width: 46,
         height: 46,
         fit: BoxFit.cover,
+        // a 300 px picture shrunk to a thumbnail: mipmaps keep it smooth
+        filterQuality: FilterQuality.medium,
         errorBuilder: (_, _, _) => fallback,
       ),
     );

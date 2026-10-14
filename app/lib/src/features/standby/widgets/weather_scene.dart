@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
+import '../../../core/power_mode.dart';
+
 /// What the animated backdrop shows for a WMO weather code.
 enum Precip { none, rain, snow }
 
@@ -69,42 +71,112 @@ SceneSpec sceneFor(int? code, bool isDay) {
   );
 }
 
-/// Animated weather backdrop. Battery friendly: one painter, ~20 fps, paused
-/// while the app is in the background, static when animations are disabled.
+/// Animated weather backdrop. Like Apple's: when it appears (the card swiped
+/// in, new weather, back to the app) the rain, snow and clouds move for
+/// [playFor], slow down and come to rest, then it is a still picture that
+/// costs nothing. A card that is sliding in waits for [settleFirst] before it
+/// moves, so the slide and the scene never compete for the same frames. One painter, ~20 fps while moving (30 on a PC on mains
+/// power, see [RichGraphics]), never moving when animations are disabled.
 class WeatherScene extends StatefulWidget {
   const WeatherScene({super.key, required this.spec});
 
   final SceneSpec spec;
 
+  static const playFor = Duration(seconds: 2);
+
+  /// About how long a card takes to slide in (Motion.slow and a little).
+  static const settleFirst = Duration(milliseconds: 450);
+
   @override
-  State<WeatherScene> createState() => _WeatherSceneState();
+  State<WeatherScene> createState() => WeatherSceneState();
 }
 
-class _WeatherSceneState extends State<WeatherScene>
+class WeatherSceneState extends State<WeatherScene>
     with WidgetsBindingObserver {
-  static const _frame = Duration(milliseconds: 50); // 20 fps
+  // 20 fps; 30 fps (smoother rain and snow) on a PC on mains power
+  static const _light = Duration(milliseconds: 50);
+  static const _rich = Duration(milliseconds: 33);
+  // the end of the play slows down to rest instead of freezing
+  static const _easeOut = 700;
+  Duration _frame = _light;
+  bool _still = false; // animations disabled
   final _time = ValueNotifier<double>(0);
+  // the slow layers (sky, clouds, fog) are drawn at this time: it only moves
+  // when a play ends, so during the play they stay one cached picture
+  final _restTime = ValueNotifier<double>(0);
+  final _cache = SnapshotController(allowSnapshotting: true);
   Timer? _timer;
+  int _playedMs = 0;
 
-  void _start() {
-    _timer ??= Timer.periodic(_frame, (_) => _time.value += 0.05);
+  Timer? _wait;
+
+  /// Plays the scene from where it rests, for [WeatherScene.playFor], after
+  /// [after] (the card arriving).
+  void _play({Duration after = Duration.zero}) {
+    _stop();
+    if (_still) return;
+    if (after > Duration.zero) {
+      _wait = Timer(after, _play);
+      return;
+    }
+    _playedMs = 0;
+    final total = WeatherScene.playFor.inMilliseconds;
+    _timer = Timer.periodic(_frame, (_) {
+      _playedMs += _frame.inMilliseconds;
+      final left = total - _playedMs;
+      if (left <= 0) {
+        _restTime.value = _time.value; // the sky catches up, once
+        return _stop();
+      }
+      // the scene moves at the same speed whatever the frame rate
+      final speed = left < _easeOut ? left / _easeOut : 1.0;
+      _time.value += _frame.inMilliseconds / 1000 * speed;
+    });
   }
 
   void _stop() {
+    _wait?.cancel();
+    _wait = null;
     _timer?.cancel();
     _timer = null;
   }
+
+  /// Moving right now (false once it has come to rest).
+  bool get playing => _timer != null || _wait != null;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _start();
+  }
+
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final frame = RichGraphics.of(context) ? _rich : _light;
+    final still = MediaQuery.disableAnimationsOf(context);
+    final changed = frame != _frame || still != _still;
+    _frame = frame;
+    _still = still;
+    if (!_started) {
+      _started = true;
+      _play(after: WeatherScene.settleFirst); // the card just appeared
+    } else if (changed && _timer != null) {
+      _play(); // mid-play: carry on at the new rate (or stop if still)
+    }
+  }
+
+  @override
+  void didUpdateWidget(WeatherScene oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.spec != widget.spec) _play(); // the weather changed
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    state == AppLifecycleState.resumed ? _start() : _stop();
+    state == AppLifecycleState.resumed ? _play() : _stop();
   }
 
   @override
@@ -112,27 +184,75 @@ class _WeatherSceneState extends State<WeatherScene>
     WidgetsBinding.instance.removeObserver(this);
     _stop();
     _time.dispose();
+    _restTime.dispose();
+    _cache.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // animations off (battery saver): a still backdrop, no timer running
-    MediaQuery.disableAnimationsOf(context) ? _stop() : _start();
+    // Three layers. In a second of play the sky hardly moves, but its soft
+    // shapes (the sun's glow, clouds, fog: big gradients over the whole card)
+    // are most of the drawing. So they are drawn once into a picture that is
+    // reused every frame, at half resolution: soft gradients look the same,
+    // for a quarter of the work. The sharp sky (stars, the moon's edge) is
+    // drawn at full resolution under it, and only rain, snow and lightning
+    // are drawn again on each frame.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     return RepaintBoundary(
-      child: CustomPaint(
-        painter: _ScenePainter(widget.spec, _time),
-        size: Size.infinite,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_Layer.sharp.has(widget.spec))
+            CustomPaint(
+              painter: _ScenePainter(widget.spec, _restTime, _Layer.sharp),
+              size: Size.infinite,
+            ),
+          MediaQuery(
+            data: MediaQuery.of(context).copyWith(devicePixelRatio: dpr / 2),
+            child: SnapshotWidget(
+              controller: _cache,
+              mode: SnapshotMode.permissive,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _ScenePainter(widget.spec, _restTime, _Layer.soft),
+                  size: Size.infinite,
+                ),
+              ),
+            ),
+          ),
+          if (_Layer.weather.has(widget.spec))
+            CustomPaint(
+              painter: _ScenePainter(widget.spec, _time, _Layer.weather),
+              size: Size.infinite,
+            ),
+        ],
       ),
     );
   }
 }
 
+/// The layers of a scene, back to front: the sharp sky (stars, moon), the
+/// soft sky (sun glow, clouds, fog) and the quick weather (rain, snow,
+/// lightning).
+enum _Layer {
+  sharp,
+  soft,
+  weather;
+
+  bool has(SceneSpec spec) => switch (this) {
+    sharp => spec.stars || spec.moon,
+    soft => true,
+    weather => spec.precip != Precip.none || spec.lightning,
+  };
+}
+
 class _ScenePainter extends CustomPainter {
-  _ScenePainter(this.spec, this.time) : super(repaint: time);
+  _ScenePainter(this.spec, this.time, this.layer) : super(repaint: time);
 
   final SceneSpec spec;
   final ValueNotifier<double> time;
+  final _Layer layer;
 
   // Fixed pseudo-random seeds so particles are stable between frames.
   static final _rnd = math.Random(11);
@@ -180,21 +300,27 @@ class _ScenePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final t = time.value;
-    if (spec.stars) _stars(canvas, size, t);
+    if (layer == _Layer.sharp) {
+      if (spec.stars) _stars(canvas, size, t);
+      if (spec.moon) _moon(canvas, size);
+      return;
+    }
+    if (layer == _Layer.weather) {
+      switch (spec.precip) {
+        case Precip.rain:
+          _rain(canvas, size, t);
+        case Precip.snow:
+          _snow(canvas, size, t);
+        case Precip.none:
+      }
+      if (spec.lightning) _lightning(canvas, size, t);
+      return;
+    }
     if (spec.sun) _sun(canvas, size, t);
-    if (spec.moon) _moon(canvas, size);
     for (var layer = 0; layer < spec.clouds; layer++) {
       _clouds(canvas, size, t, layer);
     }
     if (spec.fog) _fog(canvas, size, t);
-    switch (spec.precip) {
-      case Precip.rain:
-        _rain(canvas, size, t);
-      case Precip.snow:
-        _snow(canvas, size, t);
-      case Precip.none:
-    }
-    if (spec.lightning) _lightning(canvas, size, t);
   }
 
   // ---- sky bodies -------------------------------------------------------
@@ -483,5 +609,6 @@ class _ScenePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ScenePainter old) => old.spec != spec;
+  bool shouldRepaint(_ScenePainter old) =>
+      old.spec != spec || old.layer != layer || old.time != time;
 }

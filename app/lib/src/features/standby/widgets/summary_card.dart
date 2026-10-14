@@ -2,12 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
-import 'package:intl/intl.dart';
 
 import '../../../core/apple.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../domain/summary_layout.dart';
+import 'calendar_card.dart';
 import 'clock_faces.dart';
 
 /// One panel that answers what you look at a bedside clock for: the time here
@@ -27,6 +27,7 @@ class SummaryCard extends StatefulWidget {
     required this.music,
     this.timer = const SizedBox.shrink(),
     this.onWeatherSwipe,
+    this.onDateSwipe,
     this.onLayout,
     this.onCityTap,
     this.onOpenMusic,
@@ -44,6 +45,9 @@ class SummaryCard extends StatefulWidget {
 
   /// Swiped up (+1) or down (-1) on the weather tile.
   final ValueChanged<int>? onWeatherSwipe;
+
+  /// Swiped up or down on the date tile: Today and Month, as on the card.
+  final VoidCallback? onDateSwipe;
 
   /// A tap on the music or weather tile opens that card's settings.
   final VoidCallback? onOpenMusic;
@@ -190,7 +194,17 @@ class _SummaryCardState extends State<SummaryCard>
       onTap: _editing ? null : widget.onCityTap,
       child: _ThereTile(now: widget.now, settings: widget.settings),
     ),
-    SummaryTile.date => _DateTile(now: widget.now, settings: widget.settings),
+    SummaryTile.date => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: _editing
+          ? null
+          : (d) {
+              if ((d.primaryVelocity ?? 0).abs() > 300) {
+                widget.onDateSwipe?.call();
+              }
+            },
+      child: _DateTile(now: widget.now, settings: widget.settings),
+    ),
     SummaryTile.timer => ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: widget.timer,
@@ -770,6 +784,10 @@ class _ThereTile extends StatelessWidget {
   }
 }
 
+/// The date tile is the Calendar card itself, small: it follows the
+/// Calendar's Today / Month choice and its one-number design (the date is the
+/// only number on Today, the grid the only numbers on Month), instead of a
+/// second, different way of drawing the date.
 class _DateTile extends StatelessWidget {
   const _DateTile({required this.now, required this.settings});
 
@@ -778,48 +796,20 @@ class _DateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Tile(
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final u = math.min(c.maxWidth, c.maxHeight);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                DateFormat('EEEE').format(now).toUpperCase(),
-                maxLines: 1,
-                style: TextStyle(
-                  color: settings.appAccentInk,
-                  fontSize: (u * 0.13).clamp(11.0, 16.0),
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
-                ),
-              ),
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${now.day}',
-                    style: const TextStyle(
-                      fontSize: 200,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -6,
-                      height: 1,
-                    ),
-                  ),
-                ),
-              ),
-              Text(
-                DateFormat('MMMM yyyy').format(now),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _caption((u * 0.13).clamp(11.0, 16.0)),
-              ),
-            ],
-          );
-        },
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        // the tile deals in with the others: no second entrance inside it
+        child: CalendarCard(
+          settings: settings,
+          now: now,
+          entrance: false,
+          compact: true,
+        ),
       ),
     );
   }

@@ -53,6 +53,108 @@ class PanelTouches {
       : (points.values.first - points.values.last).distance;
 }
 
+/// Opens the settings for a panel of [type], as a tap on it does: live
+/// settings for that card (clock, music, weather...) or all settings.
+void openPanelSettings({
+  required StandbyController controller,
+  required OpenDock openDock,
+  required ValueNotifier<ClockPart?> clockPart,
+  required StandbyWidgetType type,
+  bool fromPart = false,
+}) {
+  late void Function() all;
+  void city(VoidCallback back) => openDock(
+    'Choose a city',
+    () => CityPage(controller: controller, onDone: back),
+    tall: true,
+  );
+  void clock() => openDock(
+    'Clock',
+    () => ClockSettings(
+      controller: controller,
+      selected: clockPart,
+      onAll: all,
+      onCity: () => city(clock),
+    ),
+  );
+  late void Function() music;
+  all = () => openDock(
+    'Settings',
+    () => AllSettings(
+      controller: controller,
+      selected: clockPart,
+      onCity: () => city(all),
+      onMusic: () => music(),
+    ),
+  );
+  music = () => openDock(
+    'Music',
+    () => MusicSourcesPanel(controller: controller, onAllSettings: all),
+  );
+  switch (type) {
+    case StandbyWidgetType.clock:
+      // World clock with no second city yet: go straight to the search, keyboard up
+      if (!fromPart &&
+          controller.settings.clockStyle == ClockStyle.world &&
+          controller.settings.worldZone.isEmpty) {
+        city(clock);
+      } else {
+        clock();
+      }
+    case StandbyWidgetType.music:
+      openDock(
+        'Music',
+        () => MusicSourcesPanel(controller: controller, onAllSettings: all),
+      );
+    case StandbyWidgetType.weather:
+      openDock(
+        'Weather',
+        () => WeatherSettings(controller: controller, onAll: all),
+      );
+    case StandbyWidgetType.calendar:
+      openDock(
+        'Calendar',
+        () => CalendarSettings(controller: controller, onAll: all),
+      );
+    case StandbyWidgetType.timer:
+      openDock(
+        'Timer',
+        () => TimerSettings(controller: controller, onAll: all),
+      );
+    case StandbyWidgetType.summary:
+      all();
+  }
+}
+
+/// One step of a panel, as a swipe makes it (and the arrow keys): sideways
+/// = next/previous widget; up/down = next/previous clock style, calendar
+/// look, timer look or weather page. [step] 1 = next (a swipe left or up).
+void stepPanel({
+  required StandbyController controller,
+  required PanelTouches touch,
+  required Axis axis,
+  required int step,
+  required StandbyWidgetType type,
+  required bool isLeft,
+}) {
+  // the new card arrives from the side the finger moved towards
+  touch.swipeDir = axis == Axis.horizontal
+      ? Offset(step.toDouble(), 0)
+      : Offset(0, step.toDouble());
+  if (axis == Axis.horizontal) {
+    controller.cyclePanelWidget(left: isLeft, step: step);
+  } else if (type == StandbyWidgetType.clock) {
+    controller.cycleClockStyle(step);
+  } else if (type == StandbyWidgetType.calendar) {
+    controller.toggleCalendarStyle();
+  } else if (type == StandbyWidgetType.timer) {
+    controller.toggleTimerStyle();
+  } else if (type == StandbyWidgetType.weather) {
+    // up: the next page (now, forecast, second city); down: the one before
+    controller.cycleWeatherPage(step);
+  }
+}
+
 class Dashboard extends StatelessWidget {
   const Dashboard({
     super.key,
@@ -137,71 +239,14 @@ class Dashboard extends StatelessWidget {
     );
   }
 
-  // Tap a panel to customize it live (clock, music, weather) or open all settings.
-  void _open(StandbyWidgetType type, {bool fromPart = false}) {
-    late void Function() all;
-    void city(VoidCallback back) => openDock(
-      'Choose a city',
-      () => CityPage(controller: controller, onDone: back),
-      tall: true,
-    );
-    void clock() => openDock(
-      'Clock',
-      () => ClockSettings(
+  void _open(StandbyWidgetType type, {bool fromPart = false}) =>
+      openPanelSettings(
         controller: controller,
-        selected: clockPart,
-        onAll: all,
-        onCity: () => city(clock),
-      ),
-    );
-    late void Function() music;
-    all = () => openDock(
-      'Settings',
-      () => AllSettings(
-        controller: controller,
-        selected: clockPart,
-        onCity: () => city(all),
-        onMusic: () => music(),
-      ),
-    );
-    music = () => openDock(
-      'Music',
-      () => MusicSourcesPanel(controller: controller, onAllSettings: all),
-    );
-    switch (type) {
-      case StandbyWidgetType.clock:
-        // World clock with no second city yet: go straight to the search, keyboard up
-        if (!fromPart &&
-            controller.settings.clockStyle == ClockStyle.world &&
-            controller.settings.worldZone.isEmpty) {
-          city(clock);
-        } else {
-          clock();
-        }
-      case StandbyWidgetType.music:
-        openDock(
-          'Music',
-          () => MusicSourcesPanel(controller: controller, onAllSettings: all),
-        );
-      case StandbyWidgetType.weather:
-        openDock(
-          'Weather',
-          () => WeatherSettings(controller: controller, onAll: all),
-        );
-      case StandbyWidgetType.calendar:
-        openDock(
-          'Calendar',
-          () => CalendarSettings(controller: controller, onAll: all),
-        );
-      case StandbyWidgetType.timer:
-        openDock(
-          'Timer',
-          () => TimerSettings(controller: controller, onAll: all),
-        );
-      case StandbyWidgetType.summary:
-        all();
-    }
-  }
+        openDock: openDock,
+        clockPart: clockPart,
+        type: type,
+        fromPart: fromPart,
+      );
 
   // Swipe sideways: next/previous widget. Swipe up/down: next/previous clock
   // style (clock panel only).
@@ -215,23 +260,14 @@ class Dashboard extends StatelessWidget {
     if (velocity.abs() < swipeVelocity || touch.multi || touch.locked) {
       return;
     }
-    final step = velocity < 0 ? 1 : -1; // swipe left/up = next
-    // the new card arrives from the side the finger moved towards
-    touch.swipeDir = axis == Axis.horizontal
-        ? Offset(step.toDouble(), 0)
-        : Offset(0, step.toDouble());
-    if (axis == Axis.horizontal) {
-      controller.cyclePanelWidget(left: isLeft, step: step);
-    } else if (type == StandbyWidgetType.clock) {
-      controller.cycleClockStyle(step);
-    } else if (type == StandbyWidgetType.calendar) {
-      controller.toggleCalendarStyle();
-    } else if (type == StandbyWidgetType.timer) {
-      controller.toggleTimerStyle();
-    } else if (type == StandbyWidgetType.weather) {
-      // up: the next page (now, forecast, second city); down: the one before
-      controller.cycleWeatherPage(step);
-    }
+    stepPanel(
+      controller: controller,
+      touch: touch,
+      axis: axis,
+      step: velocity < 0 ? 1 : -1, // swipe left/up = next
+      type: type,
+      isLeft: isLeft,
+    );
   }
 
   Widget _panel(
@@ -324,23 +360,23 @@ class Dashboard extends StatelessWidget {
                         ),
                         // A swipe slides the new card in from the side you swiped
                         // toward while the old one eases away; anything else fades.
+                        // Slide and fade move a snapshot of each card (see
+                        // _Snapshotted), never rebuild or redraw it per frame
                         transitionBuilder: (child, animation) {
                           final dir = touch.swipeDir;
                           final incoming = child.key == _currentKey(type);
                           final travel = incoming ? dir : -dir;
-                          return AnimatedBuilder(
-                            animation: animation,
-                            builder: (context, c) {
-                              final gone = 1 - animation.value;
-                              return FractionalTranslation(
-                                translation: travel * (0.18 * gone),
-                                child: Opacity(
-                                  opacity: animation.value.clamp(0.0, 1.0),
-                                  child: c,
-                                ),
-                              );
-                            },
-                            child: child,
+                          return SlideTransition(
+                            position: animation.drive(
+                              Tween(begin: travel * 0.18, end: Offset.zero),
+                            ),
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: _Snapshotted(
+                                animation: animation,
+                                child: child,
+                              ),
+                            ),
                           );
                         },
                         child: KeyedSubtree(
@@ -459,6 +495,7 @@ class Dashboard extends StatelessWidget {
         settings: settings,
         weather: _weatherCard(),
         onWeatherSwipe: controller.cycleWeatherPage,
+        onDateSwipe: controller.toggleCalendarStyle,
         music: _musicCard(context),
         timer: _timerTile(),
         onAddTile: _addTile,
@@ -584,4 +621,59 @@ class Dashboard extends StatelessWidget {
       },
     );
   }
+}
+
+/// While a card slides in or out it is drawn once into a picture, and the
+/// picture is what slides and fades. The renderer keeps no cache between
+/// frames, so the frosted glass (Summary), the blurred cover (music) and the
+/// soft weather clouds were otherwise drawn again on every frame of the move,
+/// and switching to those cards stuttered on a big screen. Once it has
+/// arrived the card is live again.
+class _Snapshotted extends StatefulWidget {
+  const _Snapshotted({required this.animation, required this.child});
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  State<_Snapshotted> createState() => _SnapshottedState();
+}
+
+class _SnapshottedState extends State<_Snapshotted> {
+  final _snapshot = SnapshotController();
+
+  void _status(AnimationStatus status) =>
+      _snapshot.allowSnapshotting = status.isAnimating;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.animation.addStatusListener(_status);
+    _status(widget.animation.status);
+  }
+
+  @override
+  void didUpdateWidget(_Snapshotted old) {
+    super.didUpdateWidget(old);
+    if (old.animation != widget.animation) {
+      old.animation.removeStatusListener(_status);
+      widget.animation.addStatusListener(_status);
+      _status(widget.animation.status);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.animation.removeStatusListener(_status);
+    _snapshot.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SnapshotWidget(
+    controller: _snapshot,
+    // anything that cannot be pictured is simply drawn live
+    mode: SnapshotMode.permissive,
+    child: widget.child,
+  );
 }

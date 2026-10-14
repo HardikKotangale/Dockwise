@@ -14,6 +14,157 @@ import 'clock_settings.dart';
 import 'controls.dart';
 import 'simple_settings.dart';
 
+bool get _windows => defaultTargetPlatform == TargetPlatform.windows;
+
+/// One row of the key list: the keys (each drawn as a key; "or" and
+/// "+ ..." are plain words between them) and what they do.
+typedef KeyShortcut = ({List<String> keys, String what});
+
+/// The keys a PC understands (see StandbyScreen), in groups, as the ? / F1
+/// help and Settings list them.
+const keyboardShortcuts = <(String, List<KeyShortcut>)>[
+  (
+    'Cards',
+    [
+      (keys: ['←', '→'], what: 'Show the previous or next card'),
+      (
+        keys: ['↑', '↓'],
+        what:
+            'Change how the card looks: the clock style, the calendar '
+            '(today or the month), the weather page or the timer style',
+      ),
+      (
+        keys: ['Shift', '+ arrows'],
+        what: 'The same, on the second card (with two cards on screen)',
+      ),
+    ],
+  ),
+  (
+    'Layout',
+    [
+      (keys: ['1'], what: 'One card on the screen'),
+      (keys: ['2'], what: 'Two cards side by side'),
+      (keys: ['D'], what: 'Switch between one and two cards'),
+    ],
+  ),
+  (
+    'Controls',
+    [
+      (
+        keys: ['Space'],
+        what:
+            'Play or pause the music, or start or pause the timer '
+            '(whichever card is showing)',
+      ),
+      (
+        keys: ['N'],
+        what:
+            'Turn the red night look on or off, until the night hours '
+            'next begin or end',
+      ),
+      (
+        keys: ['S', 'or', 'Enter'],
+        what: 'Open the settings for the first card; again to close them',
+      ),
+    ],
+  ),
+  (
+    'Window',
+    [
+      (keys: ['F11'], what: 'Turn full screen on or off'),
+      (keys: ['Esc'], what: 'Close the open panel, or else leave full screen'),
+      (keys: ['?', 'or', 'F1'], what: 'Show or hide this list'),
+    ],
+  ),
+];
+
+/// The [keyboardShortcuts]: a small heading per group, then one row per
+/// shortcut with the keys drawn as keys and what they do beside them.
+class ShortcutList extends StatelessWidget {
+  const ShortcutList({super.key});
+
+  static bool _plain(String token) => token == 'or' || token.startsWith('+');
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final (group, rows) in keyboardShortcuts) ...[
+        Padding(
+          padding: const EdgeInsets.only(top: 14, bottom: 6),
+          child: Text(
+            group.toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        for (final row in rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 150,
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      for (final k in row.keys)
+                        _plain(k)
+                            ? Text(
+                                k,
+                                style: const TextStyle(color: Colors.white54),
+                              )
+                            : _KeyCap(k),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      row.what,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ],
+  );
+}
+
+/// One key, drawn like a key on the keyboard.
+class _KeyCap extends StatelessWidget {
+  const _KeyCap(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minWidth: 28),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(7),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+    ),
+    child: Text(
+      label,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+    ),
+  );
+}
+
 // Every setting, in sections. Changes show live on the panels beside/above.
 class AllSettings extends StatelessWidget {
   const AllSettings({
@@ -350,11 +501,36 @@ class AllSettings extends StatelessWidget {
                   value: settings.keepAwakeWhileCharging,
                   onChanged: (v) =>
                       set(settings.copyWith(keepAwakeWhileCharging: v)),
-                  title: const Text('Keep awake while charging'),
+                  // a PC has no charger to wait for: it stays awake while open
+                  title: Text(
+                    _windows
+                        ? 'Keep the screen awake'
+                        : 'Keep awake while charging',
+                  ),
                 ),
               ],
             ),
           ),
+          if (_windows)
+            SettingsSection(
+              title: 'Window & keyboard',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: settings.fullscreen,
+                    onChanged: (v) => set(settings.copyWith(fullscreen: v)),
+                    title: const Text('Full screen'),
+                    subtitle: const Text(
+                      'Fills the whole monitor, over the taskbar. F11 or Esc to leave.',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const ShortcutList(),
+                ],
+              ),
+            ),
         ],
       ),
     );

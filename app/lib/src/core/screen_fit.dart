@@ -37,6 +37,9 @@ class ScreenFit extends StatelessWidget {
         child: MediaQuery(
           data: mq.copyWith(
             size: virtual,
+            // one virtual pixel covers [scale] real ones: pictures made of
+            // the screen (card snapshots) and images are sharp at that size
+            devicePixelRatio: mq.devicePixelRatio * scale,
             padding: mq.padding / scale,
             viewPadding: mq.viewPadding / scale,
             viewInsets: mq.viewInsets / scale,

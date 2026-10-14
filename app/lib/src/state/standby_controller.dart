@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/burn_in_protection.dart';
 import '../core/clock_cadence.dart';
+import '../core/night_mode_policy.dart';
 import '../core/room_light.dart';
 import '../data/settings_repository.dart';
 import '../domain/standby_models.dart';
@@ -261,6 +262,56 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// F11 on Windows: borderless over the whole monitor, or back to a window.
+  void toggleFullscreen() => unawaited(
+    updateSettings(settings.copyWith(fullscreen: !settings.fullscreen)),
+  );
+
+  // N on the keyboard flips the night look now; it lasts until the schedule
+  // (or the room light) next changes its mind, so it never sticks for good
+  bool? _nightForced;
+  bool _nightForcedAgainst = false;
+
+  /// Whether the night look is on right now.
+  bool get nightNow {
+    final scheduled = NightModePolicy.shouldTint(now, settings, dark: roomDark);
+    if (_nightForced != null && scheduled != _nightForcedAgainst) {
+      _nightForced = null; // the schedule moved on: follow it again
+    }
+    return _nightForced ?? scheduled;
+  }
+
+  void toggleNight() {
+    final on = nightNow;
+    _nightForcedAgainst = NightModePolicy.shouldTint(
+      now,
+      settings,
+      dark: roomDark,
+    );
+    _nightForced = !on;
+    notifyListeners();
+  }
+
+  /// Space on the keyboard: play/pause the music or start/pause the timer,
+  /// whichever is on screen (the first panel wins). False when neither is.
+  bool playPauseShown() {
+    final shown = [
+      settings.leftWidget,
+      if (settings.layoutMode == StandbyLayoutMode.duo) settings.rightWidget,
+    ];
+    for (final t in shown) {
+      if (t == StandbyWidgetType.music) {
+        unawaited(sendMediaCommand('playPause'));
+        return true;
+      }
+      if (t == StandbyWidgetType.timer) {
+        timerRunning ? timerPause() : timerStart();
+        return true;
+      }
+    }
+    return false;
   }
 
   void cycleClockStyle([int step = 1]) {
@@ -965,8 +1016,16 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   );
 
   bool _orientationsSet = false;
+  bool _fullscreenSent = false;
 
   Future<void> _applySystemSettings() async {
+    // first, so F11 answers at once; only on a change: the window starts as a
+    // window, so a saved full screen is applied once at start-up
+    if (defaultTargetPlatform == TargetPlatform.windows &&
+        settings.fullscreen != _fullscreenSent) {
+      _fullscreenSent = settings.fullscreen;
+      await _systemService.setFullscreen(settings.fullscreen);
+    }
     // Only once: this runs on every settings change (a clock style swipe...), and
     // setting the orientations again would undo a rotation made with the rotate
     // symbol while the phone's rotation is locked.

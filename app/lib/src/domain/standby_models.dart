@@ -452,6 +452,7 @@ class StandbySettings {
     this.autoLandscapeOnly = true,
     this.autoExitOnUnplug = true,
     this.fahrenheit = false,
+    this.fullscreen = false,
     this.brightness = 0.72,
     this.nightTintIntensity = 0.65,
     this.nightStartMin = 1200,
@@ -531,6 +532,9 @@ class StandbySettings {
   final bool autoExitOnUnplug;
   final String worldCity; // display name of the chosen world-clock city
   final bool fahrenheit;
+
+  /// Windows: borderless, over the whole monitor (F11). Ignored elsewhere.
+  final bool fullscreen;
 
   /// Where the second city is, for its weather (0, 0 = not known).
   final double worldLat;
@@ -643,6 +647,7 @@ class StandbySettings {
     bool? autoLandscapeOnly,
     bool? autoExitOnUnplug,
     bool? fahrenheit,
+    bool? fullscreen,
     double? brightness,
     double? nightTintIntensity,
     int? nightStartMin,
@@ -697,6 +702,7 @@ class StandbySettings {
       autoLandscapeOnly: autoLandscapeOnly ?? this.autoLandscapeOnly,
       autoExitOnUnplug: autoExitOnUnplug ?? this.autoExitOnUnplug,
       fahrenheit: fahrenheit ?? this.fahrenheit,
+      fullscreen: fullscreen ?? this.fullscreen,
       brightness: brightness ?? this.brightness,
       nightTintIntensity: nightTintIntensity ?? this.nightTintIntensity,
       nightStartMin: nightStartMin ?? this.nightStartMin,
@@ -753,6 +759,7 @@ class StandbySettings {
       'autoLandscapeOnly': autoLandscapeOnly,
       'autoExitOnUnplug': autoExitOnUnplug,
       'fahrenheit': fahrenheit,
+      'fullscreen': fullscreen,
       'brightness': brightness,
       'nightTintIntensity': nightTintIntensity,
       'nightStartMin': nightStartMin,
@@ -841,6 +848,7 @@ class StandbySettings {
       timerColor: (json['timerColor'] as num?)?.toInt() ?? 0,
       timerFigureColor: (json['timerFigureColor'] as num?)?.toInt() ?? 0,
       fahrenheit: json['fahrenheit'] as bool? ?? defaults.fahrenheit,
+      fullscreen: json['fullscreen'] as bool? ?? defaults.fullscreen,
       brightness:
           (json['brightness'] as num?)?.toDouble() ?? defaults.brightness,
       nightTintIntensity:
@@ -904,6 +912,7 @@ class StandbySettings {
         other.autoLandscapeOnly == autoLandscapeOnly &&
         other.autoExitOnUnplug == autoExitOnUnplug &&
         other.fahrenheit == fahrenheit &&
+        other.fullscreen == fullscreen &&
         _sameDouble(other.brightness, brightness) &&
         _sameDouble(other.nightTintIntensity, nightTintIntensity) &&
         other.nightStartMin == nightStartMin &&
@@ -940,6 +949,7 @@ class StandbySettings {
     musicSource,
     worldCity,
     fahrenheit,
+    fullscreen,
     brightness,
     nightTintIntensity,
     nightStartMin,
@@ -1116,7 +1126,7 @@ class IntegrationSnapshotBundle {
     return const IntegrationSnapshotBundle(
       nowPlaying: NowPlayingSnapshot(
         title: 'Nothing playing',
-        artist: 'Start music on this phone or Spotify',
+        artist: 'Start music on this device or Spotify',
         source: 'Idle',
         progress: 0,
         isPlaying: false,

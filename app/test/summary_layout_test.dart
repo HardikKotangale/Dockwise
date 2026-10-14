@@ -314,7 +314,10 @@ void main() {
     await tester.pump(
       const Duration(milliseconds: 700),
     ); // tiles make room for Done
-    final before = tester.getCenter(find.text('SUNDAY'));
+    // follow the tile itself: inside it, the date's parts may also move to
+    // suit the tile's new shape
+    final tile = find.byType(CalendarCard);
+    final before = tester.getCenter(tile);
     final g = await tester.startGesture(before);
     await tester.pump(const Duration(milliseconds: 200));
     await g.moveTo(tester.getCenter(find.textContaining('Here').first));
@@ -322,13 +325,33 @@ void main() {
     await g.up();
     await tester.pump(); // the swap has happened; the tile starts moving
     await tester.pump(const Duration(milliseconds: 120));
-    final mid = tester.getCenter(find.text('SUNDAY'));
+    final mid = tester.getCenter(tile);
     await tester.pump(const Duration(milliseconds: 600));
-    final after = tester.getCenter(find.text('SUNDAY'));
+    final after = tester.getCenter(tile);
     expect(after.dx, lessThan(before.dx)); // it ended up in the first column
     // part-way at 120 ms: not still at the start, not yet at the end
     expect(mid.dx, lessThan(before.dx));
     expect(mid.dx, greaterThan(after.dx));
+  });
+
+  testWidgets('the date tile follows the Calendar: Today or Month', (
+    tester,
+  ) async {
+    Widget summary(CalendarStyle style) => SummaryCard(
+      now: DateTime(2026, 10, 11, 14, 5),
+      settings: StandbySettings(calendarStyle: style),
+      weather: const ColoredBox(color: Colors.blue),
+      music: const ColoredBox(color: Colors.purple),
+    );
+    await tester.pumpWidget(host(summary(CalendarStyle.day)));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('SUNDAY'), findsOneWidget);
+    expect(find.text('31'), findsNothing); // no month grid
+    await tester.pumpWidget(host(summary(CalendarStyle.month)));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('OCTOBER  2026', findRichText: true), findsOneWidget);
+    expect(find.text('31'), findsOneWidget); // the grid's last day
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the tiles deal in one after another when Summary appears', (

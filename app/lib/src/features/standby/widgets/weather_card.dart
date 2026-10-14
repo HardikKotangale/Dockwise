@@ -289,6 +289,55 @@ class WeatherNowView extends StatelessWidget {
     };
   }
 
+  Widget _low(BuildContext context, WeatherSnapshot w, double h) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // as tall as the tile, but never wider than its share beside the
+        // words: then it shrinks instead of pushing them off the tile
+        Flexible(
+          flex: 5,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.centerLeft,
+            child: AnimatedSwitcher(
+              // °C <-> °F: the number fades to the other unit
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : Motion.fast,
+              child: _temp(w.temperatureCelsius, 160, -3),
+            ),
+          ),
+        ),
+        SizedBox(width: h * 0.18),
+        Expanded(
+          flex: 6,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Flexible(child: _lowLine(w.city, 30)),
+              Flexible(
+                child: _lowLine(
+                  w.condition,
+                  26,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+              Flexible(
+                child: _lowLine(
+                  'H:${_deg(w.highCelsius)}  L:${_deg(w.lowCelsius)}',
+                  24,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final w = snapshot;
@@ -344,6 +393,14 @@ class WeatherNowView extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.all(pad),
                   child: _morphing(context, w, look),
+                )
+              else if (c.maxWidth > c.maxHeight * 1.6)
+                // a low, wide tile (Summary beside an open dock): the
+                // temperature as tall as the tile, the words beside it, so
+                // the number is never the thing squeezed out
+                Padding(
+                  padding: EdgeInsets.all(pad),
+                  child: _low(context, w, c.maxHeight - pad * 2),
                 )
               else
                 Padding(
@@ -444,6 +501,24 @@ class WeatherNowView extends StatelessWidget {
     );
   }
 }
+
+/// The low tile: the temperature at full height on the left; the city, the
+/// condition and the high and low beside it, each line shrinking to fit.
+Widget _lowLine(String text, double size, {Color color = Colors.white}) =>
+    FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        maxLines: 1,
+        style: TextStyle(
+          color: color,
+          fontSize: size,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.3,
+        ),
+      ),
+    );
 
 /// The weather card. Swipe up and down to move through its pages:
 /// now, the forecast (next hours and days), and the weather in your second

@@ -153,6 +153,8 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
         width: 42,
         height: 42,
         fit: BoxFit.cover,
+        // a 300 px picture shrunk to a thumbnail: mipmaps keep it smooth
+        filterQuality: FilterQuality.medium,
         errorBuilder: (_, _, _) => fallback,
       ),
     );

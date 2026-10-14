@@ -63,7 +63,7 @@ class WeatherSettings extends StatelessWidget {
       padding: dockPadding,
       children: [
         const Text(
-          'Weather uses this phone\'s location.',
+          'Weather uses this device\'s location.',
           style: TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 8),

@@ -176,5 +176,11 @@ DecorationImage? coverArt(NowPlayingSnapshot s) {
       : null;
   return image == null
       ? null
-      : DecorationImage(image: image, fit: BoxFit.cover);
+      // high: the cover is drawn larger than Spotify's 640 px on a big
+      // screen, and smooth (not pixelated) scaling matters there
+      : DecorationImage(
+          image: image,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+        );
 }

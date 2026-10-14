@@ -1,15 +1,21 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 
 import '../../core/apple.dart';
 import '../../core/burn_in_protection.dart';
 import '../../core/night_mode_policy.dart';
+import '../../core/power_mode.dart';
 import '../../domain/standby_models.dart';
 import '../../services/standby_system_service.dart';
 import '../../state/standby_controller.dart';
 import 'dashboard.dart';
+import 'settings/all_settings.dart' show ShortcutList;
 import 'settings/controls.dart';
 import 'widgets/battery_badge.dart';
 import 'widgets/dock.dart';
@@ -76,17 +82,160 @@ class _StandbyScreenState extends State<StandbyScreen> {
       autostartTicker: widget.initialSettings == null,
     );
     _controller.addListener(_flashDots);
+    _controller.addListener(_watchFullscreen);
     if (widget.initialSettings == null) {
       _controller.initialize();
     } else {
       _controller.initializeForTest();
     }
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  static bool get _windows => defaultTargetPlatform == TargetPlatform.windows;
+
+  // Keyboard (a PC, or a phone with one): the same things a swipe or a tap
+  // does. Typing in a text field always wins. (The city search is read-only:
+  // it is fed by our own on-screen keyboard, so the keys stay ours there.)
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    final field = FocusManager.instance.primaryFocus?.context
+        ?.findAncestorStateOfType<EditableTextState>();
+    final typing = field != null && !field.widget.readOnly;
+    final keys = HardwareKeyboard.instance;
+    if (typing ||
+        keys.isControlPressed ||
+        keys.isAltPressed ||
+        keys.isMetaPressed) {
+      return false;
+    }
+    final settings = _controller.settings;
+    final dockOpen = _dockBuild != null;
+    final key = event.logicalKey;
+    final handled = switch (key) {
+      LogicalKeyboardKey.f11 when _windows => _do(_controller.toggleFullscreen),
+      LogicalKeyboardKey.escape when dockOpen => _do(_dismissDock),
+      LogicalKeyboardKey.escape when _windows && settings.fullscreen => _do(
+        _controller.toggleFullscreen,
+      ),
+      LogicalKeyboardKey.keyS ||
+      LogicalKeyboardKey.enter ||
+      LogicalKeyboardKey.numpadEnter => _do(
+        dockOpen ? _dismissDock : _openFirstPanel,
+      ),
+      LogicalKeyboardKey.keyN => _do(_controller.toggleNight),
+      // ? (shift + /), or F1: the list of keys; again to close it
+      LogicalKeyboardKey.question ||
+      LogicalKeyboardKey.slash ||
+      LogicalKeyboardKey.f1 => _do(_toggleHelp),
+      // the rest act on the cards, so not while the dock covers them
+      _ when dockOpen => false,
+      // with Shift, the arrows work the second (right or lower) card
+      LogicalKeyboardKey.arrowLeft => _do(() => _step(Axis.horizontal, -1)),
+      LogicalKeyboardKey.arrowRight => _do(() => _step(Axis.horizontal, 1)),
+      LogicalKeyboardKey.arrowUp => _do(() => _step(Axis.vertical, 1)),
+      LogicalKeyboardKey.arrowDown => _do(() => _step(Axis.vertical, -1)),
+      // one or two panels, like the pinch
+      LogicalKeyboardKey.digit1 || LogicalKeyboardKey.numpad1 => _do(
+        () => _controller.setLayout(StandbyLayoutMode.single),
+      ),
+      LogicalKeyboardKey.digit2 || LogicalKeyboardKey.numpad2 => _do(
+        () => _controller.setLayout(StandbyLayoutMode.duo),
+      ),
+      LogicalKeyboardKey.keyD => _do(
+        () => _controller.setLayout(
+          settings.layoutMode == StandbyLayoutMode.duo
+              ? StandbyLayoutMode.single
+              : StandbyLayoutMode.duo,
+        ),
+      ),
+      LogicalKeyboardKey.space => _controller.playPauseShown(),
+      _ => false,
+    };
+    if (handled) _controller.touched(); // a key wakes the dim screen too
+    return handled;
+  }
+
+  bool _do(VoidCallback action) {
+    action();
+    return true;
+  }
+
+  void _dismissDock() => _dockKey.currentState?.dismiss();
+
+  static const _helpTitle = 'Keyboard shortcuts';
+
+  void _toggleHelp() => _dockBuild != null && _dockTitle == _helpTitle
+      ? _dismissDock()
+      : _openDock(
+          _helpTitle,
+          () => const SingleChildScrollView(
+            padding: dockPadding,
+            child: ShortcutList(),
+          ),
+        );
+
+  void _openFirstPanel() => openPanelSettings(
+    controller: _controller,
+    openDock: _openDock,
+    clockPart: _clockPart,
+    type: _controller.settings.leftWidget,
+  );
+
+  // Arrows: on the first panel; with Shift (two panels) on the second one.
+  // Up and down without Shift go to the clock if one is showing (they change
+  // its style), else to the first panel.
+  void _step(Axis axis, int step) {
+    final s = _controller.settings;
+    final duo = s.layoutMode == StandbyLayoutMode.duo;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final second =
+        duo &&
+        (shift ||
+            axis == Axis.vertical &&
+                s.leftWidget != StandbyWidgetType.clock &&
+                s.rightWidget == StandbyWidgetType.clock);
+    stepPanel(
+      controller: _controller,
+      touch: _touch,
+      axis: axis,
+      step: step,
+      type: second ? s.rightWidget : s.leftWidget,
+      isLeft: !second,
+    );
+  }
+
+  // Full screen on a PC: the pointer hides after a few still seconds
+  bool _cursorHidden = false;
+  Timer? _cursorTimer;
+
+  // going full screen counts the still seconds from then, mouse moved or not
+  bool _wasFullscreen = false;
+  void _watchFullscreen() {
+    final full = _controller.settings.fullscreen;
+    if (full && !_wasFullscreen) _armCursor();
+    _wasFullscreen = full;
+  }
+
+  void _pointerMoved(PointerEvent _) => _armCursor();
+
+  void _armCursor() {
+    _cursorTimer?.cancel();
+    if (_cursorHidden) setState(() => _cursorHidden = false);
+    if (!_windows || !_controller.settings.fullscreen) return;
+    _cursorTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _controller.settings.fullscreen) {
+        setState(() => _cursorHidden = true);
+      }
+    });
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    _cursorTimer?.cancel();
     _dotsTimer?.cancel();
     _controller.removeListener(_flashDots);
+    _controller.removeListener(_watchFullscreen);
     _clockPart.dispose();
     _controller.dispose();
     if (widget.battery == null) _battery.dispose();
@@ -122,7 +271,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
           _controller.burnInTick,
           settings,
         );
-        return Scaffold(
+        final scaffold = Scaffold(
           backgroundColor: Colors.black,
           // the low-battery prompt covers the whole screen, above everything
           // any touch wakes the screen from its idle dim
@@ -163,11 +312,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                     offset: o,
                                     child: child,
                                   );
-                                  return NightModePolicy.shouldTint(
-                                        _controller.now,
-                                        settings,
-                                        dark: _controller.roomDark,
-                                      )
+                                  return _controller.nightNow
                                       ? ColorFiltered(
                                           colorFilter: NightModePolicy.filter(
                                             settings,
@@ -331,6 +476,17 @@ class _StandbyScreenState extends State<StandbyScreen> {
                         final pad = MediaQuery.paddingOf(context);
                         final beside = pad.top >= 30; // room next to the camera
                         final side = !beside && pad.right >= 30; // or beside it
+                        // tucked into the corner, it would sit on an open dock
+                        // that reaches the top (sideways or full height)
+                        final size = MediaQuery.sizeOf(context);
+                        final dockAtTop =
+                            _dockBuild != null &&
+                            (size.width > size.height ||
+                                _dockTall ||
+                                _dockFill);
+                        if (!beside && !side && dockAtTop) {
+                          return const SizedBox.shrink();
+                        }
                         final line = BatteryLine(
                           monitor: _battery,
                           lowAt: settings.lowBatteryLevel,
@@ -381,6 +537,27 @@ class _StandbyScreenState extends State<StandbyScreen> {
                 ],
               ),
             ),
+          ),
+        );
+        return MouseRegion(
+          // (leaving full screen brings it straight back)
+          cursor: _cursorHidden && settings.fullscreen
+              ? SystemMouseCursors.none
+              : MouseCursor.defer,
+          onHover: _pointerMoved,
+          // a PC on mains power may spend a little more on looks
+          child: ListenableBuilder(
+            listenable: _battery,
+            builder: (context, child) {
+              final b = _battery.value;
+              return RichGraphics(
+                on: RichGraphics.allowed(
+                  onBattery: b != null && !b.charging && !b.full,
+                ),
+                child: child!,
+              );
+            },
+            child: scaffold,
           ),
         );
       },

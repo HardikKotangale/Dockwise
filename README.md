@@ -140,7 +140,7 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 |---|---|---|---|
 | All clock styles, themes, presets, layouts, pinch | Yes | Yes | Yes (pinch needs a touch screen) |
 | Weather, calendar, world clock | Yes | Yes | Yes (weather needs Windows location services) |
-| Night mode, burn-in shift, keep awake | Yes | Yes | Night mode and burn-in shift yes; no keep-awake |
+| Night mode, burn-in shift, keep awake | Yes | Yes | Yes (keep-awake holds the display on while the app is open) |
 | Brightness that follows the room light | Yes, with the light sensor | Through iOS's own auto-brightness (iPhone does not let apps read the sensor) | No |
 | Night look when the room is dark | Yes | No (hours only) | No (hours only) |
 | Spotify account control and volume | Yes | Yes | Yes |
@@ -152,20 +152,43 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 
 ### Windows app (experimental)
 
-The same app builds as a Windows program, `Hushdock.exe`. It has not been built or run on a Windows PC yet: the project is set up and the Dart code is tested as Windows, but the first real build may need fixes.
+The same app builds as a Windows program, `Hushdock.exe`. It has been built and run on Windows 11 (Flutter 3.47.7, Visual Studio 2026): the release build needs no fixes, it opens on the clock, mouse swipes change the card, a click opens the settings dock, the layout follows the window from wide to portrait to small, weather loads, the Float clock runs without a tilt sensor, and Spotify sign-in works.
 
-**What works:** every clock style, themes and layouts, weather and calendar, the world clock, timer, Summary, and Spotify (account control, search, queue, volume). **What a PC does not have:** a tilt sensor (the Float clock does not sway and the rotation hint is off), a charger to watch (no auto-start), a light sensor (no brightness that follows the room), and the phone's media sessions (no "music from other apps"). The battery number shows on laptops only. Windows does not keep the screen awake for the app: set your power plan to never sleep the display.
+**What works:** every clock style, themes and layouts, weather and calendar, the world clock, timer, Summary, and Spotify (account control, search, queue, volume). **What a PC does not have:** a tilt sensor (the Float clock does not sway and the rotation hint is off), a charger to watch (no auto-start), a light sensor (no brightness that follows the room), and the phone's media sessions (no "music from other apps"). The battery number shows on laptops only. **Keep awake** (Settings) stops the display and the PC from sleeping while Hushdock is open; closing it hands control back to your power plan.
+
+**Full screen:** press **F11** (or Settings > Window & keyboard > Full screen) for a borderless display over the whole monitor, taskbar included. **Esc** or F11 leaves it and puts the window back where it was. Hushdock remembers it and starts in full screen next time. The mouse pointer hides after 3 still seconds.
+
+**Keyboard:**
+
+| Key | What it does |
+|---|---|
+| ← → | Previous / next card (like a sideways swipe) |
+| ↑ ↓ | Next / previous clock style (like a swipe up or down on the clock) |
+| Shift + arrows | The same on the second card, with two panels |
+| 1 / 2, or D | One panel / two panels (D switches between them) |
+| S or Enter | Open or close the settings for the card |
+| Space | Play / pause the music, or start / pause the timer, when that card is showing |
+| N | Night look on or off (until the night hours next start or end) |
+| F11 | Full screen |
+| Esc | Close settings, then leave full screen |
+| ? or F1 | Show these keys |
+
+Keys never fire while you are typing in a text field.
+
+**Battery:** the display stays light. The clock redraws only when its digits change, and nothing moves while the window is hidden or minimized. The weather backdrop waits for its card to finish sliding in, plays its rain, snow or clouds for 2 seconds, slows to a stop and then stays a still picture (it plays again for new weather or when you come back to the app). On a PC on mains power it plays at 30 frames a second instead of 20. When you change cards, each card is drawn once into a picture and the picture slides and fades, so even the frosted-glass, blurred-cover and weather cards change smoothly on a big screen. The weather's sky and clouds are kept as one picture while only the rain or snow moves. Album art and thumbnails are scaled smoothly, so they stay sharp on a big monitor.
+
+To measure how smooth card changes are on a PC: `flutter drive --profile -d windows --driver test_driver/perf_driver.dart --target integration_test/card_switch_perf_test.dart` (add `--dart-define=FULLSCREEN=true` for full screen). Frame times per card change land in `app/build/integration_response_data.json`.
 
 **Build it** (it must be built on Windows; Flutter cannot build a Windows app on a Mac):
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows/desktop) and Visual Studio 2022 with the **Desktop development with C++** workload and the **C++ ATL for latest build tools** component (the secure token storage needs it). The Windows setup script does not install these. Check with `flutter doctor`.
+1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows/desktop) and Visual Studio 2022 or later with the **Desktop development with C++** workload and the **C++ ATL for latest build tools** component (the secure token storage needs it; without it the build stops on a missing `atlstr.h`). The Windows setup script does not install these. Check with `flutter doctor`.
 2. In the `app` folder run:
    ```powershell
    flutter pub get
    flutter build windows --release
    ```
 3. The program is in `app\build\windows\x64\runner\Release`: `Hushdock.exe` with its DLLs and the `data` folder. Keep them together. Zip the whole folder to share it, or wrap it in an installer with Inno Setup or MSIX.
-4. For Spotify, add this redirect URI in the Spotify dashboard too: `http://127.0.0.1:43823/callback` (a PC cannot open a `hushdock://` link, so the browser returns to a small local server instead). Then follow [Spotify (optional)](#6-spotify-optional).
+4. For Spotify, follow [Spotify (optional)](#6-spotify-optional). The PC uses the same redirect URI as the phones, `hushdock://spotify-callback`: sign-in opens in its own window, which catches that link itself.
 
 To try it without building a release: `flutter run -d windows`.
 
@@ -212,8 +235,8 @@ Add `--check` (Mac) or `-Check` (Windows) to only see what is missing without in
 ### 2. Get the code
 
 ```bash
-git clone https://github.com/HardikKotangale/Dockwise.git
-cd Dockwise
+git clone https://github.com/HardikKotangale/Hushdock.git
+cd Hushdock
 ```
 
 ### 3. Connect your phone
@@ -243,7 +266,7 @@ Always open `ios/Runner.xcworkspace`, never `Runner.xcodeproj`, or Xcode will sa
 
 ### 6. Spotify (optional)
 
-1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback` (and `http://127.0.0.1:43823/callback` if you use the Windows app).
+1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback`.
 2. Copy `app/assets/local/spotify.example.json` to `app/assets/local/spotify.json` and paste your Client ID. That file is git-ignored, so your Spotify app is never committed. (The setup scripts create the file for you.)
 3. Or pass it at build time: `flutter run --dart-define=SPOTIFY_CLIENT_ID=your_id`.
 4. In the app, open the music card's settings and tap **Connect Spotify**. Spotify Premium is needed to control playback.
