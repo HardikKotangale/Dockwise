@@ -21,5 +21,6 @@ class AppleScrollBehavior extends MaterialScrollBehavior {
     PointerDeviceKind.touch,
     PointerDeviceKind.mouse,
     PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad, // a laptop's two-finger scroll
   };
 }

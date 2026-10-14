@@ -11,9 +11,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  for (final os in [TargetPlatform.windows, TargetPlatform.macOS])
   for (final style in [ClockStyle.digital, ClockStyle.float, ClockStyle.flip]) {
-    testWidgets('starts on Windows with the ${style.name} clock', (t) async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    testWidgets('starts on ${os.name} with the ${style.name} clock', (t) async {
+      debugDefaultTargetPlatformOverride = os;
       try {
         t.view.physicalSize = const Size(1600, 900);
         t.view.devicePixelRatio = 1;

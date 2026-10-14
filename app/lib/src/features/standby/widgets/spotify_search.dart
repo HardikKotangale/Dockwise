@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../services/spotify_service.dart';
 import '../../../state/standby_controller.dart';
@@ -29,8 +30,25 @@ class _SpotifySearchPageState extends State<SpotifySearchPage> {
   int _seq = 0; // ignore answers that arrive after a newer search started
 
   StandbyController get c => widget.controller;
+
+  // Esc goes back to the music card, with or without our keyboard showing
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onEsc);
+  }
+
+  bool _onEsc(KeyEvent e) {
+    if (e is! KeyDownEvent || e.logicalKey != LogicalKeyboardKey.escape) {
+      return false;
+    }
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
+    Navigator.of(context).pop();
+    return true;
+  }
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onEsc);
     _debounce?.cancel();
     _text.dispose();
     super.dispose();

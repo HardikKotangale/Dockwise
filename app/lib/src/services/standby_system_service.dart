@@ -85,7 +85,7 @@ class StandbySystemService {
   /// installed.
   Future<bool> openSpotify() => switch (defaultTargetPlatform) {
     TargetPlatform.iOS => openUrl('spotify://'),
-    TargetPlatform.windows => openUrl('spotify:'),
+    TargetPlatform.windows || TargetPlatform.macOS => openUrl('spotify:'),
     _ => launchApp('com.spotify.music'),
   };
 

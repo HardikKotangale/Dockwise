@@ -87,10 +87,15 @@ Hushdock-*.zip
 *.timeline_summary.json
 *.timeline.json
 
-# --- Mac app (planned): build outputs and Xcode/CocoaPods files ---
+# --- Mac app: build outputs and Xcode/CocoaPods files ---
 app/macos/Flutter/ephemeral/
 app/macos/Pods/
 app/macos/build/
 app/macos/**/xcuserdata/
 app/macos/Flutter/Flutter-Generated.xcconfig
 app/macos/Flutter/GeneratedPluginRegistrant.swift
+app/macos/Flutter/flutter_export_environment.sh
+
+# the stub Flutter's `create` writes when a platform is added (the root README is the real one)
+app/README.md
+app/test/widget_test.dart

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/key_capture.dart';
 
 /// Our own translucent letter keyboard for the city search. Lives inside the
 /// settings dock, so the system (floating) keyboard never covers the screen.
@@ -26,13 +27,18 @@ class MiniKeyboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final portrait = MediaQuery.orientationOf(context) == Orientation.portrait;
-    return TweenAnimationBuilder<double>(
+    return _PhysicalKeys(
+      onChar: onChar,
+      onBackspace: onBackspace,
+      onDone: onDone,
+      child: TweenAnimationBuilder<double>(
       tween: Tween(end: portrait ? 1.0 : 0.0),
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : Motion.medium,
       curve: easeOutStrong,
       builder: (context, t, _) => _build(t),
+      ),
     );
   }
 
@@ -262,4 +268,69 @@ class _KeyState extends State<_Key> {
       ),
     );
   }
+}
+
+/// While our keyboard is up, a real keyboard types into the same field: the
+/// screen's one-key shortcuts (N, S, D, ...) stand aside (KeyCapture) and the
+/// letters go to [onChar].
+class _PhysicalKeys extends StatefulWidget {
+  const _PhysicalKeys({
+    required this.onChar,
+    required this.onBackspace,
+    required this.onDone,
+    required this.child,
+  });
+
+  final ValueChanged<String> onChar;
+  final VoidCallback onBackspace;
+  final VoidCallback onDone;
+  final Widget child;
+
+  @override
+  State<_PhysicalKeys> createState() => _PhysicalKeysState();
+}
+
+class _PhysicalKeysState extends State<_PhysicalKeys> {
+  static final _typable = RegExp(r"^[a-zA-Z0-9 '\-]$");
+
+  @override
+  void initState() {
+    super.initState();
+    KeyCapture.take();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    KeyCapture.release();
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent e) {
+    if (e is KeyUpEvent) return false;
+    final keys = HardwareKeyboard.instance;
+    if (keys.isControlPressed || keys.isMetaPressed || keys.isAltPressed) {
+      return false;
+    }
+    final key = e.logicalKey;
+    if (key == LogicalKeyboardKey.backspace) {
+      widget.onBackspace();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (e is KeyDownEvent) widget.onDone();
+      return true;
+    }
+    final ch = e.character;
+    if (ch != null && _typable.hasMatch(ch)) {
+      widget.onChar(ch.toLowerCase());
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -92,7 +92,10 @@ class _StandbyScreenState extends State<StandbyScreen> {
     HardwareKeyboard.instance.addHandler(_onKey);
   }
 
-  static bool get _windows => defaultTargetPlatform == TargetPlatform.windows;
+  static bool get _windows => const {
+    TargetPlatform.windows,
+    TargetPlatform.macOS,
+  }.contains(defaultTargetPlatform);
 
   // Keyboard (a PC, or a phone with one): the same things a swipe or a tap
   // does. Typing in a text field always wins. (The city search is read-only:
@@ -274,10 +277,10 @@ class _StandbyScreenState extends State<StandbyScreen> {
       animation: _controller,
       builder: (context, _) {
         final settings = _controller.settings;
-        final offset = BurnInProtection.offsetForTick(
-          _controller.burnInTick,
-          settings,
-        );
+        // a Mac's screen is not an OLED left on all night: no drifting gap
+        final offset = defaultTargetPlatform == TargetPlatform.macOS
+            ? OffsetSnapshot.zero
+            : BurnInProtection.offsetForTick(_controller.burnInTick, settings);
         final scaffold = Scaffold(
           backgroundColor: Colors.black,
           // the low-battery prompt covers the whole screen, above everything
@@ -296,6 +299,9 @@ class _StandbyScreenState extends State<StandbyScreen> {
                 fit: StackFit.expand,
                 children: [
                   SafeArea(
+                    // a Mac window has no notch: the display runs up under the
+                    // (transparent) title bar instead of leaving a black band
+                    top: defaultTargetPlatform != TargetPlatform.macOS,
                     minimum: const EdgeInsets.all(8),
                     child: LayoutBuilder(
                       builder: (context, c) {

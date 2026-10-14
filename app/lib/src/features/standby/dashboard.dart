@@ -1,3 +1,5 @@
+import 'package:flutter/gestures.dart'
+    show PointerPanZoomUpdateEvent, PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
@@ -27,13 +29,12 @@ const swipeVelocity = 300.0; // px/s: below this a drag is not a swipe
 
 /// Opens a settings dock with [title]; [build] runs on every settings change
 /// so the panels behind it update live.
-typedef OpenDock =
-    void Function(
-      String title,
-      Widget Function() build, {
-      bool tall,
-      bool fill,
-    });
+typedef OpenDock = void Function(
+  String title,
+  Widget Function() build, {
+  bool tall,
+  bool fill,
+});
 
 /// Tracks the fingers on screen so a two-finger pinch can be told apart from
 /// a one-finger swipe.
@@ -43,6 +44,7 @@ class PanelTouches {
   bool fired = false; // this pinch already switched the layout
   bool multi = false; // two or more fingers were down: not a card swipe
   bool locked = false; // a tile is being dragged: no card swipes
+  DateTime wheelAt = DateTime(0); // last mouse-wheel step (one step per flick)
   Offset swipeDir = Offset.zero; // which way the last swipe travelled
   Offset get center => points.length < 2
       ? Offset.zero
@@ -226,7 +228,54 @@ class Dashboard extends StatelessWidget {
       },
       onPointerUp: (e) => _release(e, decide: true),
       onPointerCancel: (e) => _release(e, decide: false),
+      onPointerSignal: (e) => _wheel(context, e),
+      // a laptop trackpad's pinch: the same switch as two fingers on a screen
+      onPointerPanZoomStart: (_) => touch.fired = false,
+      onPointerPanZoomUpdate: _trackpadPinch,
       child: _layout(context),
+    );
+  }
+
+  void _trackpadPinch(PointerPanZoomUpdateEvent e) {
+    if (touch.fired || touch.multi || touch.locked) return;
+    final ratio = e.scale; // 1 = fingers where they started
+    final mode = ratio >= 1.3
+        ? StandbyLayoutMode.single
+        : ratio <= 0.77
+        ? StandbyLayoutMode.duo
+        : null;
+    if (mode == null) return;
+    touch.fired = true;
+    onPinch(mode, e.position);
+  }
+
+  // A mouse wheel over a card is a swipe (vertical scroll = swipe up/down,
+  // sideways scroll = swipe left/right). A trackpad's two-finger swipe arrives
+  // as a pan and the card's own drag handlers already take it.
+  // ponytail: one step per 400 ms, so a free-spinning wheel does not race through.
+  void _wheel(BuildContext context, PointerEvent e) {
+    if (e is! PointerScrollEvent || touch.locked) return;
+    final d = e.scrollDelta;
+    if (d.distance < 4) return;
+    final now = DateTime.now();
+    if (now.difference(touch.wheelAt) < const Duration(milliseconds: 400)) {
+      return;
+    }
+    touch.wheelAt = now;
+    final size = context.size ?? Size.zero;
+    final duo = settings.layoutMode == StandbyLayoutMode.duo;
+    final isLeft = !duo ||
+        (stacked
+            ? e.localPosition.dy < size.height / 2
+            : e.localPosition.dx < size.width / 2);
+    final horizontal = d.dx.abs() > d.dy.abs();
+    stepPanel(
+      controller: controller,
+      touch: touch,
+      axis: horizontal ? Axis.horizontal : Axis.vertical,
+      step: (horizontal ? d.dx : d.dy) > 0 ? 1 : -1,
+      type: isLeft ? settings.leftWidget : settings.rightWidget,
+      isLeft: isLeft,
     );
   }
 

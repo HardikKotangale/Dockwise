@@ -14,7 +14,10 @@ import 'clock_settings.dart';
 import 'controls.dart';
 import 'simple_settings.dart';
 
-bool get _windows => defaultTargetPlatform == TargetPlatform.windows;
+bool get _windows => const {
+  TargetPlatform.windows,
+  TargetPlatform.macOS,
+}.contains(defaultTargetPlatform);
 
 /// One row of the key list: the keys (each drawn as a key; "or" and
 /// "+ ..." are plain words between them) and what they do.
@@ -198,8 +201,7 @@ class AllSettings extends StatelessWidget {
         children: [
           SettingsSection(
             title: 'Layout',
-            subtitle:
-                'Tip: pinch with two fingers on the screen. Spread = one panel, pinch together = two.',
+            subtitle: 'Tip: pinch with two fingers on the screen. Spread = one panel, pinch together = two.',
             first: true,
             child: Column(
               children: [
@@ -271,14 +273,12 @@ class AllSettings extends StatelessWidget {
           if (defaultTargetPlatform == TargetPlatform.android)
             SettingsSection(
               title: 'Auto-start',
-              subtitle:
-                  'Open Hushdock by itself when the phone is charging and propped up.',
+              subtitle: 'Open Hushdock by itself when the phone is charging and propped up.',
               child: AutoStartSection(controller: controller),
             ),
           SettingsSection(
             title: 'Theme',
-            subtitle:
-                'Accent color for the date card and highlights. The clock keeps its own colors under Clock.',
+            subtitle: 'Accent color for the date card and highlights. The clock keeps its own colors under Clock.',
             child: AccentPicker(settings: settings, onChanged: set),
           ),
           SettingsSection(
@@ -311,8 +311,7 @@ class AllSettings extends StatelessWidget {
           ),
           SettingsSection(
             title: 'Timer',
-            subtitle:
-                'Its own colors, separate from the clock, and what happens when it ends.',
+            subtitle: 'Its own colors, separate from the clock, and what happens when it ends.',
             child: TimerBody(controller: controller),
           ),
           SettingsSection(
@@ -529,7 +528,7 @@ class AllSettings extends StatelessWidget {
                     onChanged: (v) => set(settings.copyWith(fullscreen: v)),
                     title: const Text('Full screen'),
                     subtitle: const Text(
-                      'Fills the whole monitor, over the taskbar. F11 or Esc to leave.',
+                      'Fills the whole screen. F11 or Esc to leave.',
                     ),
                   ),
                   const SizedBox(height: 8),

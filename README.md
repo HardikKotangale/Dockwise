@@ -1,7 +1,7 @@
 # Hushdock
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform: Android / iOS / Windows](https://img.shields.io/badge/Platform-Android%20%2F%20iOS%20%2F%20Windows-blue.svg)](#platforms)
+[![Platform: Android / iOS / Windows / macOS](https://img.shields.io/badge/Platform-Android%20%2F%20iOS%20%2F%20Windows%20%2F%20macOS-blue.svg)](#platforms)
 [![Tech: Flutter](https://img.shields.io/badge/Tech-Flutter-02569B.svg)](#)
 
 Hushdock turns a charging phone into a bedside display: big readable clocks, live weather, a calendar, a timer and a Spotify now-playing card, designed for a dark room. It is built with Flutter for Android and iPhone (and, experimentally, Windows), and is based on the open-source Standby Pro project.
@@ -136,21 +136,27 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 
 ## Platforms
 
-| Feature | Android | iPhone | Windows |
-|---|---|---|---|
-| All clock styles, themes, presets, layouts, pinch | Yes | Yes | Yes (pinch needs a touch screen) |
-| Weather, calendar, world clock | Yes | Yes | Yes (weather needs Windows location services) |
-| Night mode, burn-in shift, keep awake | Yes | Yes | Yes (keep-awake holds the display on while the app is open) |
-| Brightness that follows the room light | Yes, with the light sensor | Through iOS's own auto-brightness (iPhone does not let apps read the sensor) | No |
-| Night look when the room is dark | Yes | No (hours only) | No (hours only) |
-| Spotify account control and volume | Yes | Yes | Yes |
-| Battery badge and low-battery prompt | Yes | Yes | Laptops only |
-| Spotify search and queue | Yes | Yes | Yes |
-| Follows the phone's rotation (works with rotation lock on) | Yes | Yes | No |
-| Show and control music from other apps on the phone | Yes | No (iOS does not allow it) | No |
-| Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) | No |
+| Feature | Android | iPhone | Windows | Mac |
+|---|---|---|---|---|
+| All clock styles, themes, presets, layouts, pinch | Yes | Yes | Yes (pinch needs a touch screen) | Yes (pinch works on the trackpad) |
+| Weather, calendar, world clock | Yes | Yes | Yes (weather needs Windows location services) | Yes (weather needs Location Services) |
+| Night mode, burn-in shift, keep awake | Yes | Yes | Yes (keep-awake holds the display on while the app is open) | Yes (keep-awake holds the display on while the app is open) |
+| Brightness that follows the room light | Yes, with the light sensor | Through iOS's own auto-brightness (iPhone does not let apps read the sensor) | No | No |
+| Night look when the room is dark | Yes | No (hours only) | No (hours only) | No (hours only) |
+| Spotify account control and volume | Yes | Yes | Yes | Yes |
+| Battery badge and low-battery prompt | Yes | Yes | Laptops only | Laptops only |
+| Spotify search and queue | Yes | Yes | Yes | Yes |
+| Follows the phone's rotation (works with rotation lock on) | Yes | Yes | No | No |
+| Show and control music from other apps on the phone | Yes | No (iOS does not allow it) | No | No |
+| Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) | No | No |
 
-A Mac app is not available yet. See [Mac](#mac) under Getting Started.
+### Mac app
+
+The same app builds as a Mac program, `Hushdock.app`. It opens on the clock in a window that fills the screen under the menu bar; the green button (or ⌃⌘F, or F11) goes to full screen and Esc or F11 leaves it. It has the same keyboard as Windows (see the table above), plus: a trackpad's two-finger swipe changes the card, a trackpad pinch switches between one panel and two, and a mouse wheel over a card works like a swipe. While you type in the Spotify or city search, the real keyboard types into it and the one-key shortcuts (N, S, D...) stand aside; Esc goes back. The timer's end sound (alarm, chime, fanfare) plays on the Mac too.
+
+**Keep awake** holds the display on while Hushdock is open. The burn-in shift is off on a Mac (its screen is not an OLED left on all night). Weather needs Location Services (System Settings > Privacy & Security > Location). **Spotify on a Mac:** with nothing playing, **Play** starts music on this Mac; if Spotify is closed, Hushdock opens it, plays on the device named after your Mac and comes back to the front. Without Spotify installed, the message offers **Get Spotify**.
+
+To build and install it, see [Mac](#mac) under Getting Started.
 
 ### Windows app (experimental)
 
@@ -212,7 +218,7 @@ Hushdock is one Flutter app. You build it on your own computer and install it on
 | Android phone or tablet | a Mac or a Windows PC | [Android](#android) |
 | iPhone | a Mac (Apple's tools only run on a Mac) | [iPhone](#iphone) |
 | Windows PC | a Windows PC | [Windows PC](#windows-pc) |
-| Mac | not available yet | [Mac](#mac) |
+| Mac | a Mac | [Mac](#mac) |
 
 ### 1. Get the code
 
@@ -309,7 +315,15 @@ To try it without building a release: `flutter run -d windows`.
 
 #### Mac
 
-Not available yet: the project has no macOS target. All of Hushdock's plugins support macOS, so a Mac app is planned (the window, keyboard and Spotify work done for Windows carries over); it needs a Mac with Xcode to build. Until then, a Mac can build the Android and iPhone apps.
+Build on a Mac with Xcode (the same one you use for the iPhone) and CocoaPods.
+
+```bash
+cd app
+flutter pub get
+flutter build macos --release
+```
+
+The app is `app/build/macos/Build/Products/Release/Hushdock.app`. Drag it to Applications, or run `open app/build/macos/Build/Products/Release/Hushdock.app`. It is not signed with a paid developer certificate, so the first time macOS may say it cannot check the app: right-click it, choose **Open**, then **Open** again. Allow Location Services for the weather. To try it without building a release: `flutter run -d macos`. The app is sandboxed: its entitlements allow network access (weather, Spotify) and location.
 
 ### 5. Tests
 

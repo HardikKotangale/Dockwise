@@ -48,7 +48,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  final pc = TargetPlatformVariant.only(TargetPlatform.windows);
+  final pc = TargetPlatformVariant({TargetPlatform.windows, TargetPlatform.macOS});
 
   Future<_FakePc> pumpPc(WidgetTester t, {Widget? over}) async {
     t.view.physicalSize = const Size(1600, 900);

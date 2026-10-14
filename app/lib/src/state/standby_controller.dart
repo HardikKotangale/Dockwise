@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../core/burn_in_protection.dart';
 import '../core/clock_cadence.dart';
 import '../core/night_mode_policy.dart';
@@ -762,7 +764,10 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   bool spotifyMissing = false;
 
   /// Where to get Spotify for this device.
-  static const spotifyDownload = 'https://www.spotify.com/download/windows/';
+  static String get spotifyDownload =>
+      defaultTargetPlatform == TargetPlatform.macOS
+      ? 'https://www.spotify.com/download/mac/'
+      : 'https://www.spotify.com/download/windows/';
 
   Future<bool> getSpotify() => _systemService.openUrl(spotifyDownload);
 
@@ -836,9 +841,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> setMusicSource(String source) {
     snapshots = IntegrationSnapshotBundle(
       weather: snapshots.weather,
-      nowPlaying: IntegrationSnapshotBundle.fallback(
-        now: DateTime.now(),
-      ).nowPlaying,
+      nowPlaying: IntegrationSnapshotBundle.fallback(now: DateTime.now())
+          .nowPlaying,
     );
     return updateSettings(settings.copyWith(musicSource: source));
   }
@@ -1064,7 +1068,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _applySystemSettings() async {
     // first, so F11 answers at once; only on a change: the window starts as a
     // window, so a saved full screen is applied once at start-up
-    if (defaultTargetPlatform == TargetPlatform.windows &&
+    if ((defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS) &&
         settings.fullscreen != _fullscreenSent) {
       _fullscreenSent = settings.fullscreen;
       await _systemService.setFullscreen(settings.fullscreen);
