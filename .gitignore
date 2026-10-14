@@ -58,3 +58,19 @@ assets/references/
 spec/*.old
 spec/states/
 spec/*_TTrace_*
+
+# --- Windows app: build outputs and Visual Studio files (app/windows has its own list too) ---
+app/windows/flutter/ephemeral/
+app/windows/build/
+app/windows/out/
+app/windows/x64/
+app/windows/.vs/
+*.exe
+*.msix
+*.appx
+*.pdb
+*.ilk
+*.obj
+*.suo
+*.user
+*.sln.docstates

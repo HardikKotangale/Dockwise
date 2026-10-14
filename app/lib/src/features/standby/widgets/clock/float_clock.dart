@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -104,12 +105,15 @@ class _FloatClockFaceState extends State<FloatClockFace>
       _ticker.stop();
       return;
     }
+    // the real sensor only exists on a phone (a PC has none: no sway there)
     final stream =
         widget.tilt ??
-        accelerometerEventStream(
-          samplingPeriod: SensorInterval.uiInterval,
-        ).map((e) => (e.x, e.y, e.z));
-    _sensor = stream.listen(_onTilt, onError: (_) {}); // no sensor: no sway
+        (Platform.isAndroid || Platform.isIOS
+            ? accelerometerEventStream(
+                samplingPeriod: SensorInterval.uiInterval,
+              ).map((e) => (e.x, e.y, e.z))
+            : null);
+    _sensor = stream?.listen(_onTilt, onError: (_) {}); // no sensor: no sway
   }
 
   void _onTilt((double, double, double) g) {

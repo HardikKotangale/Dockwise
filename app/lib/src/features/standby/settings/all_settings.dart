@@ -109,8 +109,9 @@ class AllSettings extends StatelessWidget {
               ],
             ),
           ),
-          // iOS does not let an app open itself, so auto-start is Android only
-          if (defaultTargetPlatform != TargetPlatform.iOS)
+          // iOS does not let an app open itself, and a PC is not a phone on a
+          // charger: auto-start is Android only
+          if (defaultTargetPlatform == TargetPlatform.android)
             SettingsSection(
               title: 'Auto-start',
               subtitle:

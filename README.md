@@ -1,10 +1,10 @@
 # Hushdock
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform: Android / iOS](https://img.shields.io/badge/Platform-Android%20%2F%20iOS-blue.svg)](#platforms)
+[![Platform: Android / iOS / Windows](https://img.shields.io/badge/Platform-Android%20%2F%20iOS%20%2F%20Windows-blue.svg)](#platforms)
 [![Tech: Flutter](https://img.shields.io/badge/Tech-Flutter-02569B.svg)](#)
 
-Hushdock turns a charging phone into a bedside display: big readable clocks, live weather, a calendar, a timer and a Spotify now-playing card, designed for a dark room. It is built with Flutter for Android and iPhone, and is based on the open-source Standby Pro project.
+Hushdock turns a charging phone into a bedside display: big readable clocks, live weather, a calendar, a timer and a Spotify now-playing card, designed for a dark room. It is built with Flutter for Android and iPhone (and, experimentally, Windows), and is based on the open-source Standby Pro project.
 
 The look is inspired by iOS StandBy, but the layouts, themes, controls and motion are original. The interface is built to feel like iOS: springs instead of fixed-time animations, glass surfaces, press feedback on touch-down, and layouts that rearrange themselves when you turn the phone.
 
@@ -136,19 +136,38 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 
 ## Platforms
 
-| Feature | Android | iPhone |
-|---|---|---|
-| All clock styles, themes, presets, layouts, pinch | Yes | Yes |
-| Weather, calendar, world clock | Yes | Yes |
-| Night mode, burn-in shift, keep awake | Yes | Yes |
-| Brightness that follows the room light | Yes, with the light sensor | Through iOS's own auto-brightness (iPhone does not let apps read the sensor) |
-| Night look when the room is dark | Yes | No (hours only) |
-| Spotify account control and volume | Yes | Yes |
-| Battery badge and low-battery prompt | Yes | Yes |
-| Spotify search and queue | Yes | Yes |
-| Follows the phone's rotation (works with rotation lock on) | Yes | Yes |
-| Show and control music from other apps on the phone | Yes | No (iOS does not allow it) |
-| Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) |
+| Feature | Android | iPhone | Windows |
+|---|---|---|---|
+| All clock styles, themes, presets, layouts, pinch | Yes | Yes | Yes (pinch needs a touch screen) |
+| Weather, calendar, world clock | Yes | Yes | Yes (weather needs Windows location services) |
+| Night mode, burn-in shift, keep awake | Yes | Yes | Night mode and burn-in shift yes; no keep-awake |
+| Brightness that follows the room light | Yes, with the light sensor | Through iOS's own auto-brightness (iPhone does not let apps read the sensor) | No |
+| Night look when the room is dark | Yes | No (hours only) | No (hours only) |
+| Spotify account control and volume | Yes | Yes | Yes |
+| Battery badge and low-battery prompt | Yes | Yes | Laptops only |
+| Spotify search and queue | Yes | Yes | Yes |
+| Follows the phone's rotation (works with rotation lock on) | Yes | Yes | No |
+| Show and control music from other apps on the phone | Yes | No (iOS does not allow it) | No |
+| Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) | No |
+
+### Windows app (experimental)
+
+The same app builds as a Windows program, `Hushdock.exe`. It has not been built or run on a Windows PC yet: the project is set up and the Dart code is tested as Windows, but the first real build may need fixes.
+
+**What works:** every clock style, themes and layouts, weather and calendar, the world clock, timer, Summary, and Spotify (account control, search, queue, volume). **What a PC does not have:** a tilt sensor (the Float clock does not sway and the rotation hint is off), a charger to watch (no auto-start), a light sensor (no brightness that follows the room), and the phone's media sessions (no "music from other apps"). The battery number shows on laptops only. Windows does not keep the screen awake for the app: set your power plan to never sleep the display.
+
+**Build it** (it must be built on Windows; Flutter cannot build a Windows app on a Mac):
+
+1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows/desktop) and Visual Studio 2022 with the **Desktop development with C++** workload (the Windows setup script does not install this). Check with `flutter doctor`.
+2. In the `app` folder run:
+   ```powershell
+   flutter pub get
+   flutter build windows --release
+   ```
+3. The program is in `app\build\windows\x64\runner\Release`: `Hushdock.exe` with its DLLs and the `data` folder. Keep them together. Zip the whole folder to share it, or wrap it in an installer with Inno Setup or MSIX.
+4. For Spotify, add this redirect URI in the Spotify dashboard too: `http://127.0.0.1:43823/callback` (a PC cannot open a `hushdock://` link, so the browser returns to a small local server instead). Then follow [Spotify (optional)](#6-spotify-optional).
+
+To try it without building a release: `flutter run -d windows`.
 
 ### Android auto-start
 
@@ -177,7 +196,7 @@ The full checklist with versions is in [requirements.txt](requirements.txt). Eas
 | Your computer | Run | Builds for |
 |---|---|---|
 | **Mac** | `./scripts/setup_mac.sh` | Android and iPhone |
-| **Windows** | `.\scripts\setup_windows.ps1` (in PowerShell) | Android only |
+| **Windows** | `.\scripts\setup_windows.ps1` (in PowerShell) | Android, and the [Windows app](#windows-app-experimental) once Visual Studio is installed |
 
 Add `--check` (Mac) or `-Check` (Windows) to only see what is missing without installing anything. Both scripts are safe to run again. They install Flutter, JDK 17 and Android Studio (plus CocoaPods on a Mac), set Flutter up to use JDK 17, accept the Android licenses, run `flutter pub get` and finish with `flutter doctor`.
 
@@ -224,7 +243,7 @@ Always open `ios/Runner.xcworkspace`, never `Runner.xcodeproj`, or Xcode will sa
 
 ### 6. Spotify (optional)
 
-1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback`.
+1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback` (and `http://127.0.0.1:43823/callback` if you use the Windows app).
 2. Copy `app/lib/src/services/spotify_config.example.dart` to `app/lib/src/services/spotify_config.dart` and paste your Client ID. That file is git-ignored, so your Spotify app is never committed. (The setup scripts create the file for you.)
 3. Or pass it at build time: `flutter run --dart-define=SPOTIFY_CLIENT_ID=your_id`.
 4. In the app, open the music card's settings and tap **Connect Spotify**. Spotify Premium is needed to control playback.
@@ -259,6 +278,7 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 - `app/lib/src/services`: Spotify, weather, city search and the native bridge.
 - `app/android/.../standbypro`: auto-start service, posture (tilt) logic, media session bridge.
 - `app/ios/Runner`: small Swift bridge for keep-awake and brightness.
+- `app/windows`: the Windows runner (generated by Flutter; only the name and icon were changed).
 - `scripts`: one-command setup for macOS and Windows. `requirements.txt` lists everything the project needs.
 - `spec`: formal models (PlusCal, checked with the TLC model checker) of the posture detection and the auto-launch logic, with the bugs they found. See [spec/README.md](spec/README.md).
 - `docs`: screenshots and animations used in this README, and [ARCHITECTURE.md](docs/ARCHITECTURE.md).

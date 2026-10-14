@@ -682,7 +682,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   /// an app open itself from the background. Android may also refuse unless
   /// Hushdock is allowed to display over other apps.
   Future<void> _backToHushdock() async {
-    if (defaultTargetPlatform == TargetPlatform.iOS) return;
+    if (defaultTargetPlatform != TargetPlatform.android) return;
     await Future<void>.delayed(const Duration(milliseconds: 600));
     await _systemService.launchApp('com.ytchannel.standbypro');
   }
