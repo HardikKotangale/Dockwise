@@ -411,8 +411,8 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
             ),
           ),
         ],
-        // reading other apps' music needs Android's notification access
-        if (defaultTargetPlatform != TargetPlatform.iOS) ...[
+        // reading other apps' music is Android only
+        if (defaultTargetPlatform == TargetPlatform.android) ...[
           const Divider(height: 32),
           const Text('This phone (any player)', style: heading),
           const SizedBox(height: 8),

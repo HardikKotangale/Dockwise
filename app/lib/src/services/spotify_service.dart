@@ -89,7 +89,17 @@ class SpotifyService {
     defaultValue: spotifyClientIdDefault,
   );
   static const _scheme = 'hushdock';
-  static const _redirect = '$_scheme://spotify-callback';
+  // A PC cannot register a link scheme for the browser to come back to, so
+  // there the browser returns to a small local server instead (Spotify allows
+  // http for 127.0.0.1 only). Add this redirect URI in the dashboard too.
+  static const _desktopCallback = 'http://127.0.0.1:43823';
+  static bool get _desktop => const {
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+    TargetPlatform.macOS,
+  }.contains(defaultTargetPlatform);
+  static String get _redirect =>
+      _desktop ? '$_desktopCallback/callback' : '$_scheme://spotify-callback';
   static const _scopes =
       'user-read-playback-state user-modify-playback-state '
       'user-read-currently-playing playlist-read-private '
@@ -136,7 +146,7 @@ class SpotifyService {
     try {
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl.toString(),
-        callbackUrlScheme: _scheme,
+        callbackUrlScheme: _desktop ? _desktopCallback : _scheme,
       );
       final code = Uri.parse(result).queryParameters['code'];
       if (code == null) return false;
