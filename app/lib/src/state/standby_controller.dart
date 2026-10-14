@@ -15,6 +15,24 @@ import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
 
+/// Which of Spotify's devices is the one Hushdock runs on: a Smartphone on a
+/// phone, a Computer on a PC, whose name contains this device's [name] (its
+/// model, or the PC's name). A PC with a single Computer listed is that one,
+/// even under another name (the Spotify app may be named differently).
+SpotifyDevice? thisSpotifyDevice(
+  List<SpotifyDevice> devices, {
+  required String name,
+  required bool computer,
+}) {
+  final type = computer ? 'Computer' : 'Smartphone';
+  final mine = devices.where((d) => d.type == type).toList();
+  final n = name.toLowerCase();
+  for (final d in mine) {
+    if (n.isEmpty || d.name.toLowerCase().contains(n)) return d;
+  }
+  return computer && mine.length == 1 ? mine.single : null;
+}
+
 class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   StandbyController({
     StandbySettings? initialSettings,
@@ -676,25 +694,23 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   String? _pendingDevice;
 
   /// Plays on [deviceId], carrying on with whatever was playing. If that is
-  /// this phone and Spotify is not awake here (it has to be running to be
+  /// this device and Spotify is not awake here (it has to be running to be
   /// available), the Spotify app is opened and the transfer is tried again.
   /// If you come back to Hushdock before it worked, it tries once more.
   Future<bool> playOnSpotifyDevice(String deviceId, {bool wake = true}) async {
     var ok = await _spotify.transferTo(deviceId);
     var woke = false;
     // [wake] is off for the retry on coming back, so Spotify is not opened twice
-    if (!ok && wake && await _isThisPhone(deviceId)) {
+    if (!ok && wake && await _isThisDevice(deviceId)) {
       _pendingDevice = deviceId;
-      if (await _systemService.openSpotify()) {
+      if (await _openSpotifyHere()) {
         woke = true;
         for (var i = 0; i < 4 && !ok; i++) {
           await Future<void>.delayed(_spotifyRetryDelay);
-          // the phone may come back under a new id once its app has woken up
-          final id = await _thisPhoneDeviceId() ?? deviceId;
+          // the device may come back under a new id once its app has woken up
+          final id = await _thisDeviceId() ?? deviceId;
           ok = await _spotify.transferTo(id);
         }
-      } else {
-        _spotify.lastError = 'Spotify is not installed on this phone';
       }
     }
     if (ok) _pendingDevice = null;
@@ -704,23 +720,22 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
-  /// Play with nothing playing: start on this phone, not on whichever device
+  /// Play with nothing playing: start on this device, not on whichever one
   /// (an Echo, say) Spotify played on last. Opens Spotify here if it is asleep.
-  Future<bool> playOnThisPhone() async {
-    var id = await _thisPhoneDeviceId();
+  Future<bool> playOnThisDevice() async {
+    var id = await _thisDeviceId();
     if (id == null) {
-      if (!await _systemService.openSpotify()) {
-        _spotify.lastError = 'Spotify is not installed on this phone';
+      if (!await _openSpotifyHere()) {
         musicError = _spotify.lastError;
         return false;
       }
       for (var i = 0; i < 4 && id == null; i++) {
         await Future<void>.delayed(_spotifyRetryDelay);
-        id = await _thisPhoneDeviceId();
+        id = await _thisDeviceId();
       }
       if (id == null) {
         _pendingPhonePlay = true;
-        musicError = 'Spotify is not open on this phone yet. Try again';
+        musicError = 'Spotify is not open on $hereName yet. Try again';
         return false;
       }
     }
@@ -729,49 +744,77 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
-  /// After waking Spotify, bring Hushdock back. Android only: iOS does not let
-  /// an app open itself from the background. Android may also refuse unless
-  /// Hushdock is allowed to display over other apps.
+  static bool get _onComputer => const {
+    TargetPlatform.windows,
+    TargetPlatform.macOS,
+    TargetPlatform.linux,
+  }.contains(defaultTargetPlatform);
+
+  /// What this device is called in messages: "this PC", "this phone".
+  static String get hereName => switch (defaultTargetPlatform) {
+    TargetPlatform.windows || TargetPlatform.linux => 'this PC',
+    TargetPlatform.macOS => 'this Mac',
+    _ => 'this phone',
+  };
+
+  /// Spotify could not be opened because it is not installed here (a PC):
+  /// the music card then offers the download.
+  bool spotifyMissing = false;
+
+  /// Where to get Spotify for this device.
+  static const spotifyDownload = 'https://www.spotify.com/download/windows/';
+
+  Future<bool> getSpotify() => _systemService.openUrl(spotifyDownload);
+
+  /// Opens the Spotify app here; when that fails, says why.
+  Future<bool> _openSpotifyHere() async {
+    final ok = await _systemService.openSpotify();
+    spotifyMissing = !ok && _onComputer;
+    if (!ok) {
+      _spotify.lastError = _onComputer
+          ? 'Spotify is not installed on $hereName'
+          : 'Spotify is not installed on this phone';
+    }
+    return ok;
+  }
+
+  /// After waking Spotify, bring Hushdock back: on Android by opening it
+  /// again (it may refuse unless Hushdock may display over other apps), on a
+  /// PC by raising its window over Spotify's. iOS does not let an app open
+  /// itself from the background.
   Future<void> _backToHushdock() async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    await _systemService.launchApp('com.ytchannel.standbypro');
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      await _systemService.launchApp('com.ytchannel.standbypro');
+    } else if (_onComputer) {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      await _systemService.bringToFront();
+    }
   }
 
   bool _pendingPhonePlay = false;
 
-  Future<String?> _thisPhoneDeviceId() async {
-    final list = await spotifyDevices();
-    final phone = _spotify.phoneName.toLowerCase();
-    for (final d in list) {
-      if (d.type == 'Smartphone' &&
-          (phone.isEmpty || d.name.toLowerCase().contains(phone))) {
-        return d.id;
-      }
-    }
-    return null;
-  }
+  Future<String?> _thisDeviceId() async => thisSpotifyDevice(
+    await spotifyDevices(),
+    name: _spotify.phoneName,
+    computer: _onComputer,
+  )?.id;
 
-  Future<bool> _isThisPhone(String deviceId) async {
-    final known = [...lastSpotifyDevices, ...await spotifyDevices()];
-    final phoneId = await _thisPhoneDeviceId();
-    return deviceId == phoneId ||
-        known.any(
-          (d) =>
-              d.id == deviceId &&
-              d.type == 'Smartphone' &&
-              (_spotify.phoneName.isEmpty ||
-                  d.name.toLowerCase().contains(
-                    _spotify.phoneName.toLowerCase(),
-                  )),
-        );
+  Future<bool> _isThisDevice(String deviceId) async {
+    if (deviceId == await _thisDeviceId()) return true;
+    final known = lastSpotifyDevices.where((d) => d.id == deviceId).toList();
+    return thisSpotifyDevice(
+          known,
+          name: _spotify.phoneName,
+          computer: _onComputer,
+        ) !=
+        null;
   }
 
   Future<List<({String package, String app})>> mediaPlayers() =>
       _systemService.mediaPlayers();
 
-  Future<bool> openSpotifyApp() =>
-      _systemService.launchApp('com.spotify.music');
+  Future<bool> openSpotifyApp() => _openSpotifyHere();
   Future<bool> hasNotificationAccess() =>
       _systemService.hasNotificationAccess();
   Future<bool> openNotificationAccess() =>
@@ -938,7 +981,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         !now.isPlaying &&
         _spotify.isConnected &&
         _spotify.playerIdle) {
-      ok = await playOnThisPhone();
+      ok = await playOnThisDevice();
     } else if (now.viaSpotifyApi) {
       ok = await _spotify.command(
         command,
@@ -1102,7 +1145,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       // back from opening Spotify: try the transfer again now it is awake
       _pendingDevice = null;
       unawaited(
-        _thisPhoneDeviceId().then(
+        _thisDeviceId().then(
           (id) => playOnSpotifyDevice(id ?? pending, wake: false).then((ok) {
             if (!ok) notifyListeners();
           }),
@@ -1112,7 +1155,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && _pendingPhonePlay) {
       _pendingPhonePlay = false;
       unawaited(
-        _thisPhoneDeviceId().then((id) {
+        _thisDeviceId().then((id) {
           if (id != null) playOnSpotifyDevice(id, wake: false);
         }),
       );

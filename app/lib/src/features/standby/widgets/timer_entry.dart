@@ -1,8 +1,16 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        KeyRepeatEvent,
+        LogicalKeyboardKey;
 
 import '../../../core/apple.dart';
+import '../../../core/key_capture.dart';
 import '../../../state/standby_controller.dart';
 import 'mini_keyboard.dart';
 
@@ -23,6 +31,52 @@ class _TimerEntryState extends State<TimerEntry> {
   // key you press starts a new number; backspace edits the one shown.
   late String _digits = _fromSeconds(widget.controller.settings.timerSeconds);
   bool _fresh = true;
+
+  // A keyboard types here too: the number keys (top row or keypad) enter
+  // digits, Backspace or Delete takes one back, Enter is done. Esc still
+  // closes the dock, through the screen.
+  @override
+  void initState() {
+    super.initState();
+    KeyCapture.take();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    KeyCapture.release();
+    super.dispose();
+  }
+
+  static final _digitKeys = {
+    for (var i = 0; i <= 9; i++) ...{
+      LogicalKeyboardKey(LogicalKeyboardKey.digit0.keyId + i): '$i',
+      LogicalKeyboardKey(LogicalKeyboardKey.numpad0.keyId + i): '$i',
+    },
+  };
+
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    final key = event.logicalKey;
+    final digit = _digitKeys[key];
+    if (digit != null) {
+      _type(digit);
+      return true;
+    }
+    if (key == LogicalKeyboardKey.backspace ||
+        key == LogicalKeyboardKey.delete) {
+      _back();
+      return true;
+    }
+    if (event is KeyDownEvent &&
+        (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.numpadEnter)) {
+      widget.onDone();
+      return true;
+    }
+    return false;
+  }
 
   static String _fromSeconds(int seconds) {
     final v =
@@ -140,7 +194,8 @@ class _TimerEntryState extends State<TimerEntry> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Swipe up or down to go back',
+            'Swipe up or down to go back · or type it, Enter when done',
+            textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white60, fontSize: 13),
           ),
         ],

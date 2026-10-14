@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:standby_pro/src/app.dart';
+import 'package:standby_pro/src/core/motion/split_panels.dart';
 import 'package:standby_pro/src/data/settings_repository.dart';
 import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/features/standby/standby_screen.dart';
 import 'package:standby_pro/src/features/standby/widgets/dock.dart';
+import 'package:standby_pro/src/features/standby/widgets/timer_entry.dart';
 import 'package:standby_pro/src/services/standby_system_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
 
@@ -175,6 +177,70 @@ void main() {
     await _key(t, LogicalKeyboardKey.keyS);
     expect(find.byType(Dock), findsNothing);
     expect((await _saved()).leftWidget, StandbyWidgetType.clock);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('the timer pad types from the keyboard', (t) async {
+    final c = StandbyController(
+      initialSettings: const StandbySettings(timerSeconds: 300),
+      autostartTicker: false,
+    );
+    addTearDown(c.dispose);
+    var done = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: TimerEntry(controller: c, onDone: () => done++),
+          ),
+        ),
+      ),
+    );
+    for (final k in [
+      LogicalKeyboardKey.digit1,
+      LogicalKeyboardKey.digit5,
+      LogicalKeyboardKey.numpad0, // the keypad types too
+      LogicalKeyboardKey.digit0,
+    ]) {
+      await t.sendKeyEvent(k);
+    }
+    await t.pump();
+    expect(c.settings.timerSeconds, 15 * 60); // 1 5 0 0 = 15:00
+    await t.sendKeyEvent(LogicalKeyboardKey.backspace);
+    await t.pump();
+    expect(c.settings.timerSeconds, 60 + 50); // 1 5 0 = 1:50
+    await t.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(done, 1);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('while the timer pad is open, 2 types, not two panels', (
+    t,
+  ) async {
+    final pad = StandbyController(autostartTicker: false);
+    addTearDown(pad.dispose);
+    await pumpPc(
+      t,
+      over: Positioned(
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        child: Material(
+          child: TimerEntry(controller: pad, onDone: () {}),
+        ),
+      ),
+    );
+    await _key(t, LogicalKeyboardKey.digit2);
+    // the screen still shows one panel (the pad's own controller saves
+    // settings too, so look at the screen, not at what was saved)
+    expect(
+      find.byWidgetPredicate((w) => w is SplitPanels && w.duo),
+      findsNothing,
+    );
+    expect(pad.settings.timerSeconds, 2); // it typed a 2 instead
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
 

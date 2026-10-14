@@ -601,6 +601,13 @@ class Dashboard extends StatelessWidget {
             ..showSnackBar(
               SnackBar(
                 content: Text(controller.musicError ?? 'Command failed'),
+                // no Spotify app on this PC: offer it, rather than a dead end
+                action: controller.spotifyMissing
+                    ? SnackBarAction(
+                        label: 'Get Spotify',
+                        onPressed: controller.getSpotify,
+                      )
+                    : null,
               ),
             );
         }

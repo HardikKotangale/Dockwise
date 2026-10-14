@@ -74,4 +74,23 @@ app/windows/.vs/
 *.suo
 *.user
 *.sln.docstates
+# Wheelhouse: the local briefing and session state (wheelhouse.json itself is committed)
 .wheelhouse/
+
+# Windows releases you package to share (zip the Release folder, or an installer)
+dist/
+*.msi
+Hushdock-*.zip
+
+# frame-time benchmark results (flutter drive ... card_switch_perf_test)
+**/integration_response_data.json
+*.timeline_summary.json
+*.timeline.json
+
+# --- Mac app (planned): build outputs and Xcode/CocoaPods files ---
+app/macos/Flutter/ephemeral/
+app/macos/Pods/
+app/macos/build/
+app/macos/**/xcuserdata/
+app/macos/Flutter/Flutter-Generated.xcconfig
+app/macos/Flutter/GeneratedPluginRegistrant.swift

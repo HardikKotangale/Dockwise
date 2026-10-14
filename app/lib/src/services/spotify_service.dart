@@ -88,12 +88,44 @@ class SpotifyService {
   /// `--dart-define=SPOTIFY_CLIENT_ID=...`, else from the optional, git-ignored
   /// `assets/local/spotify.json`, else empty (Spotify then shows "not set up").
   String clientId = const String.fromEnvironment('SPOTIFY_CLIENT_ID');
-  static const _scheme = 'hushdock';
-  // The same on every platform. On Windows the sign-in runs in its own webview
-  // window, which catches this link itself, so no link scheme needs
-  // registering on the PC (and the webview matches the scheme only, so an
-  // http://127.0.0.1 callback would never be caught there).
-  static const _redirect = '$_scheme://spotify-callback';
+
+  /// Where Spotify sends the sign-in back to: the same on every platform. On a
+  /// PC the sign-in runs in its own window, which catches this link itself;
+  /// phones have the hushdock: link registered for the app.
+  static const defaultRedirect = 'hushdock://spotify-callback';
+
+  /// The redirect URI registered for your Spotify app. From
+  /// `--dart-define=SPOTIFY_REDIRECT_URI=...`, else `SPOTIFY_REDIRECT_URI` in
+  /// `assets/local/spotify.json`, else [defaultRedirect]. On a phone it must
+  /// keep the hushdock: scheme (the link the app is registered for).
+  String redirectUri = const String.fromEnvironment('SPOTIFY_REDIRECT_URI');
+
+  String get _redirect => usableRedirect(redirectUri);
+
+  /// [raw] when it is a usable redirect (it has a scheme), else the default.
+  static String usableRedirect(String raw) {
+    final uri = Uri.tryParse(raw.trim());
+    return uri == null || uri.scheme.isEmpty ? defaultRedirect : raw.trim();
+  }
+
+  /// What the sign-in window watches for to know Spotify has answered. It
+  /// compares the scheme only, so that is what it gets (a whole address never
+  /// matched: why an http://127.0.0.1 callback hung). A web address also gets
+  /// its host and path, or every Spotify page (https too) would look like
+  /// the answer.
+  static ({String scheme, FlutterWebAuth2Options options}) callbackFor(
+    String redirect,
+  ) {
+    final uri = Uri.parse(redirect);
+    final web = uri.scheme == 'http' || uri.scheme == 'https';
+    return (
+      scheme: uri.scheme,
+      options: web
+          ? FlutterWebAuth2Options(httpsHost: uri.host, httpsPath: uri.path)
+          : const FlutterWebAuth2Options(),
+    );
+  }
+
   static const _scopes =
       'user-read-playback-state user-modify-playback-state '
       'user-read-currently-playing playlist-read-private '
@@ -110,19 +142,20 @@ class SpotifyService {
   /// Human-readable reason the last command failed (null if it worked).
   String? lastError;
 
-  /// This phone's model name; its Spotify device is preferred when picking one.
+  /// This device's name (a phone's model, a PC's name); its Spotify device is
+  /// preferred when picking one.
   String phoneName = '';
 
   bool get isConfigured => clientId.isNotEmpty;
 
-  /// The Client ID in assets/local/spotify.json, or '' when there is no such
-  /// file (a fresh clone) or it cannot be read.
-  Future<String> _localClientId() async {
+  /// A value in assets/local/spotify.json, or '' when there is no such file
+  /// (a fresh clone), no such key, or it cannot be read.
+  Future<String> _local(String key) async {
     try {
       final json = jsonDecode(
         await _assets.loadString('assets/local/spotify.json'),
       );
-      return ((json as Map)['SPOTIFY_CLIENT_ID'] as String? ?? '').trim();
+      return ((json as Map)[key] as String? ?? '').trim();
     } catch (_) {
       return '';
     }
@@ -131,7 +164,8 @@ class SpotifyService {
   bool get isConnected => _refresh != null;
 
   Future<void> load() async {
-    if (clientId.isEmpty) clientId = await _localClientId();
+    if (clientId.isEmpty) clientId = await _local('SPOTIFY_CLIENT_ID');
+    if (redirectUri.isEmpty) redirectUri = await _local('SPOTIFY_REDIRECT_URI');
     _refresh = await _tokens.read();
   }
 
@@ -152,9 +186,11 @@ class SpotifyService {
           'true', // always offer the account chooser, so signing in again can switch account
     });
     try {
+      final back = callbackFor(_redirect);
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl.toString(),
-        callbackUrlScheme: _scheme,
+        callbackUrlScheme: back.scheme,
+        options: back.options,
       );
       final code = Uri.parse(result).queryParameters['code'];
       if (code == null) return false;
@@ -314,12 +350,12 @@ class SpotifyService {
     return _ok(res);
   }
 
-  // Preference: this phone, then the active device, then any listed device.
+  // Preference: this device, then the active device, then any listed device.
   Future<String?> _fallbackDevice() async {
     final all = await devices();
     if (all.isEmpty) return null;
     // Something is playing somewhere: carry on there (a Mac, a speaker). Only
-    // with nothing playing does this phone come first.
+    // with nothing playing does this device come first.
     if (!playerIdle) {
       for (final d in all) {
         if (d.isActive) return d.id;

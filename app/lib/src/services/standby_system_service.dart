@@ -80,11 +80,22 @@ class StandbySystemService {
   Future<bool> launchApp(String package) =>
       _invokeBool('launchApp', {'package': package});
 
-  /// Opens the Spotify app on this phone (by package on Android, by its URL on
-  /// iPhone). False when it is not installed.
-  Future<bool> openSpotify() => defaultTargetPlatform == TargetPlatform.iOS
-      ? _invokeBool('launchApp', {'url': 'spotify://'})
-      : launchApp('com.spotify.music');
+  /// Opens the Spotify app here: by package on Android, by its link on iPhone
+  /// and on a PC (the desktop app answers spotify:). False when it is not
+  /// installed.
+  Future<bool> openSpotify() => switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => openUrl('spotify://'),
+    TargetPlatform.windows => openUrl('spotify:'),
+    _ => launchApp('com.spotify.music'),
+  };
+
+  /// Opens a link with whatever handles it here (an app's own link, or a web
+  /// page in the browser). False when nothing does.
+  Future<bool> openUrl(String url) => _invokeBool('launchApp', {'url': url});
+
+  /// A PC: raises Hushdock's window over the others (after opening Spotify,
+  /// whose window comes up on top).
+  Future<bool> bringToFront() => _invokeBool('bringToFront', const {});
 
   /// Plays the timer's end sound ('alarm', 'chime', 'fanfare' or 'none') and
   /// vibrates. On Android, a phone on silent or vibrate gets only the buzz.

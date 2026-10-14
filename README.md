@@ -150,6 +150,8 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 | Show and control music from other apps on the phone | Yes | No (iOS does not allow it) | No |
 | Open itself when docked and charging | Yes | No (iOS does not allow it; use the built-in StandBy) | No |
 
+A Mac app is not available yet. See [Mac](#mac) under Getting Started.
+
 ### Windows app (experimental)
 
 The same app builds as a Windows program, `Hushdock.exe`. It has been built and run on Windows 11 (Flutter 3.47.7, Visual Studio 2026): the release build needs no fixes, it opens on the clock, mouse swipes change the card, a click opens the settings dock, the layout follows the window from wide to portrait to small, weather loads, the Float clock runs without a tilt sensor, and Spotify sign-in works.
@@ -171,26 +173,16 @@ The same app builds as a Windows program, `Hushdock.exe`. It has been built and 
 | N | Night look on or off (until the night hours next start or end) |
 | F11 | Full screen |
 | Esc | Close settings, then leave full screen |
+| 0 – 9 | Type a time on the timer's number pad (Backspace takes one back, Enter is done) |
 | ? or F1 | Show these keys |
 
 Keys never fire while you are typing in a text field.
 
 **Battery:** the display stays light. The clock redraws only when its digits change, and nothing moves while the window is hidden or minimized. The weather backdrop waits for its card to finish sliding in, plays its rain, snow or clouds for 2 seconds, slows to a stop and then stays a still picture (it plays again for new weather or when you come back to the app). On a PC on mains power it plays at 30 frames a second instead of 20. When you change cards, each card is drawn once into a picture and the picture slides and fades, so even the frosted-glass, blurred-cover and weather cards change smoothly on a big screen. The weather's sky and clouds are kept as one picture while only the rain or snow moves. Album art and thumbnails are scaled smoothly, so they stay sharp on a big monitor.
 
-To measure how smooth card changes are on a PC: `flutter drive --profile -d windows --driver test_driver/perf_driver.dart --target integration_test/card_switch_perf_test.dart` (add `--dart-define=FULLSCREEN=true` for full screen). Frame times per card change land in `app/build/integration_response_data.json`.
+To build and install it, see [Windows PC](#windows-pc) under Getting Started.
 
-**Build it** (it must be built on Windows; Flutter cannot build a Windows app on a Mac):
-
-1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows/desktop) and Visual Studio 2022 or later with the **Desktop development with C++** workload and the **C++ ATL for latest build tools** component (the secure token storage needs it; without it the build stops on a missing `atlstr.h`). The Windows setup script does not install these. Check with `flutter doctor`.
-2. In the `app` folder run:
-   ```powershell
-   flutter pub get
-   flutter build windows --release
-   ```
-3. The program is in `app\build\windows\x64\runner\Release`: `Hushdock.exe` with its DLLs and the `data` folder. Keep them together. Zip the whole folder to share it, or wrap it in an installer with Inno Setup or MSIX.
-4. For Spotify, follow [Spotify (optional)](#6-spotify-optional). The PC uses the same redirect URI as the phones, `hushdock://spotify-callback`: sign-in opens in its own window, which catches that link itself.
-
-To try it without building a release: `flutter run -d windows`.
+**Spotify on a PC:** with nothing playing, **Play** starts music on this PC. If the Spotify desktop app is closed, Hushdock opens it, waits for it to appear as a Spotify device (the one named after your PC), plays there and comes back to the front. Without the Spotify app installed, the message offers **Get Spotify**.
 
 ### Android auto-start
 
@@ -207,19 +199,36 @@ When enabled, a small foreground service watches the charger. While charging, it
 | Android | Notification access (optional) | Reading what other apps are playing |
 | Android | Display over other apps, full-screen notifications, foreground service, boot completed, wake lock | Auto-start and keeping the tilt sensor alive while charging |
 | iPhone | None beyond location | |
+| Windows | Location services (Settings > Privacy & security > Location) | Local weather and your city name |
 
 Your location is used only to look up weather and a city name and is not stored anywhere but on your device.
 
 ## Getting Started
 
-### 1. Install what you need
+Hushdock is one Flutter app. You build it on your own computer and install it on the device you want to use as the display. Which computer can build for which device:
+
+| Device | Build it on | Guide |
+|---|---|---|
+| Android phone or tablet | a Mac or a Windows PC | [Android](#android) |
+| iPhone | a Mac (Apple's tools only run on a Mac) | [iPhone](#iphone) |
+| Windows PC | a Windows PC | [Windows PC](#windows-pc) |
+| Mac | not available yet | [Mac](#mac) |
+
+### 1. Get the code
+
+```bash
+git clone https://github.com/HardikKotangale/Hushdock.git
+cd Hushdock
+```
+
+### 2. Install the tools
 
 The full checklist with versions is in [requirements.txt](requirements.txt). Easiest is to let a script install whatever is missing:
 
-| Your computer | Run | Builds for |
+| Your computer | Run | Sets up |
 |---|---|---|
-| **Mac** | `./scripts/setup_mac.sh` | Android and iPhone |
-| **Windows** | `.\scripts\setup_windows.ps1` (in PowerShell) | Android, and the [Windows app](#windows-app-experimental) once Visual Studio is installed |
+| **Mac** | `./scripts/setup_mac.sh` | Flutter, JDK 17, Android Studio, CocoaPods: Android and iPhone |
+| **Windows** | `.\scripts\setup_windows.ps1` (in PowerShell) | Flutter, JDK 17, Android Studio: Android. For the Windows app, also install Visual Studio (see [Windows PC](#windows-pc)) |
 
 Add `--check` (Mac) or `-Check` (Windows) to only see what is missing without installing anything. Both scripts are safe to run again. They install Flutter, JDK 17 and Android Studio (plus CocoaPods on a Mac), set Flutter up to use JDK 17, accept the Android licenses, run `flutter pub get` and finish with `flutter doctor`.
 
@@ -227,51 +236,82 @@ Add `--check` (Mac) or `-Check` (Windows) to only see what is missing without in
 
 **Manual install, if you prefer**
 1. Install [Flutter](https://docs.flutter.dev/get-started/install) (3.41 or newer) and make sure `flutter` works in a new terminal.
-2. Install JDK 17 and tell Flutter to use it: `flutter config --jdk-dir <path to JDK 17>`.
-3. Install [Android Studio](https://developer.android.com/studio), open it once to finish its setup wizard, then run `flutter doctor --android-licenses` and answer `y`.
-4. Mac and iPhone only: install Xcode from the App Store, then `brew install cocoapods`.
-5. Run `flutter doctor` and fix anything it marks with a cross.
+2. For Android: install JDK 17 and tell Flutter to use it (`flutter config --jdk-dir <path to JDK 17>`), install [Android Studio](https://developer.android.com/studio), open it once to finish its setup wizard, then run `flutter doctor --android-licenses` and answer `y`.
+3. For iPhone (Mac only): install Xcode from the App Store, then `brew install cocoapods`.
+4. For the Windows app: Visual Studio, as in [Windows PC](#windows-pc).
+5. Run `flutter doctor` and fix anything it marks with a cross for the platforms you want.
 
-### 2. Get the code
-
-```bash
-git clone https://github.com/HardikKotangale/Hushdock.git
-cd Hushdock
-```
-
-### 3. Connect your phone
-
-- **Android:** Settings > About phone, tap *Build number* 7 times, then Settings > Developer options > turn on *USB debugging*. Plug the phone in and accept the prompt. `flutter devices` should list it.
-- **iPhone:** Settings > Privacy & Security > turn on *Developer Mode* and restart. Plug in the iPhone and tap *Trust*. Then open `app/ios/Runner.xcworkspace` in Xcode once, pick your Apple ID under *Signing & Capabilities > Team*, and close Xcode.
-
-An Android emulator from Android Studio also works.
-
-### 4. Run it
-
-```bash
-cd app
-flutter pub get
-flutter devices                       # find your phone's id
-flutter run                           # Android (add -d <id> if you have several devices)
-flutter run -d <iphone-id> --release  # iPhone
-```
-
-Always open `ios/Runner.xcworkspace`, never `Runner.xcodeproj`, or Xcode will say a plugin module was not found.
-
-### 5. First run on the phone
-
-- Allow **location** when asked (weather and your city name). You can say no; the clock still works.
-- Optional, Android only: Settings > All settings > **Auto-start** to open Hushdock when you dock the phone. A checklist there shows what still needs to be allowed.
-- Tap any panel to change clock style, colors and layout. Pinch with two fingers to switch between one and two panels.
-
-### 6. Spotify (optional)
+### 3. Spotify (optional, any platform)
 
 1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback`.
 2. Copy `app/assets/local/spotify.example.json` to `app/assets/local/spotify.json` and paste your Client ID. That file is git-ignored, so your Spotify app is never committed. (The setup scripts create the file for you.)
 3. Or pass it at build time: `flutter run --dart-define=SPOTIFY_CLIENT_ID=your_id`.
 4. In the app, open the music card's settings and tap **Connect Spotify**. Spotify Premium is needed to control playback.
 
-### 7. Tests
+Do this before you build: the Client ID is built into the app.
+
+**A different redirect URI.** If your Spotify app is registered with another redirect URI, set `SPOTIFY_REDIRECT_URI` in the same `spotify.json` (or `--dart-define=SPOTIFY_REDIRECT_URI=...`). Leave it empty for `hushdock://spotify-callback`, which is what most people want. On a PC any address works, because the sign-in window catches it itself; a web address (`https://...`) is matched by its host and path. On a phone it must keep the `hushdock:` scheme, since that is the link the app is registered to open.
+
+### 4. Install on your device
+
+#### Android
+
+Build on a Mac or a Windows PC.
+
+1. **Prepare the phone:** Settings > About phone, tap *Build number* 7 times, then Settings > Developer options > turn on *USB debugging*. Plug the phone in and accept the prompt. `flutter devices` should list it. (An emulator from Android Studio also works.)
+2. **Install it:**
+   ```bash
+   cd app
+   flutter pub get
+   flutter run --release            # builds, installs and opens it (-d <id> with several devices)
+   ```
+   Or build an APK to install by hand or share:
+   ```bash
+   flutter build apk --release      # app/build/app/outputs/flutter-apk/app-release.apk
+   adb install -r build/app/outputs/flutter-apk/app-release.apk
+   ```
+3. **First run:** allow **location** when asked (weather and your city name; the clock works without it). Optional: Settings > All settings > **Auto-start** to open Hushdock when you dock the phone; a checklist there shows what still needs to be allowed (see [Android auto-start](#android-auto-start)).
+
+Release builds are signed with the debug key for now, which is fine for your own phone.
+
+#### iPhone
+
+Build on a Mac.
+
+1. **Prepare the iPhone:** Settings > Privacy & Security > turn on *Developer Mode* and restart. Plug it in and tap *Trust*.
+2. **Signing (once):** open `app/ios/Runner.xcworkspace` in Xcode (always the `.xcworkspace`, never `Runner.xcodeproj`), pick your Apple ID under *Signing & Capabilities > Team*, and close Xcode.
+3. **Install it:**
+   ```bash
+   cd app
+   flutter pub get
+   flutter devices                        # find the iPhone's id
+   flutter run -d <iphone-id> --release
+   ```
+4. **First run:** allow **location** when asked. If the iPhone says the developer is not trusted: Settings > General > VPN & Device Management > trust your Apple ID.
+
+With a free Apple ID the app stops opening after 7 days; run it again from Xcode or `flutter run`. A paid developer account lasts a year.
+
+#### Windows PC
+
+Build on a Windows 10 or 11 PC (Flutter cannot build a Windows app on a Mac). Tested on Windows 11 with Flutter 3.47.7 and Visual Studio 2026.
+
+1. **Visual Studio:** install Visual Studio 2022 or later with the **Desktop development with C++** workload and the **C++ ATL for latest build tools** component (the secure Spotify token storage needs ATL; without it the build stops on a missing `atlstr.h`). The setup script does not install these. Check with `flutter doctor`.
+2. **Build it:**
+   ```powershell
+   cd app
+   flutter pub get
+   flutter build windows --release
+   ```
+3. **Install it:** the program is in `app\build\windows\x64\runner\Release`: `Hushdock.exe`, its DLLs and the `data` folder. Copy the whole folder anywhere (for example `C:\Program Files\Hushdock` or your Desktop) and run `Hushdock.exe`. Keep the files together. To share it, zip the folder or wrap it in an installer with Inno Setup or MSIX.
+4. **First run:** turn on Windows location services for the weather (Settings > Privacy & security > Location). Press **F11** for full screen and **?** for the keys. For Spotify, install the Spotify desktop app; **Play** then starts music on this PC (see [Windows app](#windows-app-experimental)).
+
+To try it without building a release: `flutter run -d windows`.
+
+#### Mac
+
+Not available yet: the project has no macOS target. All of Hushdock's plugins support macOS, so a Mac app is planned (the window, keyboard and Spotify work done for Windows carries over); it needs a Mac with Xcode to build. Until then, a Mac can build the Android and iPhone apps.
+
+### 5. Tests
 
 ```bash
 cd app
@@ -279,6 +319,8 @@ flutter test
 flutter analyze
 cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Windows: gradlew.bat)
 ```
+
+On a Windows PC you can also measure how smooth card changes are: `flutter drive --profile -d windows --driver test_driver/perf_driver.dart --target integration_test/card_switch_perf_test.dart` (add `--dart-define=FULLSCREEN=true` for full screen).
 
 ### Troubleshooting
 
@@ -292,16 +334,20 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 | iPhone app stops opening after 7 days | A free Apple ID expires after 7 days; run it from Xcode or `flutter run` again |
 | Spotify login opens but does not come back | The redirect URI in the Spotify dashboard must be exactly `hushdock://spotify-callback` |
 | Spotify says it needs a Client ID | Create `app/assets/local/spotify.json` as described above (or pass `--dart-define=SPOTIFY_CLIENT_ID=...`) |
+| Windows build stops on `atlstr.h` | Add the **C++ ATL for latest build tools** component in the Visual Studio Installer |
+| Windows: `Hushdock.exe` does not start after copying it | Copy the whole `Release` folder: the `.exe` needs its DLLs and the `data` folder next to it |
+| Windows: Play says Spotify is not installed | Install the Spotify desktop app (the message offers **Get Spotify**) |
 
 ## Project Layout
 
 - `app/lib/src/domain`: settings, themes, presets and the data shown on the cards.
-- `app/lib/src/core`: pinch gesture, night-mode policy, clock cadence and burn-in policy, and `motion/` (springs, press feedback, glass, the page indicator, the clock morph).
+- `app/lib/src/core`: pinch gesture, night-mode policy, clock cadence and burn-in policy, screen scaling, the PC power mode and keyboard capture, and `motion/` (springs, press feedback, glass, the page indicator, the clock morph).
 - `app/lib/src/features/standby`: the main screen and dashboard, `settings/` pages, `widgets/` (one file per clock style under `clock/`, weather, calendar, music and Summary cards, battery, keyboard).
 - `app/lib/src/services`: Spotify, weather, city search and the native bridge.
 - `app/android/.../standbypro`: auto-start service, posture (tilt) logic, media session bridge.
 - `app/ios/Runner`: small Swift bridge for keep-awake and brightness.
-- `app/windows`: the Windows runner (generated by Flutter; only the name and icon were changed).
+- `app/windows`: the Windows runner: Flutter's generated runner plus a small native bridge (keep-awake, full screen, opening links and Spotify, the PC's name, coming back to the front).
+- `app/test`: unit and widget tests. `app/integration_test` and `app/test_driver`: the card-switch frame-time benchmark.
 - `scripts`: one-command setup for macOS and Windows. `requirements.txt` lists everything the project needs.
 - `spec`: formal models (PlusCal, checked with the TLC model checker) of the posture detection and the auto-launch logic, with the bugs they found. See [spec/README.md](spec/README.md).
 - `docs`: screenshots and animations used in this README, and [ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -3,9 +3,13 @@
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
 
+#include <shellapi.h>
+
 #include <optional>
+#include <string>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "utils.h"
 
 namespace {
 
@@ -20,6 +24,56 @@ bool EnabledArgument(const flutter::MethodCall<flutter::EncodableValue>& call) {
     }
   }
   return false;
+}
+
+// A text argument of the call, "" when it is missing.
+std::string StringArgument(
+    const flutter::MethodCall<flutter::EncodableValue>& call,
+    const char* key) {
+  if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+    auto it = args->find(flutter::EncodableValue(key));
+    if (it != args->end()) {
+      if (const auto* value = std::get_if<std::string>(&it->second)) {
+        return *value;
+      }
+    }
+  }
+  return std::string();
+}
+
+std::wstring Utf16FromUtf8(const std::string& text) {
+  if (text.empty()) {
+    return std::wstring();
+  }
+  int length = MultiByteToWideChar(CP_UTF8, 0, text.data(),
+                                   static_cast<int>(text.size()), nullptr, 0);
+  std::wstring wide(length, L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
+                      wide.data(), length);
+  return wide;
+}
+
+// Opens [url] with whatever handles it: a web page in the browser, an app's
+// own link (spotify:) in that app. An app link whose scheme nothing has
+// registered fails here, instead of Windows asking which app to look for.
+bool OpenUrl(const std::string& url) {
+  const auto colon = url.find(':');
+  if (colon == std::string::npos || colon == 0) {
+    return false;
+  }
+  const std::wstring scheme = Utf16FromUtf8(url.substr(0, colon));
+  if (scheme != L"http" && scheme != L"https") {
+    HKEY key = nullptr;
+    if (RegOpenKeyExW(HKEY_CLASSES_ROOT, scheme.c_str(), 0, KEY_READ, &key) !=
+        ERROR_SUCCESS) {
+      return false;  // not installed
+    }
+    RegCloseKey(key);
+  }
+  const std::wstring target = Utf16FromUtf8(url);
+  const auto done = reinterpret_cast<INT_PTR>(ShellExecuteW(
+      nullptr, L"open", target.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+  return done > 32;
 }
 
 }  // namespace
@@ -77,13 +131,24 @@ void FlutterWindow::OnDestroy() {
   Win32Window::OnDestroy();
 }
 
-// The native side of the Dart StandbySystemService on a PC. Only keep-awake
-// and full screen; the Dart side treats every other call as missing.
+// The native side of the Dart StandbySystemService on a PC: keep-awake, full
+// screen, opening links and apps, the PC's name and coming back to the front.
+// The Dart side treats every other call as missing.
 void FlutterWindow::HandleSystemCall(
     const flutter::MethodCall<flutter::EncodableValue>& call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
   const std::string& method = call.method_name();
-  if (method == "setKeepAwake") {
+  if (method == "launchApp") {
+    result->Success(flutter::EncodableValue(OpenUrl(StringArgument(call, "url"))));
+  } else if (method == "deviceModel") {
+    // the PC's name: the Spotify desktop app shows up under it by default
+    wchar_t name[MAX_COMPUTERNAME_LENGTH + 1];
+    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
+    result->Success(flutter::EncodableValue(
+        GetComputerNameW(name, &size) ? Utf8FromUtf16(name) : std::string()));
+  } else if (method == "bringToFront") {
+    result->Success(flutter::EncodableValue(BringToFront()));
+  } else if (method == "setKeepAwake") {
     // keeps the display (and the PC) awake while the bedside display wants it
     EXECUTION_STATE flags = ES_CONTINUOUS;
     if (EnabledArgument(call)) {
@@ -96,6 +161,32 @@ void FlutterWindow::HandleSystemCall(
   } else {
     result->NotImplemented();
   }
+}
+
+// Over the other windows again (Spotify's comes up on top when it opens).
+// Windows lets only the app in front hand the front over, so for a moment
+// this window shares input with the one in front, which may do it.
+bool FlutterWindow::BringToFront() {
+  HWND hwnd = GetHandle();
+  if (!hwnd) {
+    return false;
+  }
+  if (IsIconic(hwnd)) {
+    ShowWindow(hwnd, SW_RESTORE);
+  }
+  const DWORD front =
+      GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
+  const DWORD mine = GetCurrentThreadId();
+  const bool attach = front != 0 && front != mine;
+  if (attach) {
+    AttachThreadInput(front, mine, TRUE);
+  }
+  BringWindowToTop(hwnd);
+  const bool done = SetForegroundWindow(hwnd) != 0;
+  if (attach) {
+    AttachThreadInput(front, mine, FALSE);
+  }
+  return done;
 }
 
 // Borderless over the whole monitor the window is on (taskbar included), and

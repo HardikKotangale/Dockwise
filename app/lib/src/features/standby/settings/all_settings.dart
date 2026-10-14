@@ -66,6 +66,12 @@ const keyboardShortcuts = <(String, List<KeyShortcut>)>[
         keys: ['S', 'or', 'Enter'],
         what: 'Open the settings for the first card; again to close them',
       ),
+      (
+        keys: ['0 – 9'],
+        what:
+            'Type a time on the timer\'s number pad (Backspace takes one '
+            'back, Enter is done)',
+      ),
     ],
   ),
   (

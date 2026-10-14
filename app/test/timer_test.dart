@@ -192,7 +192,7 @@ void main() {
       expect(c.settings.timerSeconds, 50); // 5:00 -> 0:50: edited, not cleared
       // a swipe on the time goes back
       await tester.fling(
-        find.text('Swipe up or down to go back'),
+        find.textContaining('Swipe up or down to go back'),
         const Offset(0, -200),
         1000,
       );

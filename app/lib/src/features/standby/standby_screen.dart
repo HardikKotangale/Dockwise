@@ -9,6 +9,7 @@ import 'package:flutter/services.dart'
 
 import '../../core/apple.dart';
 import '../../core/burn_in_protection.dart';
+import '../../core/key_capture.dart';
 import '../../core/night_mode_policy.dart';
 import '../../core/power_mode.dart';
 import '../../domain/standby_models.dart';
@@ -111,6 +112,12 @@ class _StandbyScreenState extends State<StandbyScreen> {
     final settings = _controller.settings;
     final dockOpen = _dockBuild != null;
     final key = event.logicalKey;
+    // the timer's number pad is typing: only Esc (close) and F11 stay ours
+    if (KeyCapture.active &&
+        key != LogicalKeyboardKey.escape &&
+        key != LogicalKeyboardKey.f11) {
+      return false;
+    }
     final handled = switch (key) {
       LogicalKeyboardKey.f11 when _windows => _do(_controller.toggleFullscreen),
       LogicalKeyboardKey.escape when dockOpen => _do(_dismissDock),

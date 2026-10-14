@@ -32,6 +32,9 @@ class FlutterWindow : public Win32Window {
   // Borderless over the whole monitor, or back to the window it was.
   bool SetFullscreen(bool enabled);
 
+  // Over the other windows again (after Spotify opens on top).
+  bool BringToFront();
+
   // The project to run.
   flutter::DartProject project_;
 

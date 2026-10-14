@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:battery_plus/battery_plus.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show MethodChannel, MissingPluginException, PlatformException;
@@ -296,10 +298,14 @@ class _LowBatteryPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Charge your phone',
+                Text(
+                  // a laptop is not a phone
+                  defaultTargetPlatform == TargetPlatform.android ||
+                          defaultTargetPlatform == TargetPlatform.iOS
+                      ? 'Charge your phone'
+                      : 'Charge your laptop',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 36,
                     fontWeight: FontWeight.w700,
