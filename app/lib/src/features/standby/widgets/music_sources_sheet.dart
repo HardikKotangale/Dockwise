@@ -324,7 +324,9 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
         ),
         const SizedBox(height: 8),
         if (!c.spotifyConfigured)
-          const Text('Build with --dart-define=SPOTIFY_CLIENT_ID=YOUR_ID.')
+          const Text(
+            'Put your Spotify Client ID in assets/local/spotify.json, or build with --dart-define=SPOTIFY_CLIENT_ID=YOUR_ID.',
+          )
         else if (!c.spotifyConnected)
           FilledButton(
             onPressed: _connect,

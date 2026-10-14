@@ -3,12 +3,12 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/standby_models.dart';
-import 'spotify_config.dart';
+import 'token_store.dart';
 
 class SpotifyDevice {
   const SpotifyDevice(
@@ -78,16 +78,16 @@ class SpotifyPlaylist {
 
 /// Spotify Web API (Spotify Connect) client. Controls whichever device is
 /// active, including a Mac. Playback control needs Premium.
-/// Build with: --dart-define=SPOTIFY_CLIENT_ID=YOUR_ID
 class SpotifyService {
-  SpotifyService({http.Client? client}) : _http = client ?? http.Client();
+  SpotifyService({http.Client? client, AssetBundle? assets, TokenStore? tokens})
+    : _http = client ?? http.Client(),
+      _assets = assets ?? rootBundle,
+      _tokens = tokens ?? TokenStore();
 
-  static const clientId = String.fromEnvironment(
-    'SPOTIFY_CLIENT_ID',
-    // your own ID lives in spotify_config.dart (git-ignored);
-    // --dart-define=SPOTIFY_CLIENT_ID=... overrides it
-    defaultValue: spotifyClientIdDefault,
-  );
+  /// Your Spotify app's Client ID (not a secret, but kept out of Git). From
+  /// `--dart-define=SPOTIFY_CLIENT_ID=...`, else from the optional, git-ignored
+  /// `assets/local/spotify.json`, else empty (Spotify then shows "not set up").
+  String clientId = const String.fromEnvironment('SPOTIFY_CLIENT_ID');
   static const _scheme = 'hushdock';
   // A PC cannot register a link scheme for the browser to come back to, so
   // there the browser returns to a small local server instead (Spotify allows
@@ -107,7 +107,8 @@ class SpotifyService {
   static const _api = 'https://api.spotify.com/v1';
 
   final http.Client _http;
-  SharedPreferences? _prefs;
+  final AssetBundle _assets;
+  final TokenStore _tokens;
   String? _access;
   String? _refresh;
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
@@ -119,12 +120,25 @@ class SpotifyService {
   String phoneName = '';
 
   bool get isConfigured => clientId.isNotEmpty;
+
+  /// The Client ID in assets/local/spotify.json, or '' when there is no such
+  /// file (a fresh clone) or it cannot be read.
+  Future<String> _localClientId() async {
+    try {
+      final json = jsonDecode(
+        await _assets.loadString('assets/local/spotify.json'),
+      );
+      return ((json as Map)['SPOTIFY_CLIENT_ID'] as String? ?? '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
   bool get isConnected => _refresh != null;
 
   Future<void> load() async {
-    _prefs = await SharedPreferences.getInstance();
-    // ponytail: tokens in shared_preferences; move to secure storage before release
-    _refresh = _prefs!.getString('spotify_refresh');
+    if (clientId.isEmpty) clientId = await _localClientId();
+    _refresh = await _tokens.read();
   }
 
   Future<bool> connect() async {
@@ -163,7 +177,7 @@ class SpotifyService {
 
   Future<void> disconnect() async {
     _access = _refresh = null;
-    await _prefs?.remove('spotify_refresh');
+    await _tokens.clear();
   }
 
   /// Null when nothing is playing on any device or the call failed.
@@ -634,7 +648,7 @@ class SpotifyService {
       Duration(seconds: (json['expires_in'] as num).toInt() - 30),
     );
     _refresh = json['refresh_token'] as String? ?? _refresh;
-    await _prefs?.setString('spotify_refresh', _refresh!);
+    await _tokens.write(_refresh!);
     return true;
   }
 

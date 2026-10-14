@@ -27,9 +27,10 @@ apple-id-for-signing      # free Apple ID is enough; free apps expire after 7 da
 # Android builds, tests and everything else work.
 # The Windows app (experimental) also needs, on a Windows PC:
 visual-studio>=2022       # with the "Desktop development with C++" workload
+                          # and "C++ ATL for latest build tools" (secure token storage)
 
 # ---------- optional ----------
 spotify-client-id         # https://developer.spotify.com/dashboard
                           # redirect URI: hushdock://spotify-callback
                           # (Windows app: http://127.0.0.1:43823/callback)
-                          # put it in app/lib/src/services/spotify_config.dart
+                          # put it in app/assets/local/spotify.json (git-ignored)

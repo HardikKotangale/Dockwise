@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show FlutterError;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -14,6 +16,12 @@ Map<String, dynamic> _track(String id) => {
   ],
   'album': {'images': []},
 };
+
+class _EmptyBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) =>
+      Future.error(FlutterError('no such asset: $key'));
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -125,4 +133,20 @@ void main() {
     expect(sent['uris'], ['spotify:track:1', 'spotify:track:2']);
     expect(sent['offset'], {'uri': 'spotify:track:2'});
   });
+
+  test(
+    'with no Client ID anywhere (a fresh clone) Spotify is just not set up',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      // an empty bundle: there is no assets/local/spotify.json to read
+      final service = SpotifyService(assets: _EmptyBundle());
+      await service.load();
+      expect(service.isConfigured, isFalse);
+      expect(service.isConnected, isFalse);
+      expect(
+        await service.connect(),
+        isFalse,
+      ); // refuses instead of opening a login
+    },
+  );
 }

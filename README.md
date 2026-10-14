@@ -158,7 +158,7 @@ The same app builds as a Windows program, `Hushdock.exe`. It has not been built 
 
 **Build it** (it must be built on Windows; Flutter cannot build a Windows app on a Mac):
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows/desktop) and Visual Studio 2022 with the **Desktop development with C++** workload (the Windows setup script does not install this). Check with `flutter doctor`.
+1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows/desktop) and Visual Studio 2022 with the **Desktop development with C++** workload and the **C++ ATL for latest build tools** component (the secure token storage needs it). The Windows setup script does not install these. Check with `flutter doctor`.
 2. In the `app` folder run:
    ```powershell
    flutter pub get
@@ -244,7 +244,7 @@ Always open `ios/Runner.xcworkspace`, never `Runner.xcodeproj`, or Xcode will sa
 ### 6. Spotify (optional)
 
 1. Create an app at <https://developer.spotify.com/dashboard> and add the redirect URI `hushdock://spotify-callback` (and `http://127.0.0.1:43823/callback` if you use the Windows app).
-2. Copy `app/lib/src/services/spotify_config.example.dart` to `app/lib/src/services/spotify_config.dart` and paste your Client ID. That file is git-ignored, so your Spotify app is never committed. (The setup scripts create the file for you.)
+2. Copy `app/assets/local/spotify.example.json` to `app/assets/local/spotify.json` and paste your Client ID. That file is git-ignored, so your Spotify app is never committed. (The setup scripts create the file for you.)
 3. Or pass it at build time: `flutter run --dart-define=SPOTIFY_CLIENT_ID=your_id`.
 4. In the app, open the music card's settings and tap **Connect Spotify**. Spotify Premium is needed to control playback.
 
@@ -268,7 +268,7 @@ cd android && ./gradlew :app:testDebugUnitTest   # tilt-detection unit tests (Wi
 | iPhone says the developer is not trusted | Settings > General > VPN & Device Management > trust your Apple ID |
 | iPhone app stops opening after 7 days | A free Apple ID expires after 7 days; run it from Xcode or `flutter run` again |
 | Spotify login opens but does not come back | The redirect URI in the Spotify dashboard must be exactly `hushdock://spotify-callback` |
-| Spotify says it needs a Client ID | Create `spotify_config.dart` as described above |
+| Spotify says it needs a Client ID | Create `app/assets/local/spotify.json` as described above (or pass `--dart-define=SPOTIFY_CLIENT_ID=...`) |
 
 ## Project Layout
 

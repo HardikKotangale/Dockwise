@@ -71,10 +71,10 @@ fi
 echo
 echo "Preparing the project ..."
 cd "$ROOT/app" && flutter pub get
-CFG="$ROOT/app/lib/src/services/spotify_config.dart"
+CFG="$ROOT/app/assets/local/spotify.json"
 if [ ! -f "$CFG" ]; then
-  cp "$ROOT/app/lib/src/services/spotify_config.example.dart" "$CFG"
-  echo "  created  app/lib/src/services/spotify_config.dart (add your Spotify Client ID there, optional)"
+  cp "$ROOT/app/assets/local/spotify.example.json" "$CFG"
+  echo "  created  app/assets/local/spotify.json (add your Spotify Client ID there, optional)"
 fi
 
 echo

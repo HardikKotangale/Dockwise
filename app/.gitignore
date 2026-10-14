@@ -56,5 +56,5 @@ build/
 .packages
 coverage/
 .DS_Store
-# your own Spotify app (see lib/src/services/spotify_config.example.dart)
-lib/src/services/spotify_config.dart
+# your own Spotify app (see assets/local/spotify.example.json)
+assets/local/spotify.json
