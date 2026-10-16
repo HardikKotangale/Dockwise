@@ -33,7 +33,7 @@ class AppDelegate: FlutterAppDelegate {
     let alert = NSAlert()
     alert.messageText = "Move Hushdock to the Applications folder?"
     alert.informativeText =
-      "Hushdock works best from Applications: it opens from Launchpad and Spotlight, and stays there when you empty Downloads."
+      "Hushdock works best from the Applications folder, where it opens from Launchpad and Spotlight."
     alert.addButton(withTitle: "Move to Applications")
     alert.addButton(withTitle: "Not Now")
     alert.showsSuppressionButton = true

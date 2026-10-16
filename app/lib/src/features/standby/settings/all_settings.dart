@@ -452,11 +452,26 @@ class AllSettings extends StatelessWidget {
           ),
           SettingsSection(
             title: 'Weather',
-            child: SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: settings.fahrenheit,
-              onChanged: (v) => set(settings.copyWith(fahrenheit: v)),
-              title: const Text('Temperature in °F'),
+            child: Column(
+              children: [
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: settings.fahrenheit,
+                  onChanged: (v) => set(settings.copyWith(fahrenheit: v)),
+                  title: const Text('Temperature in °F'),
+                ),
+                EnumPicker<int>(
+                  label: 'Refresh button',
+                  value: settings.weatherRefresh,
+                  values: const [0, 1, 2],
+                  display: (v) => switch (v) {
+                    0 => 'Off',
+                    2 => 'Always',
+                    _ => 'When touched',
+                  },
+                  onChanged: (v) => set(settings.copyWith(weatherRefresh: v)),
+                ),
+              ],
             ),
           ),
           _FocusOnOpen(

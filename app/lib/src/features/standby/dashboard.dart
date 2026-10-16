@@ -630,6 +630,8 @@ class Dashboard extends StatelessWidget {
     secondSnapshot: controller.secondWeather,
     secondFailed: controller.secondWeatherFailed,
     onCityTap: _chooseCity,
+    onRefresh: controller.refreshWeather,
+    refreshing: controller.weatherRefreshing,
   );
 
   Widget _card(BuildContext context, StandbyWidgetType type) {

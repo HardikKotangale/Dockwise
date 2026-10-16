@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
@@ -534,11 +537,17 @@ class WeatherCard extends StatefulWidget {
     this.secondSnapshot,
     this.secondFailed = false,
     this.onCityTap,
+    this.onRefresh,
+    this.refreshing = false,
   });
 
   final WeatherSnapshot? snapshot;
   final StandbySettings settings;
   final WeatherProblem? problem;
+
+  /// the small refresh button (shown unless turned off in settings)
+  final VoidCallback? onRefresh;
+  final bool refreshing;
 
   /// 0 now, 1 the same in Fahrenheit, 2 forecast, 3 second city
   final int page;
@@ -562,6 +571,32 @@ class WeatherCard extends StatefulWidget {
 
 class _WeatherCardState extends State<WeatherCard> {
   int _from = 0; // the page we came from, for the slide direction
+
+  // The refresh button comes into view when the pointer is over the card or it
+  // was touched a moment ago, and goes again, so it never sits on the text.
+  bool _near = false;
+  Timer? _hideRefresh;
+
+  void _showRefresh({Duration? forAWhile}) {
+    _hideRefresh?.cancel();
+    if (!_near) setState(() => _near = true);
+    if (forAWhile != null) {
+      _hideRefresh = Timer(forAWhile, () {
+        if (mounted) setState(() => _near = false);
+      });
+    }
+  }
+
+  void _leaveRefresh() {
+    _hideRefresh?.cancel();
+    if (_near) setState(() => _near = false);
+  }
+
+  @override
+  void dispose() {
+    _hideRefresh?.cancel();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(WeatherCard old) {
@@ -625,62 +660,121 @@ class _WeatherCardState extends State<WeatherCard> {
   Widget build(BuildContext context) {
     final still = MediaQuery.disableAnimationsOf(context);
     final forward = widget.page > _from || (_from == 3 && widget.page == 0);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // removing the second city while its page is shown: particles
-        DissolveSwitcher(
-          present: _hasSecondCity,
-          enabled: widget.page == 3,
-          fadeIn: false,
-          child: AnimatedSwitcher(
-            duration: still ? Duration.zero : Motion.medium,
-            switchInCurve: easeOutStrong,
-            switchOutCurve: easeOutStrong,
-            layoutBuilder: (current, previous) =>
-                Stack(fit: StackFit.expand, children: [...previous, ?current]),
-            // the next page rises into place from below (swiping up); going
-            // back it settles from above
-            transitionBuilder: (child, anim) {
-              final incoming = child.key == _page().key;
-              final dir = forward ? 1.0 : -1.0;
-              return AnimatedBuilder(
-                animation: anim,
-                builder: (context, c) {
-                  final gone = 1 - anim.value;
-                  return FractionalTranslation(
-                    translation: Offset(
-                      0,
-                      (incoming ? dir : -dir) * 0.12 * gone,
-                    ),
-                    child: Opacity(
-                      opacity: anim.value.clamp(0.0, 1.0),
-                      child: c,
-                    ),
+    return MouseRegion(
+      onEnter: (_) => _showRefresh(),
+      onHover: (_) => _showRefresh(),
+      onExit: (_) => _leaveRefresh(),
+      child: Listener(
+        // a touch shows the button for a few seconds (and passes through)
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (e) {
+          if (e.kind == PointerDeviceKind.touch) {
+            _showRefresh(forAWhile: const Duration(seconds: 3));
+          }
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // removing the second city while its page is shown: particles
+            DissolveSwitcher(
+              present: _hasSecondCity,
+              enabled: widget.page == 3,
+              fadeIn: false,
+              child: AnimatedSwitcher(
+                duration: still ? Duration.zero : Motion.medium,
+                switchInCurve: easeOutStrong,
+                switchOutCurve: easeOutStrong,
+                layoutBuilder: (current, previous) => Stack(
+                  fit: StackFit.expand,
+                  children: [...previous, ?current],
+                ),
+                // the next page rises into place from below (swiping up); going
+                // back it settles from above
+                transitionBuilder: (child, anim) {
+                  final incoming = child.key == _page().key;
+                  final dir = forward ? 1.0 : -1.0;
+                  return AnimatedBuilder(
+                    animation: anim,
+                    builder: (context, c) {
+                      final gone = 1 - anim.value;
+                      return FractionalTranslation(
+                        translation: Offset(
+                          0,
+                          (incoming ? dir : -dir) * 0.12 * gone,
+                        ),
+                        child: Opacity(
+                          opacity: anim.value.clamp(0.0, 1.0),
+                          child: c,
+                        ),
+                      );
+                    },
+                    child: child,
                   );
                 },
-                child: child,
-              );
-            },
-            child: _page(),
-          ),
-        ),
-        // dots and a name for the page, for a moment after each swipe
-        SwipeRail(
-          index: widget.page,
-          labels: [
-            'Now',
-            'Fahrenheit',
-            'Forecast',
-            // the city's own name once one is chosen
-            widget.settings.worldZone.isEmpty
-                ? 'Second city'
-                : (widget.settings.worldCity.isNotEmpty
-                      ? widget.settings.worldCity
-                      : zoneLabel(widget.settings.worldZone)),
+                child: _page(),
+              ),
+            ),
+            if (widget.onRefresh != null && widget.settings.weatherRefresh > 0)
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    final shown =
+                        widget.settings.weatherRefresh == 2 ||
+                        _near ||
+                        widget.refreshing;
+                    return Align(
+                      alignment: Alignment.bottomRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: IgnorePointer(
+                          ignoring: !shown,
+                          child: AnimatedOpacity(
+                            opacity: shown ? 1 : 0,
+                            duration: still ? Duration.zero : Motion.quick,
+                            curve: easeOutStrong,
+                            child: WeatherRefreshButton(
+                              onPressed: () {
+                                widget.onRefresh!();
+                                _showRefresh(
+                                  forAWhile: const Duration(seconds: 3),
+                                );
+                              },
+                              refreshing: widget.refreshing,
+                              updatedAt:
+                                  (widget.page == 3
+                                          ? widget.secondSnapshot
+                                          : widget.snapshot)
+                                      ?.updatedAt,
+                              // smaller on a small tile
+                              size: box.maxWidth < 220 || box.maxHeight < 160
+                                  ? 28
+                                  : 36,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            // dots and a name for the page, for a moment after each swipe
+            SwipeRail(
+              index: widget.page,
+              labels: [
+                'Now',
+                'Fahrenheit',
+                'Forecast',
+                // the city's own name once one is chosen
+                widget.settings.worldZone.isEmpty
+                    ? 'Second city'
+                    : (widget.settings.worldCity.isNotEmpty
+                          ? widget.settings.worldCity
+                          : zoneLabel(widget.settings.worldZone)),
+              ],
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -1021,6 +1115,120 @@ class _AddCityView extends StatelessWidget {
                   style: TextStyle(color: Colors.white54, fontSize: 15),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small round button of soft glass that fetches the weather again: a faint
+/// white disc over a light blur, one arrow, and "Updated 4 min ago" as its
+/// tooltip. The arrow turns once when you press it and keeps turning while the
+/// weather is on its way. (The card only shows it near the pointer or after a
+/// touch, or always, as chosen in settings.)
+class WeatherRefreshButton extends StatefulWidget {
+  const WeatherRefreshButton({
+    super.key,
+    required this.onPressed,
+    this.refreshing = false,
+    this.updatedAt,
+    this.size = 34,
+  });
+
+  final VoidCallback onPressed;
+  final bool refreshing;
+  final DateTime? updatedAt;
+  final double size;
+
+  /// "Updated just now", "Updated 4 min ago", "Updated 2 h ago".
+  static String ageText(DateTime updatedAt, DateTime now) {
+    final d = now.difference(updatedAt);
+    if (d.inMinutes < 1) return 'Updated just now';
+    if (d.inMinutes < 60) return 'Updated ${d.inMinutes} min ago';
+    if (d.inHours < 24) return 'Updated ${d.inHours} h ago';
+    return 'Updated ${d.inDays} d ago';
+  }
+
+  @override
+  State<WeatherRefreshButton> createState() => _WeatherRefreshButtonState();
+}
+
+class _WeatherRefreshButtonState extends State<WeatherRefreshButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _turn = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  );
+
+  @override
+  void didUpdateWidget(WeatherRefreshButton old) {
+    super.didUpdateWidget(old);
+    // keep turning while the weather is on its way, then finish the turn
+    if (widget.refreshing && !_turn.isAnimating && !_still) {
+      _turn.repeat();
+    } else if (!widget.refreshing && old.refreshing) {
+      _turn.animateTo(1, curve: Curves.easeOutCubic).whenComplete(() {
+        if (mounted) _turn.value = 0;
+      });
+    }
+  }
+
+  bool get _still => MediaQuery.disableAnimationsOf(context);
+
+  @override
+  void dispose() {
+    _turn.dispose();
+    super.dispose();
+  }
+
+  void _press() {
+    tick();
+    if (!_still && !_turn.isAnimating) _turn.forward(from: 0);
+    widget.onPressed();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final at = widget.updatedAt;
+    return Semantics(
+      button: true,
+      label: 'Refresh weather',
+      child: Tooltip(
+        message: at == null
+            ? 'Refresh weather'
+            : WeatherRefreshButton.ageText(at, DateTime.now()),
+        waitDuration: const Duration(milliseconds: 600),
+        child: Pressable(
+          scale: 0.9,
+          round: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _press,
+            child: ClipOval(
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: RotationTransition(
+                    turns: _turn,
+                    child: Icon(
+                      Icons.refresh_rounded,
+                      size: widget.size * 0.52,
+                      color: Colors.white.withValues(alpha: 0.95),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

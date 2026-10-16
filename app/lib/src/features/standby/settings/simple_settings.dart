@@ -79,6 +79,18 @@ class WeatherSettings extends StatelessWidget {
               controller.updateSettings(settings.copyWith(fahrenheit: v)),
           title: const Text('Temperature in °F'),
         ),
+        EnumPicker<int>(
+          label: 'Refresh button',
+          value: settings.weatherRefresh,
+          values: const [0, 1, 2],
+          display: (v) => switch (v) {
+            0 => 'Off',
+            2 => 'Always',
+            _ => 'When touched',
+          },
+          onChanged: (v) =>
+              controller.updateSettings(settings.copyWith(weatherRefresh: v)),
+        ),
         if (onCity != null)
           CityRow(
             settings: settings,

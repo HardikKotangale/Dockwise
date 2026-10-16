@@ -42,7 +42,7 @@ The flip clock gives every digit its own hinged card, and AM / PM is a small car
 
 ### Weather and calendar
 
-- **Weather:** animated scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location. Swipe up and down for four pages: now, Fahrenheit, the forecast, and a second city.
+- **Weather:** animated scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location. Swipe up and down for four pages: now, Fahrenheit, the forecast, and a second city. It shows rain that is falling now even when the forecast model says cloudy, and refreshes every 15 minutes. A small glass **refresh** button (bottom-right) fetches it again: it appears when the pointer is over the card or after a touch, and can be set to Off or Always in Settings > Weather.
 - **Calendar:** today or the whole month (swipe up or down). The text scales with the panel in portrait and landscape, and the days land one after another when it appears.
 
 Turn the phone and the calendar, the weather and the timer glide their parts from the portrait arrangement to the landscape one instead of swapping.

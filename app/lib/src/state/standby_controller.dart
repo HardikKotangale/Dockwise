@@ -179,9 +179,14 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // Battery: fetch only while a weather card is visible, then every 30 min.
+  /// true while the weather is being fetched (the card's refresh button spins)
+  bool weatherRefreshing = false;
+
   Future<void> refreshWeather() async {
     _weatherTimer?.cancel();
     if (_weatherOnScreen && appVisible) {
+      weatherRefreshing = true;
+      notifyListeners();
       try {
         final weather = await _weatherService.fetchForPhone();
         snapshots = IntegrationSnapshotBundle(
@@ -202,6 +207,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         weatherIsLive = false;
         weatherProblem = WeatherProblem.offline;
       }
+      weatherRefreshing = false;
       notifyListeners();
       if (weatherPage == secondCityPage &&
           _showing(StandbyWidgetType.weather)) {

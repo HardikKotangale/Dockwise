@@ -479,6 +479,7 @@ class StandbySettings {
     this.autoLandscapeOnly = true,
     this.autoExitOnUnplug = true,
     this.fahrenheit = false,
+    this.weatherRefresh = 1,
     this.fullscreen = false,
     this.brightness = 0.72,
     this.nightTintIntensity = 0.65,
@@ -586,6 +587,10 @@ class StandbySettings {
   final bool autoExitOnUnplug;
   final String worldCity; // display name of the chosen world-clock city
   final bool fahrenheit;
+
+  /// the small refresh button on every weather card: 0 off, 1 when the card
+  /// is touched or the pointer is over it, 2 always
+  final int weatherRefresh;
 
   /// Windows: borderless, over the whole monitor (F11). Ignored elsewhere.
   final bool fullscreen;
@@ -710,6 +715,7 @@ class StandbySettings {
     bool? autoLandscapeOnly,
     bool? autoExitOnUnplug,
     bool? fahrenheit,
+    int? weatherRefresh,
     bool? fullscreen,
     double? brightness,
     double? nightTintIntensity,
@@ -774,6 +780,7 @@ class StandbySettings {
       autoLandscapeOnly: autoLandscapeOnly ?? this.autoLandscapeOnly,
       autoExitOnUnplug: autoExitOnUnplug ?? this.autoExitOnUnplug,
       fahrenheit: fahrenheit ?? this.fahrenheit,
+      weatherRefresh: weatherRefresh ?? this.weatherRefresh,
       fullscreen: fullscreen ?? this.fullscreen,
       brightness: brightness ?? this.brightness,
       nightTintIntensity: nightTintIntensity ?? this.nightTintIntensity,
@@ -840,6 +847,7 @@ class StandbySettings {
       'autoLandscapeOnly': autoLandscapeOnly,
       'autoExitOnUnplug': autoExitOnUnplug,
       'fahrenheit': fahrenheit,
+      'weatherRefresh': weatherRefresh,
       'fullscreen': fullscreen,
       'brightness': brightness,
       'nightTintIntensity': nightTintIntensity,
@@ -943,6 +951,9 @@ class StandbySettings {
       summaryHours: ((json['summaryHours'] as num?)?.toInt() ?? 0).clamp(0, 2),
       timerFigureColor: (json['timerFigureColor'] as num?)?.toInt() ?? 0,
       fahrenheit: json['fahrenheit'] as bool? ?? defaults.fahrenheit,
+      weatherRefresh:
+          ((json['weatherRefresh'] as num?)?.toInt() ?? defaults.weatherRefresh)
+              .clamp(0, 2),
       fullscreen: json['fullscreen'] as bool? ?? defaults.fullscreen,
       brightness:
           (json['brightness'] as num?)?.toDouble() ?? defaults.brightness,
@@ -1016,6 +1027,7 @@ class StandbySettings {
         other.autoLandscapeOnly == autoLandscapeOnly &&
         other.autoExitOnUnplug == autoExitOnUnplug &&
         other.fahrenheit == fahrenheit &&
+        other.weatherRefresh == weatherRefresh &&
         other.fullscreen == fullscreen &&
         _sameDouble(other.brightness, brightness) &&
         _sameDouble(other.nightTintIntensity, nightTintIntensity) &&
@@ -1053,6 +1065,7 @@ class StandbySettings {
     musicSource,
     worldCity,
     fahrenheit,
+    weatherRefresh,
     fullscreen,
     brightness,
     nightTintIntensity,
