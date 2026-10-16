@@ -932,6 +932,7 @@ class _ClockTileState extends State<_ClockTile> {
           key: const ValueKey('frame'),
           child: FrameClockFace(
             time: widget.when,
+            snug: true,
             settings: _tileSettings(ClockStyle.frame),
           ),
         );
@@ -940,7 +941,8 @@ class _ClockTileState extends State<_ClockTile> {
           key: const ValueKey('flip'),
           child: Center(
             child: FittedBox(
-              fit: BoxFit.scaleDown,
+              // grows to fill the tile, as well as shrinking to fit it
+              fit: BoxFit.contain,
               child: FlipClockFace(
                 time: widget.when,
                 settings: _tileSettings(ClockStyle.flip),
@@ -987,142 +989,171 @@ class _ClockTileState extends State<_ClockTile> {
         builder: (context, c) {
           final u = math.min(c.maxWidth, c.maxHeight);
           final cap = (u * 0.13).clamp(12.0, 17.0);
+          // a narrow tile (a phone, a small window): the pill is short and
+          // stays top right, and the date gets the whole width under both
+          final phonePill = c.maxWidth < 300 && c.maxWidth <= c.maxHeight * 1.7;
+          // very narrow: the sun / moon goes, so the city name keeps its room
+          final icon =
+              widget.daytime != null && !(phonePill && c.maxWidth < 230);
+          // the date there, under the city: 17 Oct · Thu
+          final dateLine = Padding(
+            padding: EdgeInsets.only(left: icon ? cap + 8 : 0, top: 1),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${when.day} ${_months[when.month - 1]} · '
+                '${_days[when.weekday - 1]}',
+                maxLines: 1,
+                style: _caption(phonePill ? cap : cap - 2, Colors.white54),
+              ),
+            ),
+          );
+          Widget pill() => ConstrainedBox(
+            // never more than half the tile: a narrow one cuts it short
+            constraints: BoxConstraints(maxWidth: c.maxWidth * 0.6),
+            child: Container(
+              margin: EdgeInsets.only(left: phonePill ? 4 : 8),
+              padding: EdgeInsets.symmetric(
+                horizontal: phonePill ? 7 : 9,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              // shrinks to fit, so it is never cut short
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  phonePill ? widget.note!.split(' · ').first : widget.note!,
+                  maxLines: 1,
+                  style: _caption(
+                    phonePill
+                        ? (u * 0.06).clamp(10.5, 13.0)
+                        : (u * 0.11).clamp(11.0, 15.0),
+                    Colors.white70,
+                  ),
+                ),
+              ),
+            ),
+          );
+          // a wide, short tile (a small window): the time takes the right half
+          final wideShort = c.maxWidth > c.maxHeight * 1.7;
+          final cityRow = Row(
+            children: [
+              if (icon) ...[
+                Icon(
+                  widget.daytime!
+                      ? Icons.wb_sunny_rounded
+                      : Icons.nightlight_round,
+                  size: cap + 2,
+                  color: widget.ink == null
+                      ? Colors.white54
+                      : _bright(widget.ink!).withValues(alpha: 0.9),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _caption(cap, Colors.white70),
+                ),
+              ),
+            ],
+          );
+          final faceSwitcher = AnimatedSwitcher(
+            duration: still ? Duration.zero : Motion.medium,
+            switchInCurve: easeOutStrong,
+            switchOutCurve: easeOutStrong,
+            layoutBuilder: (current, previous) =>
+                Stack(fit: StackFit.expand, children: [...previous, ?current]),
+            // the next look rises into place from below (swiping
+            // up); going back it settles from above
+            transitionBuilder: (child, anim) {
+              final incoming =
+                  child.key != null &&
+                  child.key == _face(style, c.maxWidth, c.maxHeight).key;
+              final dir = forward ? 1.0 : -1.0;
+              return AnimatedBuilder(
+                animation: anim,
+                builder: (context, ch) {
+                  final gone = 1 - anim.value;
+                  return FractionalTranslation(
+                    translation: Offset(
+                      0,
+                      (incoming ? dir : -dir) * 0.12 * gone,
+                    ),
+                    child: Opacity(
+                      opacity: anim.value.clamp(0.0, 1.0),
+                      child: ch,
+                    ),
+                  );
+                },
+                child: child,
+              );
+            },
+            child: _face(style, c.maxWidth, c.maxHeight),
+          );
           return Stack(
             fit: StackFit.expand,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                if (widget.daytime != null) ...[
-                                  Icon(
-                                    widget.daytime!
-                                        ? Icons.wb_sunny_rounded
-                                        : Icons.nightlight_round,
-                                    size: cap + 2,
-                                    color: widget.ink == null
-                                        ? Colors.white54
-                                        : _bright(
-                                            widget.ink!,
-                                          ).withValues(alpha: 0.9),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                Expanded(
-                                  child: Text(
-                                    widget.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: _caption(cap, Colors.white70),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // the date there, under the city: 17 Oct · Thu
+              if (wideShort)
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          cityRow,
+                          dateLine,
+                          if (widget.note != null)
                             Padding(
-                              padding: EdgeInsets.only(
-                                left: widget.daytime != null ? cap + 8 : 0,
-                                top: 1,
-                              ),
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  '${when.day} ${_months[when.month - 1]} · '
-                                  '${_days[when.weekday - 1]}',
-                                  maxLines: 1,
-                                  style: _caption(cap - 2, Colors.white54),
-                                ),
-                              ),
+                              padding: const EdgeInsets.only(top: 6),
+                              child: pill(),
                             ),
-                          ],
-                        ),
-                      ),
-                      // how far ahead or behind, up here so the time can be large
-                      if (widget.note != null)
-                        ConstrainedBox(
-                          // never more than half the tile: a narrow one cuts it short
-                          constraints: BoxConstraints(
-                            maxWidth: c.maxWidth * 0.6,
-                          ),
-                          child: Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            // shrinks to fit, so it is never cut short
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                widget.note!,
-                                maxLines: 1,
-                                style: _caption(
-                                  (u * 0.11).clamp(11.0, 15.0),
-                                  Colors.white70,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: AnimatedSwitcher(
-                        duration: still ? Duration.zero : Motion.medium,
-                        switchInCurve: easeOutStrong,
-                        switchOutCurve: easeOutStrong,
-                        layoutBuilder: (current, previous) => Stack(
-                          fit: StackFit.expand,
-                          children: [...previous, ?current],
-                        ),
-                        // the next look rises into place from below (swiping
-                        // up); going back it settles from above
-                        transitionBuilder: (child, anim) {
-                          final incoming =
-                              child.key != null &&
-                              child.key ==
-                                  _face(style, c.maxWidth, c.maxHeight).key;
-                          final dir = forward ? 1.0 : -1.0;
-                          return AnimatedBuilder(
-                            animation: anim,
-                            builder: (context, ch) {
-                              final gone = 1 - anim.value;
-                              return FractionalTranslation(
-                                translation: Offset(
-                                  0,
-                                  (incoming ? dir : -dir) * 0.12 * gone,
-                                ),
-                                child: Opacity(
-                                  opacity: anim.value.clamp(0.0, 1.0),
-                                  child: ch,
-                                ),
-                              );
-                            },
-                            child: child,
-                          );
-                        },
-                        child: _face(style, c.maxWidth, c.maxHeight),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    Expanded(flex: 6, child: faceSwitcher),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [cityRow, if (!phonePill) dateLine],
+                              ),
+                            ),
+                            // how far ahead or behind, up here so the time can be large
+                            if (widget.note != null) pill(),
+                          ],
+                        ),
+                        if (phonePill) dateLine,
+                      ],
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: faceSwitcher,
+                      ),
+                    ),
+                  ],
+                ),
               // the dots and the look's name, for a moment after each swipe
               SwipeRail(index: style.index, labels: _names),
             ],
@@ -1144,7 +1175,13 @@ class _ThereTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final zone = settings.worldZone;
-    return DissolveSwitcher(present: zone.isNotEmpty, child: _content(zone));
+    // no cross-fade of its own: the particles are a picture of the new tile
+    // alone (a fade would put the old "Tap to add" text into that picture)
+    return DissolveSwitcher(
+      present: zone.isNotEmpty,
+      fadeIn: false,
+      child: _content(zone),
+    );
   }
 
   Widget _content(String zone) {

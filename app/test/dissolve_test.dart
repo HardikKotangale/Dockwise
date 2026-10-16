@@ -54,4 +54,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Nagpur'), findsOneWidget);
   });
+
+  testWidgets('while it dissolves the new content keeps the cell size', (
+    tester,
+  ) async {
+    Widget cell(bool present) => MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 500,
+            child: DissolveSwitcher(
+              present: present,
+              child: Container(key: ValueKey(present), child: const Text('x')),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(cell(true));
+    await tester.pumpWidget(cell(false));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      tester
+          .getSize(
+            find.descendant(
+              of: find.byType(DissolveSwitcher),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .height,
+      500,
+    );
+  });
 }

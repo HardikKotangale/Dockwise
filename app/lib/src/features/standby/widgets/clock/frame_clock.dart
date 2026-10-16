@@ -15,11 +15,15 @@ class FrameClockFace extends StatelessWidget {
     required this.time,
     required this.settings,
     this.onPartTap,
+    this.snug = false,
   });
 
   final DateTime time;
   final StandbySettings settings;
   final PartTap? onPartTap;
+
+  /// a small tile: ticks hug the edge, so the time gets more of the room
+  final bool snug;
 
   // Used when the face is given no size (e.g. a tiny preview): a square.
   static const _fallback = 300.0;
@@ -37,7 +41,7 @@ class FrameClockFace extends StatelessWidget {
         // ticks, corners and margins grow with the panel's shorter side
         final unit = (math.min(w, h) / 300).clamp(0.2, 4.0);
         final tick = frameTickSize(settings.tickScale);
-        final margin = tick.length * unit + 34 * unit;
+        final margin = tick.length * unit + (snug ? 14 : 34) * unit;
         // a wide panel (landscape, one panel) puts AM/PM on the right
         final ratio = (w - 2 * margin) / (h - 2 * margin);
         final wide = ratio > 1.25;

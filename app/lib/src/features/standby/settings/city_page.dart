@@ -141,15 +141,20 @@ class _CityPageState extends State<CityPage> {
 
   void _pick(CityResult r) {
     final c = widget.controller;
-    c.updateSettings(
-      c.settings.copyWith(
-        worldZone: r.timezone,
-        worldCity: r.name,
-        worldLat: r.latitude ?? 0,
-        worldLon: r.longitude ?? 0,
-      ),
-    );
+    // The settings close first, and the city is set once the panel is back at
+    // full size, so the second city's tile forms on the full screen, not beside
+    // the open settings.
     widget.onDone();
+    Future<void>.delayed(const Duration(milliseconds: 450), () {
+      c.updateSettings(
+        c.settings.copyWith(
+          worldZone: r.timezone,
+          worldCity: r.name,
+          worldLat: r.latitude ?? 0,
+          worldLon: r.longitude ?? 0,
+        ),
+      );
+    });
   }
 
   @override

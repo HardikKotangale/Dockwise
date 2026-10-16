@@ -64,7 +64,7 @@ class _DissolveSwitcherState extends State<DissolveSwitcher>
       // pictured; then its particles gather into it
       _assembling = true;
       _captured = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _gather());
+      _waitThenGather(null, 0, 0);
       return;
     }
     if (!(old.present && !widget.present)) return;
@@ -88,6 +88,31 @@ class _DissolveSwitcherState extends State<DissolveSwitcher>
     } catch (_) {
       _particles = null; // nothing to picture: just change
     }
+  }
+
+  // The particles start once the tile has stopped moving and changing size
+  // (a sheet may still be closing, the panel gliding into its new layout), so
+  // they gather where it ends up, not where it was.
+  void _waitThenGather(Rect? last, int still, int tries) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_assembling) return;
+      final box = _boundary.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) {
+        _gather();
+        return;
+      }
+      final now = box.localToGlobal(Offset.zero) & box.size;
+      final settled = now == last ? still + 1 : 0;
+      // still for a moment, and not before a sheet has had time to start
+      // moving (about a fifth of a second)
+      if ((settled >= 6 && tries >= 14) || tries >= 90) {
+        _gather();
+        return;
+      }
+      _waitThenGather(now, settled, tries + 1);
+      WidgetsBinding.instance.scheduleFrame();
+    });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   void _gather() {
@@ -147,6 +172,8 @@ class _DissolveSwitcherState extends State<DissolveSwitcher>
     final p = _particles;
     if (p == null) return content;
     return Stack(
+      // the tile keeps the size its place gives it, as it did without the stack
+      fit: StackFit.passthrough,
       clipBehavior: Clip.none,
       alignment: Alignment.topCenter,
       children: [

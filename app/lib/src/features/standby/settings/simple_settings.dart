@@ -700,6 +700,45 @@ class SummaryClocksBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // the two tiles, large and live: every choice below shows up here
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: Row(
+            children: [
+              for (final second in [false, true]) ...[
+                if (second) const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 1.35,
+                        child: SummaryClockPreview(
+                          settings: settings,
+                          style: second
+                              ? settings.thereStyle
+                              : settings.summaryClockStyle,
+                          second: second,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          second ? 'Second city' : 'Here',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
         SettingsSection(
           title: 'Style',
           scope: 'Summary',
