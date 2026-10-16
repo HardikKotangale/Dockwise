@@ -17,6 +17,7 @@ class CalendarAgenda extends StatelessWidget {
     required this.meetings,
     required this.showTitles,
     this.onConnect,
+    this.onEdge,
     this.compact = false,
   });
 
@@ -26,6 +27,9 @@ class CalendarAgenda extends StatelessWidget {
   final List<Meeting> meetings;
   final bool showTitles;
   final VoidCallback? onConnect;
+
+  /// the list was pulled past its first or last meeting: the next tab
+  final VoidCallback? onEdge;
 
   /// a small tile: only the next few meetings, no heading
   final bool compact;
@@ -128,7 +132,6 @@ class CalendarAgenda extends StatelessWidget {
 
   Widget _list(BoxConstraints c, double unit, double pad) {
     final u = unit.clamp(0.8, 1.5);
-    final room = c.maxHeight - 2 * pad;
     final upcoming = [
       for (final m in meetings)
         if (m.end.isAfter(now)) m,
@@ -144,15 +147,7 @@ class CalendarAgenda extends StatelessWidget {
     final headH = 38.0 * u;
     final bannerH = (compact ? 30.0 : 36.0) * u;
     final rowH = (compact ? 50.0 : 66.0) * u;
-    final gap = 6.0 * u;
     final shown = <Widget>[];
-    var used = 0.0;
-    bool fits(double h) => used + h <= room + 0.5;
-    void add(Widget w, double h) {
-      shown.add(SizedBox(height: h, child: w));
-      used += h;
-    }
-
     var first = true;
     for (final e in days.entries) {
       final allDay = [
@@ -163,24 +158,28 @@ class CalendarAgenda extends StatelessWidget {
         for (final m in e.value)
           if (!m.allDay) m,
       ];
-      // a heading only goes in with something under it
-      final firstH = allDay.isNotEmpty ? bannerH : rowH;
-      if (!fits(headH + firstH + (first ? 0 : gap))) break;
-      if (!first) add(const SizedBox.shrink(), gap * 2);
+      if (!first) shown.add(SizedBox(height: 12 * u));
       first = false;
-      add(_heading(e.key, e.value.first.start, u), headH);
-      for (var i = 0; i < allDay.length; i++) {
-        if (!fits(bannerH + gap)) break;
-        add(_banner(allDay[i], bannerH, u), bannerH + gap);
+      shown.add(
+        SizedBox(height: headH, child: _heading(e.key, e.value.first.start, u)),
+      );
+      for (final m in allDay) {
+        shown.add(
+          SizedBox(height: bannerH + 6 * u, child: _banner(m, bannerH, u)),
+        );
       }
       for (final m in timed) {
-        if (!fits(rowH)) break;
-        add(_row(m, rowH, u), rowH);
+        shown.add(SizedBox(height: rowH, child: _row(m, rowH, u)));
       }
     }
-    return ClipRect(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    // As many days as there are room for show at once; a month's worth is
+    // there to scroll. While it all fits the list takes no drags, so a swipe
+    // still changes the tab; when it scrolls, a swipe past either end does.
+    return _EdgeSwipe(
+      onEdge: onEdge,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        physics: const ClampingScrollPhysics(),
         children: shown,
       ),
     );
@@ -365,4 +364,35 @@ class CalendarAgenda extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Calls [onEdge] when a scrolling list is pulled past either end (once per
+/// flick), so a swipe can still change the tab after the list has run out.
+class _EdgeSwipe extends StatefulWidget {
+  const _EdgeSwipe({required this.child, this.onEdge});
+
+  final Widget child;
+  final VoidCallback? onEdge;
+
+  @override
+  State<_EdgeSwipe> createState() => _EdgeSwipeState();
+}
+
+class _EdgeSwipeState extends State<_EdgeSwipe> {
+  DateTime _last = DateTime(0);
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<OverscrollNotification>(
+        onNotification: (n) {
+          final now = DateTime.now();
+          if (n.overscroll.abs() > 4 &&
+              now.difference(_last) > const Duration(milliseconds: 900)) {
+            _last = now;
+            widget.onEdge?.call();
+          }
+          return false;
+        },
+        child: widget.child,
+      );
 }

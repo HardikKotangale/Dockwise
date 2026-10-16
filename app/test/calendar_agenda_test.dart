@@ -136,6 +136,85 @@ void main() {
     expect(find.text('Design review'), findsOneWidget);
   });
 
+  testWidgets('a month of meetings scrolls; pulling past the end changes tab', (
+    t,
+  ) async {
+    var edges = 0;
+    final many = [
+      for (var i = 0; i < 40; i++)
+        Meeting(
+          title: 'Meeting $i',
+          start: DateTime(
+            2026,
+            10,
+            16,
+            10,
+          ).add(Duration(days: i ~/ 3, hours: i % 3)),
+          end: DateTime(
+            2026,
+            10,
+            16,
+            11,
+          ).add(Duration(days: i ~/ 3, hours: i % 3)),
+          allDay: false,
+        ),
+    ];
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            height: 600,
+            child: CalendarAgenda(
+              now: _now,
+              accent: Colors.red,
+              access: CalendarAccess.granted,
+              meetings: many,
+              showTitles: true,
+              onEdge: () => edges++,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Meeting 0'), findsOneWidget);
+    expect(find.text('Meeting 39'), findsNothing); // below the fold
+    for (var i = 0; i < 12; i++) {
+      await t.drag(find.byType(ListView), const Offset(0, -900));
+      await t.pump();
+    }
+    expect(find.text('Meeting 39'), findsOneWidget); // reached by scrolling
+    expect(edges, greaterThanOrEqualTo(1)); // pulled past the end
+    await t.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('a short list takes no drags, so a swipe is left to the panel', (
+    t,
+  ) async {
+    var edges = 0;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            height: 600,
+            child: CalendarAgenda(
+              now: _now,
+              accent: Colors.red,
+              access: CalendarAccess.granted,
+              meetings: _list,
+              showTitles: true,
+              onEdge: () => edges++,
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.drag(find.byType(ListView), const Offset(0, -300));
+    await t.pump();
+    expect(edges, 0);
+  });
+
   test('the swipe goes Today, Month, Meetings, Today', () async {
     final c = StandbyController(
       initialSettings: const StandbySettings(),

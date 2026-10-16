@@ -35,7 +35,11 @@ class CalendarCard extends StatelessWidget {
     this.access = CalendarAccess.unknown,
     this.meetings = const [],
     this.onConnect,
+    this.onChangeTab,
   });
+
+  /// a long Meetings list was pulled past its end: the next tab
+  final VoidCallback? onChangeTab;
 
   /// the Meetings tab: whether the calendar may be read, what is coming up,
   /// and the button that asks for access
@@ -127,6 +131,7 @@ class CalendarCard extends StatelessWidget {
               meetings: meetings,
               showTitles: settings.calendarTitles,
               onConnect: onConnect,
+              onEdge: onChangeTab,
               compact: compact,
             )
           : _content(context, tinted ?? _accent),

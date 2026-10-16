@@ -309,6 +309,7 @@ class _SummaryCardState extends State<SummaryCard>
         access: widget.calendarAccess,
         meetings: widget.meetings,
         onConnect: widget.onConnectCalendar,
+        onChangeTab: widget.onDateSwipe,
       ),
     ),
     SummaryTile.timer => ClipRRect(
@@ -1248,8 +1249,10 @@ class _DateTile extends StatelessWidget {
     this.access = CalendarAccess.unknown,
     this.meetings = const [],
     this.onConnect,
+    this.onChangeTab,
   });
 
+  final VoidCallback? onChangeTab;
   final DateTime now;
   final StandbySettings settings;
   final CalendarAccess access;
@@ -1274,6 +1277,7 @@ class _DateTile extends StatelessWidget {
           access: access,
           meetings: meetings,
           onConnect: onConnect,
+          onChangeTab: onChangeTab,
         ),
       ),
     );

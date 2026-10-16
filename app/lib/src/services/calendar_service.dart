@@ -84,8 +84,9 @@ class CalendarService {
     }
   }
 
-  /// The meetings from the start of today for [days] days, earliest first.
-  Future<List<Meeting>> meetings({int days = 3, bool titles = true}) async {
+  /// The meetings from the start of today for [days] days (a month by default),
+  /// earliest first.
+  Future<List<Meeting>> meetings({int days = 31, bool titles = true}) async {
     try {
       final raw = await _channel.invokeMethod<List<Object?>>('events', {
         'days': days,

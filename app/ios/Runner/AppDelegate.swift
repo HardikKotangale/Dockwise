@@ -243,7 +243,7 @@ final class CalendarBridge {
       }
     case "events":
       guard CalendarBridge.access() == "granted" else { return result([]) }
-      let days = min(max((args?["days"] as? Int) ?? 3, 1), 14)
+      let days = min(max((args?["days"] as? Int) ?? 31, 1), 62)
       let titles = (args?["titles"] as? Bool) ?? true
       let start = Calendar.current.startOfDay(for: Date())
       guard let end = Calendar.current.date(byAdding: .day, value: days, to: start) else {
@@ -254,7 +254,7 @@ final class CalendarBridge {
       let list = found
         .filter { $0.status != .canceled }
         .sorted { $0.startDate < $1.startDate }
-        .prefix(60)
+        .prefix(150)
         .map { e -> [String: Any] in
           [
             "title": titles ? (e.title ?? "") : "",

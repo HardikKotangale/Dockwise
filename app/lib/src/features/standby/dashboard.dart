@@ -357,6 +357,15 @@ class Dashboard extends StatelessWidget {
             ? e.localPosition.dy < size.height / 2
             : e.localPosition.dx < size.width / 2);
     final horizontal = d.dx.abs() > d.dy.abs();
+    final type = isLeft ? settings.leftWidget : settings.rightWidget;
+    // over the Meetings list the wheel scrolls it, it does not change the tab
+    if (!horizontal &&
+        settings.calendarStyle == CalendarStyle.agenda &&
+        (type == StandbyWidgetType.calendar ||
+            (type == StandbyWidgetType.summary &&
+                touch.hoverTile == SummaryTile.date))) {
+      return;
+    }
     stepPanel(
       controller: controller,
       touch: touch,
@@ -702,6 +711,7 @@ class Dashboard extends StatelessWidget {
         access: controller.calendarAccess,
         meetings: controller.meetings,
         onConnect: controller.connectCalendar,
+        onChangeTab: controller.toggleCalendarStyle,
       ),
       StandbyWidgetType.music => _musicCard(context),
       StandbyWidgetType.photos => _photosCard(),
