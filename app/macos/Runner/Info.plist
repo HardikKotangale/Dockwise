@@ -32,5 +32,7 @@
 	<string>Hushdock uses your location while the app is open to show local weather.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Hushdock uses your location while the app is open to show local weather.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Hushdock shows and controls what the Spotify app is playing.</string>
 </dict>
 </plist>

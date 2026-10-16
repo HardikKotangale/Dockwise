@@ -10,9 +10,11 @@ import 'package:flutter/services.dart'
 import '../../core/apple.dart';
 import '../../core/burn_in_protection.dart';
 import '../../core/key_capture.dart';
+import '../../core/motion/aside_glide.dart';
 import '../../core/night_mode_policy.dart';
 import '../../core/power_mode.dart';
 import '../../domain/standby_models.dart';
+import '../../domain/summary_layout.dart';
 import '../../services/standby_system_service.dart';
 import '../../state/standby_controller.dart';
 import 'dashboard.dart';
@@ -53,6 +55,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
   final _clockPart = ValueNotifier<ClockPart?>(null);
   final _touch = PanelTouches();
   final _dockKey = GlobalKey<SpringDockState>();
+  bool _dockClosing = false; // the dock is on its way out
   final _dashboardKey = GlobalKey();
   // the page dots show for a moment after the widget changes
   bool _dotsVisible = false;
@@ -83,13 +86,41 @@ class _StandbyScreenState extends State<StandbyScreen> {
       autostartTicker: widget.initialSettings == null,
     );
     _controller.addListener(_flashDots);
+    // after the first frame: load the clock fonts, so a swipe to Float or Frame
+    // does not stall on the font the first time
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warmClockFonts());
     _controller.addListener(_watchFullscreen);
+    _controller.addListener(_followDock);
     if (widget.initialSettings == null) {
       _controller.initialize();
     } else {
       _controller.initializeForTest();
     }
     HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  static void _warmClockFonts() {
+    for (final family in const ['Fredoka', 'BebasNeue']) {
+      for (final weight in const [
+        FontWeight.w400,
+        FontWeight.w600,
+        FontWeight.w800,
+      ]) {
+        TextPainter(
+            text: TextSpan(
+              text: '0123456789:AMP',
+              style: TextStyle(
+                fontFamily: family,
+                fontSize: 120,
+                fontWeight: weight,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )
+          ..layout()
+          ..dispose();
+      }
+    }
   }
 
   static bool get _windows => const {
@@ -102,6 +133,9 @@ class _StandbyScreenState extends State<StandbyScreen> {
   // it is fed by our own on-screen keyboard, so the keys stay ours there.)
   bool _onKey(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
+    // a full-screen page on top (Spotify search, the setup guide) owns the
+    // keys, Esc included: nothing here may act on the display underneath
+    if (ModalRoute.of(context)?.isCurrent == false) return false;
     final field = FocusManager.instance.primaryFocus?.context
         ?.findAncestorStateOfType<EditableTextState>();
     final typing = field != null && !field.widget.readOnly;
@@ -122,6 +156,8 @@ class _StandbyScreenState extends State<StandbyScreen> {
       return false;
     }
     final handled = switch (key) {
+      // F (or F11): full screen on or off
+      LogicalKeyboardKey.keyF ||
       LogicalKeyboardKey.f11 when _windows => _do(_controller.toggleFullscreen),
       LogicalKeyboardKey.escape when dockOpen => _do(_dismissDock),
       LogicalKeyboardKey.escape when _windows && settings.fullscreen => _do(
@@ -132,38 +168,81 @@ class _StandbyScreenState extends State<StandbyScreen> {
       LogicalKeyboardKey.numpadEnter => _do(
         dockOpen ? _dismissDock : _openFirstPanel,
       ),
-      LogicalKeyboardKey.keyN => _do(_controller.toggleNight),
+      LogicalKeyboardKey.keyB => _do(_controller.toggleNight),
       // ? (shift + /), or F1: the list of keys; again to close it
       LogicalKeyboardKey.question ||
       LogicalKeyboardKey.slash ||
       LogicalKeyboardKey.f1 => _do(_toggleHelp),
+      // Space: the music or the timer that is shown; on any other card it
+      // still plays or pauses the music (like N and M, and with Settings open)
+      LogicalKeyboardKey.space => _do(() {
+        if (!_controller.playPauseShown()) {
+          _controller.sendMediaCommand('playPause');
+        }
+      }),
+      // the music, from any card: N back 10 s, M forward 10 s
+      LogicalKeyboardKey.keyN => _do(
+        () => _controller.sendMediaCommand('back10'),
+      ),
+      LogicalKeyboardKey.keyM => _do(
+        () => _controller.sendMediaCommand('forward10'),
+      ),
+      LogicalKeyboardKey.period => _do(
+        () => _controller.sendMediaCommand('next'),
+      ),
+      LogicalKeyboardKey.comma => _do(
+        () => _controller.sendMediaCommand('previous'),
+      ),
+      LogicalKeyboardKey.minus ||
+      LogicalKeyboardKey.underscore ||
+      LogicalKeyboardKey.numpadSubtract => _do(
+        () => _controller.nudgeVolume(-5),
+      ),
+      LogicalKeyboardKey.equal ||
+      LogicalKeyboardKey.add ||
+      LogicalKeyboardKey.numpadAdd => _do(() => _controller.nudgeVolume(5)),
+      // one or two panels (also with Settings or this list open: the cards
+      // behind glide to the new layout)
+      // O: one card; with two on screen, the one under the pointer stays
+      LogicalKeyboardKey.keyO => _do(
+        () => _controller.setLayout(
+          StandbyLayoutMode.single,
+          soloSecond: _touch.hoverLeft == false,
+        ),
+      ),
+      LogicalKeyboardKey.keyT => _do(
+        () => _controller.setLayout(StandbyLayoutMode.duo),
+      ),
+      LogicalKeyboardKey.keyD => _do(
+        // two panels -> one: the panel under the pointer is the one kept
+        () => _controller.setLayout(
+          settings.layoutMode == StandbyLayoutMode.duo
+              ? StandbyLayoutMode.single
+              : StandbyLayoutMode.duo,
+          soloSecond: _touch.hoverLeft == false,
+        ),
+      ),
       // the rest act on the cards, so not while the dock covers them
-      _ when dockOpen => false,
+      // (two panels with the pointer over one: the arrows still work on it,
+      // and the dock follows)
+      _ when dockOpen && !(_arrow(key) && _touch.hoverLeft != null) => false,
       // with Shift, the arrows work the second (right or lower) card
       LogicalKeyboardKey.arrowLeft => _do(() => _step(Axis.horizontal, -1)),
       LogicalKeyboardKey.arrowRight => _do(() => _step(Axis.horizontal, 1)),
       LogicalKeyboardKey.arrowUp => _do(() => _step(Axis.vertical, 1)),
       LogicalKeyboardKey.arrowDown => _do(() => _step(Axis.vertical, -1)),
       // one or two panels, like the pinch
-      LogicalKeyboardKey.digit1 || LogicalKeyboardKey.numpad1 => _do(
-        () => _controller.setLayout(StandbyLayoutMode.single),
-      ),
-      LogicalKeyboardKey.digit2 || LogicalKeyboardKey.numpad2 => _do(
-        () => _controller.setLayout(StandbyLayoutMode.duo),
-      ),
-      LogicalKeyboardKey.keyD => _do(
-        () => _controller.setLayout(
-          settings.layoutMode == StandbyLayoutMode.duo
-              ? StandbyLayoutMode.single
-              : StandbyLayoutMode.duo,
-        ),
-      ),
-      LogicalKeyboardKey.space => _controller.playPauseShown(),
       _ => false,
     };
     if (handled) _controller.touched(); // a key wakes the dim screen too
     return handled;
   }
+
+  static bool _arrow(LogicalKeyboardKey k) =>
+      k == LogicalKeyboardKey.arrowLeft ||
+      k == LogicalKeyboardKey.arrowRight ||
+      k == LogicalKeyboardKey.arrowUp ||
+      k == LogicalKeyboardKey.arrowDown;
 
   bool _do(VoidCallback action) {
     action();
@@ -184,26 +263,136 @@ class _StandbyScreenState extends State<StandbyScreen> {
           ),
         );
 
-  void _openFirstPanel() => openPanelSettings(
-    controller: _controller,
-    openDock: _openDock,
-    clockPart: _clockPart,
-    type: _controller.settings.leftWidget,
-  );
+  // S: the settings of what the pointer is on. On the Summary card, hold a
+  // tile's key (Q W E R A) with S to open that tile's own settings; with the
+  // pointer over a Summary tile, that tile's. Over a panel, that panel's. Else
+  // the first panel's.
+  void _openFirstPanel() {
+    final tile = _summaryChord() ?? _touch.hoverTile;
+    if (tile != null) {
+      _touch.dockPanel = null;
+      openSummaryTileSettings(
+        controller: _controller,
+        openDock: _openDock,
+        clockPart: _clockPart,
+        tile: tile,
+      );
+      return;
+    }
+    final s = _controller.settings;
+    final left =
+        _touch.hoverLeft != false || s.layoutMode != StandbyLayoutMode.duo;
+    final type = left ? s.leftWidget : s.rightWidget;
+    _touch.dockPanel = (isLeft: left, type: type);
+    openPanelSettings(
+      controller: _controller,
+      openDock: _openDock,
+      clockPart: _clockPart,
+      type: type,
+    );
+  }
+
+  static String _panelTitle(StandbyWidgetType t) => switch (t) {
+    StandbyWidgetType.clock => 'Clock',
+    StandbyWidgetType.music => 'Music',
+    StandbyWidgetType.weather => 'Weather',
+    StandbyWidgetType.calendar => 'Calendar',
+    StandbyWidgetType.timer => 'Timer',
+    StandbyWidgetType.summary => 'Settings',
+  };
+
+  // The settings in the dock belong to a panel. Swipe that panel to another
+  // card and the dock follows it, sliding the way the card went. A sub-page
+  // (a city search, all settings, help) is left alone.
+  bool _following = false;
+  void _followDock() {
+    final dp = _touch.dockPanel;
+    if (dp == null || _dockBuild == null) return;
+    final s = _controller.settings;
+    final now = dp.isLeft
+        ? s.leftWidget
+        : (s.layoutMode == StandbyLayoutMode.duo ? s.rightWidget : null);
+    if (now == null || now == dp.type) return;
+    if (_dockTitle != _panelTitle(dp.type)) return;
+    _touch.dockPanel = (isLeft: dp.isLeft, type: now);
+    _following = true;
+    openPanelSettings(
+      controller: _controller,
+      openDock: _openDock,
+      clockPart: _clockPart,
+      type: now,
+      fromPart: true, // no automatic city search on the way
+    );
+    _following = false;
+  }
+
+  SummaryTile? _summaryChord() {
+    final s = _controller.settings;
+    final shown =
+        s.leftWidget == StandbyWidgetType.summary ||
+        (s.layoutMode == StandbyLayoutMode.duo &&
+            s.rightWidget == StandbyWidgetType.summary);
+    if (!shown) return null;
+    final kb = HardwareKeyboard.instance;
+    for (final e in {
+      LogicalKeyboardKey.keyQ: SummaryTile.here,
+      LogicalKeyboardKey.keyW: SummaryTile.there,
+      LogicalKeyboardKey.keyE: SummaryTile.date,
+      LogicalKeyboardKey.keyR: SummaryTile.weather,
+      LogicalKeyboardKey.keyA: SummaryTile.timer,
+    }.entries) {
+      if (kb.isLogicalKeyPressed(e.key)) {
+        return e.value;
+      }
+    }
+    return null;
+  }
 
   // Arrows: on the first panel; with Shift (two panels) on the second one.
   // Up and down without Shift go to the clock if one is showing (they change
   // its style), else to the first panel.
   void _step(Axis axis, int step) {
     final s = _controller.settings;
+    // Q, W, E, R or A held: this is a swipe on that Summary tile (Q the first
+    // clock, W the second, E the calendar, R the weather, A the timer)
+    final held = _summaryChord();
+    if (held != null && axis == Axis.vertical) {
+      if (SummaryLayout.parse(s.summaryLayout).tiles.contains(held)) {
+        stepSummaryTile(_controller, held, step);
+      } else {
+        // that tile is not on the Summary panel: say so instead of nothing
+        final name = switch (held) {
+          SummaryTile.here => 'first clock',
+          SummaryTile.there => 'second clock',
+          SummaryTile.date => 'calendar',
+          SummaryTile.weather => 'weather',
+          SummaryTile.timer => 'timer',
+          SummaryTile.music => 'music',
+        };
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('No $name in the Summary panel'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+      }
+      return;
+    }
     final duo = s.layoutMode == StandbyLayoutMode.duo;
     final shift = HardwareKeyboard.instance.isShiftPressed;
+    // with two panels, the panel under the pointer is the one the arrows work
+    // on (Shift still means the second one)
+    final hover = _touch.hoverLeft;
     final second =
         duo &&
         (shift ||
-            axis == Axis.vertical &&
+            hover == false ||
+            (hover == null &&
+                axis == Axis.vertical &&
                 s.leftWidget != StandbyWidgetType.clock &&
-                s.rightWidget == StandbyWidgetType.clock);
+                s.rightWidget == StandbyWidgetType.clock));
     stepPanel(
       controller: _controller,
       touch: _touch,
@@ -246,6 +435,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
     _dotsTimer?.cancel();
     _controller.removeListener(_flashDots);
     _controller.removeListener(_watchFullscreen);
+    _controller.removeListener(_followDock);
     _clockPart.dispose();
     _controller.dispose();
     if (widget.battery == null) _battery.dispose();
@@ -258,7 +448,10 @@ class _StandbyScreenState extends State<StandbyScreen> {
     bool tall = false,
     bool fill = false,
   }) {
+    // a page opened by a tap does not slide the way the last swipe went
+    if (!_following) _touch.swipeDir = Offset.zero;
     setState(() {
+      _dockClosing = false;
       _dockFill = fill;
       _dockTitle = title;
       _dockBuild = build;
@@ -268,7 +461,10 @@ class _StandbyScreenState extends State<StandbyScreen> {
 
   void _closeDock() {
     _clockPart.value = null;
-    setState(() => _dockBuild = null);
+    setState(() {
+      _dockBuild = null;
+      _dockClosing = false;
+    });
   }
 
   @override
@@ -413,7 +609,29 @@ class _StandbyScreenState extends State<StandbyScreen> {
                           ),
                         );
                         final build = _dockBuild;
-                        if (build == null) return dashboard;
+                        // the dashboard's room along the split (the dock takes
+                        // the rest); AsideGlide keeps the cards from being laid
+                        // out again on every frame as the dock moves
+                        final total = landscape ? c.maxWidth : c.maxHeight;
+                        Widget beside(double room, List<Widget> others) {
+                          final kids = [
+                            Expanded(
+                              child: AsideGlide(
+                                axis: landscape
+                                    ? Axis.horizontal
+                                    : Axis.vertical,
+                                finalExtent: room,
+                                child: dashboard,
+                              ),
+                            ),
+                            ...others,
+                          ];
+                          return landscape
+                              ? Row(children: kids)
+                              : Column(children: kids);
+                        }
+
+                        if (build == null) return beside(total, const []);
                         final typing =
                             MediaQuery.viewInsetsOf(context).bottom > 0;
                         // Keyboard up in portrait: give the dock all the visible space so
@@ -436,6 +654,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
                           axis: sideways ? Axis.horizontal : Axis.vertical,
                           extent: panelExtent + gap,
                           overlay: full,
+                          onClosing: () => setState(() => _dockClosing = true),
                           onClosed: _closeDock,
                           builder: (context, handle) => SpringDockScope(
                             handle: handle,
@@ -448,9 +667,38 @@ class _StandbyScreenState extends State<StandbyScreen> {
                                 handle: handle,
                                 horizontal: sideways,
                                 solid: full,
-                                child: _DockBody(
-                                  controller: _controller,
-                                  build: build,
+                                // a new page (another card's settings) slides in the
+                                // way the card was swiped, the old one slides out
+                                child: AnimatedSwitcher(
+                                  duration: calm(context, Motion.medium),
+                                  switchInCurve: easeOutStrong,
+                                  switchOutCurve: Curves.easeIn,
+                                  layoutBuilder: (current, previous) => Stack(
+                                    fit: StackFit.expand,
+                                    children: [...previous, ?current],
+                                  ),
+                                  transitionBuilder: (child, animation) {
+                                    final dir = _touch.swipeDir;
+                                    final incoming =
+                                        child.key == ValueKey(_dockTitle);
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: Tween(
+                                          begin: (incoming ? dir : -dir) * 0.12,
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: KeyedSubtree(
+                                    key: ValueKey(_dockTitle),
+                                    child: _DockBody(
+                                      controller: _controller,
+                                      build: build,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -466,19 +714,10 @@ class _StandbyScreenState extends State<StandbyScreen> {
                             ],
                           );
                         }
-                        return landscape
-                            ? Row(
-                                children: [
-                                  Expanded(child: dashboard),
-                                  dock,
-                                ],
-                              )
-                            : Column(
-                                children: [
-                                  Expanded(child: dashboard),
-                                  dock,
-                                ],
-                              );
+                        return beside(
+                          _dockClosing ? total : total - (panelExtent + gap),
+                          [dock],
+                        );
                       },
                     ),
                   ),

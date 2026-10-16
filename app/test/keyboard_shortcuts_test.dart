@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,8 +7,11 @@ import 'package:standby_pro/src/app.dart';
 import 'package:standby_pro/src/core/motion/split_panels.dart';
 import 'package:standby_pro/src/data/settings_repository.dart';
 import 'package:standby_pro/src/domain/standby_models.dart';
+import 'package:standby_pro/src/features/standby/dashboard.dart';
 import 'package:standby_pro/src/features/standby/standby_screen.dart';
 import 'package:standby_pro/src/features/standby/widgets/dock.dart';
+import 'package:standby_pro/src/features/standby/widgets/key_caps.dart';
+import 'package:standby_pro/src/features/standby/widgets/mini_keyboard.dart';
 import 'package:standby_pro/src/features/standby/widgets/timer_entry.dart';
 import 'package:standby_pro/src/services/standby_system_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
@@ -48,7 +52,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  final pc = TargetPlatformVariant({TargetPlatform.windows, TargetPlatform.macOS});
+  final pc = TargetPlatformVariant({
+    TargetPlatform.windows,
+    TargetPlatform.macOS,
+  });
 
   Future<_FakePc> pumpPc(WidgetTester t, {Widget? over}) async {
     t.view.physicalSize = const Size(1600, 900);
@@ -86,11 +93,230 @@ void main() {
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
 
-  testWidgets('1, 2 and D pick the panels; Shift moves the second card', (
+  testWidgets('a full-screen page on top owns the keys', (t) async {
+    await pumpPc(t);
+    final nav = Navigator.of(t.element(find.byType(StandbyScreen)));
+    nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('page')),
+      ),
+    );
+    await t.pumpAndSettle();
+    await _key(t, LogicalKeyboardKey.arrowRight); // not for the display below
+    expect((await _saved()).leftWidget, StandbyWidgetType.clock);
+    nav.pop();
+    await t.pumpAndSettle();
+    await _key(t, LogicalKeyboardKey.arrowRight);
+    expect((await _saved()).leftWidget, StandbyWidgetType.weather);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('swiping the card changes the settings in the dock with it', (
     t,
   ) async {
     await pumpPc(t);
-    await _key(t, LogicalKeyboardKey.digit2);
+    await _key(t, LogicalKeyboardKey.keyS); // the first card's own settings
+    final dock = find.descendant(
+      of: find.byType(Dock),
+      matching: find.text('Clock'),
+    );
+    expect(dock, findsOneWidget);
+    await t.fling(find.byType(Dashboard), const Offset(-300, 0), 1500);
+    await t.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(Dock), matching: find.text('Weather')),
+      findsOneWidget,
+    ); // the clock was swiped to the weather: so were its settings
+    expect(dock, findsNothing);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('up and down change the Summary clocks: digital, flip, analog', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      StandbyProApp(
+        initialSettings: _start.copyWith(leftWidget: StandbyWidgetType.summary),
+        systemService: _FakePc(),
+      ),
+    );
+    await t.pump();
+    // away from the clocks the keys leave them alone
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    expect((await _saved()).summaryClockStyle, TileClockStyle.digital);
+    // over a clock tile they change its look
+    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(t.getCenter(find.textContaining('Here').first));
+    await t.pump();
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    expect((await _saved()).summaryClockStyle, TileClockStyle.flip);
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    expect((await _saved()).summaryClockStyle, TileClockStyle.analog);
+    await _key(t, LogicalKeyboardKey.arrowDown);
+    expect((await _saved()).summaryClockStyle, TileClockStyle.flip);
+    // Q held + ↑ is a swipe up on the first clock, wherever the pointer is
+    await mouse.moveTo(Offset.zero);
+    await t.pump();
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyQ);
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyQ);
+    expect((await _saved()).summaryClockStyle, TileClockStyle.analog);
+    // W held: the second clock has its own look, the first stays
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyW);
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyW);
+    final s2 = await _saved();
+    expect(s2.summaryClockStyle, TileClockStyle.analog);
+    expect(s2.thereStyle, TileClockStyle.digital);
+    // the default Summary has no timer tile: A says so
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyA);
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyA);
+    await t.pump();
+    expect(find.text('No timer in the Summary panel'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets(
+    'with two panels the arrows work on the panel under the pointer',
+    (t) async {
+      t.view.physicalSize = const Size(1600, 900);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        StandbyProApp(
+          initialSettings: _start.copyWith(
+            layoutMode: StandbyLayoutMode.duo,
+            leftWidget: StandbyWidgetType.clock,
+            rightWidget: StandbyWidgetType.weather,
+          ),
+          systemService: _FakePc(),
+        ),
+      );
+      await t.pump();
+      final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(1200, 450)); // right panel
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(1210, 450));
+      await t.pump();
+      await _key(t, LogicalKeyboardKey.arrowRight); // no Shift
+      final s = await _saved();
+      expect(s.leftWidget, StandbyWidgetType.clock);
+      expect(s.rightWidget, isNot(StandbyWidgetType.weather));
+      await t.pumpWidget(const SizedBox());
+    },
+    variant: pc,
+  );
+
+  testWidgets('S opens the settings of the panel under the pointer', (t) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      StandbyProApp(
+        initialSettings: _start.copyWith(
+          layoutMode: StandbyLayoutMode.duo,
+          leftWidget: StandbyWidgetType.clock,
+          rightWidget: StandbyWidgetType.weather,
+        ),
+        systemService: _FakePc(),
+      ),
+    );
+    await t.pump();
+    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(1200, 450)); // right panel
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(const Offset(1210, 450));
+    await t.pump();
+    await _key(t, LogicalKeyboardKey.keyS);
+    expect(find.text('Weather'), findsOneWidget);
+    expect(find.text('Clock'), findsNothing);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('Q + S opens the first Summary clock\'s own settings', (t) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      StandbyProApp(
+        initialSettings: _start.copyWith(leftWidget: StandbyWidgetType.summary),
+        systemService: _FakePc(),
+      ),
+    );
+    await t.pump();
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyQ);
+    await _key(t, LogicalKeyboardKey.keyS);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyQ);
+    await t.pump(const Duration(seconds: 1));
+    expect(find.text('Summary clocks'), findsWidgets);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('O keeps the panel under the pointer', (t) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      StandbyProApp(
+        initialSettings: _start.copyWith(
+          layoutMode: StandbyLayoutMode.duo,
+          leftWidget: StandbyWidgetType.clock,
+          rightWidget: StandbyWidgetType.weather,
+        ),
+        systemService: _FakePc(),
+      ),
+    );
+    await t.pump();
+    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(1200, 450));
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(const Offset(1210, 450)); // right panel
+    await t.pump();
+    await _key(t, LogicalKeyboardKey.keyO);
+    final s = await _saved();
+    expect(s.layoutMode, StandbyLayoutMode.single);
+    expect(s.leftWidget, StandbyWidgetType.weather);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('D keeps the panel under the pointer', (t) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      StandbyProApp(
+        initialSettings: _start.copyWith(
+          layoutMode: StandbyLayoutMode.duo,
+          leftWidget: StandbyWidgetType.clock,
+          rightWidget: StandbyWidgetType.weather,
+        ),
+        systemService: _FakePc(),
+      ),
+    );
+    await t.pump();
+    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(1200, 450));
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(const Offset(1210, 450)); // right panel
+    await t.pump();
+    await _key(t, LogicalKeyboardKey.keyD);
+    final s = await _saved();
+    expect(s.layoutMode, StandbyLayoutMode.single);
+    expect(s.leftWidget, StandbyWidgetType.weather);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('O, T and D pick the panels; Shift moves the second card', (
+    t,
+  ) async {
+    await pumpPc(t);
+    await _key(t, LogicalKeyboardKey.keyT);
     var s = await _saved();
     expect(s.layoutMode, StandbyLayoutMode.duo);
     final left = s.leftWidget, right = s.rightWidget;
@@ -104,7 +330,7 @@ void main() {
     // plain → : the first card
     await _key(t, LogicalKeyboardKey.arrowRight);
     expect((await _saved()).leftWidget, isNot(left));
-    await _key(t, LogicalKeyboardKey.digit1);
+    await _key(t, LogicalKeyboardKey.keyO);
     expect((await _saved()).layoutMode, StandbyLayoutMode.single);
     await _key(t, LogicalKeyboardKey.keyD);
     expect((await _saved()).layoutMode, StandbyLayoutMode.duo);
@@ -121,6 +347,28 @@ void main() {
     await _key(t, LogicalKeyboardKey.escape);
     expect(fake.fullscreen, [true, false]);
     expect((await _saved()).fullscreen, isFalse);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('O, T and D work with the keys list open', (t) async {
+    await pumpPc(t);
+    await _key(t, LogicalKeyboardKey.f1);
+    expect(find.text('Keyboard shortcuts'), findsOneWidget);
+    await _key(t, LogicalKeyboardKey.keyT);
+    expect((await _saved()).layoutMode, StandbyLayoutMode.duo);
+    await _key(t, LogicalKeyboardKey.keyO);
+    expect((await _saved()).layoutMode, StandbyLayoutMode.single);
+    await _key(t, LogicalKeyboardKey.keyD);
+    expect((await _saved()).layoutMode, StandbyLayoutMode.duo);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('F goes full screen too', (t) async {
+    final fake = await pumpPc(t);
+    await _key(t, LogicalKeyboardKey.keyF);
+    expect(fake.fullscreen, [true]);
+    await _key(t, LogicalKeyboardKey.keyF);
+    expect(fake.fullscreen, [true, false]);
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
 
@@ -143,22 +391,22 @@ void main() {
     await pumpPc(t);
     await _key(t, LogicalKeyboardKey.f1);
     expect(find.text('Keyboard shortcuts'), findsOneWidget);
-    expect(find.text('Turn full screen on or off'), findsOneWidget);
+    expect(find.text('Full screen on or off'), findsOneWidget);
     await _key(t, LogicalKeyboardKey.slash);
     await t.pump(const Duration(seconds: 1));
     expect(find.text('Keyboard shortcuts'), findsNothing);
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
 
-  testWidgets('N turns the night look on and off', (t) async {
+  testWidgets('B turns the night look on and off', (t) async {
     await pumpPc(t);
     final tinted = find.byWidgetPredicate(
       (w) => w is ColorFiltered && w.child is Transform,
     );
     expect(tinted, findsNothing);
-    await _key(t, LogicalKeyboardKey.keyN);
+    await _key(t, LogicalKeyboardKey.keyB);
     expect(tinted, findsOneWidget);
-    await _key(t, LogicalKeyboardKey.keyN);
+    await _key(t, LogicalKeyboardKey.keyB);
     expect(tinted, findsNothing);
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
@@ -213,6 +461,63 @@ void main() {
     expect(c.settings.timerSeconds, 60 + 50); // 1 5 0 = 1:50
     await t.sendKeyEvent(LogicalKeyboardKey.enter);
     expect(done, 1);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a computer gets no number pad, only the time and the keys', (
+    t,
+  ) async {
+    final c = StandbyController(
+      initialSettings: const StandbySettings(timerSeconds: 300),
+      autostartTicker: false,
+    );
+    addTearDown(c.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: TimerEntry(controller: c, onDone: () {}),
+          ),
+        ),
+      ),
+    );
+    await t.pump(const Duration(seconds: 1));
+    expect(find.byType(MiniNumberPad), findsNothing);
+    expect(find.text('Done'), findsOneWidget); // always there
+    expect(find.byType(KeyHint), findsNothing); // the keys wait to be asked for
+    await t.sendKeyEvent(LogicalKeyboardKey.digit9);
+    await t.pump();
+    expect(c.settings.timerSeconds, 9); // the keyboard still types
+    await t.sendKeyEvent(
+      LogicalKeyboardKey.slash,
+    ); // ? (shift + /) shows the keys
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.byType(KeyHint), findsWidgets);
+    await t.sendKeyEvent(LogicalKeyboardKey.f1); // F1 again hides them
+    await t.pumpAndSettle();
+    expect(find.byType(KeyHint), findsNothing);
+    expect(find.text('Done'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('a phone still gets the number pad', (t) async {
+    final c = StandbyController(autostartTicker: false);
+    addTearDown(c.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: TimerEntry(controller: c, onDone: () {}),
+          ),
+        ),
+      ),
+    );
+    await t.pump(const Duration(seconds: 1));
+    expect(find.byType(MiniNumberPad), findsOneWidget);
     await t.pumpWidget(const SizedBox());
   });
 

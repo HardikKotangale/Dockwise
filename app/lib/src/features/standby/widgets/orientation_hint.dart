@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+
 import '../../../core/motion/motion.dart';
 
 /// How the phone is physically held, from the gravity direction.

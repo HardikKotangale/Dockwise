@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/motion/dissolve.dart';
+import '../../../../core/motion/motion.dart';
 import '../../../../domain/standby_models.dart';
 import 'clock_text.dart';
 import 'time_parts.dart';
@@ -12,6 +14,7 @@ class WorldClockFace extends StatelessWidget {
     required this.time,
     required this.settings,
     this.onPartTap,
+    this.onCityTap,
     this.stacked = false,
   });
 
@@ -19,27 +22,42 @@ class WorldClockFace extends StatelessWidget {
   final StandbySettings settings;
   final PartTap? onPartTap;
 
+  /// a tap on the second city's time: choose another city
+  final VoidCallback? onCityTap;
+
   /// each time as hours over minutes (a tall panel), so the digits grow to
   /// fill the height instead of sitting small on one line
   final bool stacked;
 
   @override
   Widget build(BuildContext context) {
-    if (settings.worldZone.isEmpty) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _row(_localLabel, time),
-          const SizedBox(height: 28),
-          Text(
-            'Tap to add a city',
-            style: TextStyle(
-              color: settings.theme.clockColor.withValues(alpha: 0.5),
-              fontSize: 36,
-              fontWeight: FontWeight.w700,
-            ),
+    // Removing the second city breaks it into particles (DissolveSwitcher).
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _row(_localLabel, time),
+        const SizedBox(height: 28),
+        AnimatedSize(
+          duration: calm(context, Motion.medium),
+          curve: easeOutStrong,
+          child: DissolveSwitcher(
+            present: settings.worldZone.isNotEmpty,
+            child: _second(),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _second() {
+    if (settings.worldZone.isEmpty) {
+      return Text(
+        'Tap to add a city',
+        style: TextStyle(
+          color: settings.theme.clockColor.withValues(alpha: 0.5),
+          fontSize: 36,
+          fontWeight: FontWeight.w700,
+        ),
       );
     }
     final city = settings.worldCity.isNotEmpty
@@ -60,13 +78,11 @@ class WorldClockFace extends StatelessWidget {
     final note = dayDiff == 0
         ? ''
         : ' · ${days[other.weekday - 1]}, ${months[other.month - 1]} ${other.day}';
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _row(_localLabel, time),
-        const SizedBox(height: 28),
-        _row('$city$note', other),
-      ],
+    // the second city: a tap anywhere on it is about the city
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onCityTap,
+      child: _row('$city$note', other, partTaps: onCityTap == null),
     );
   }
 
@@ -74,7 +90,8 @@ class WorldClockFace extends StatelessWidget {
   String get _localLabel =>
       settings.localCity.isNotEmpty ? settings.localCity : 'Local';
 
-  Widget _row(String label, DateTime t) {
+  Widget _row(String label, DateTime t, {bool partTaps = true}) {
+    final onPartTap = partTaps ? this.onPartTap : null;
     final theme = settings.theme;
     return Column(
       mainAxisSize: MainAxisSize.min,

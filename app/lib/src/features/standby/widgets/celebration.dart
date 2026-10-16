@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import '../../../core/palette.dart';
 
 /// Confetti and fireworks over the whole card from the moment [active] turns

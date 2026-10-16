@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../core/apple.dart';
 import '../../../domain/standby_models.dart';
 
@@ -44,19 +46,65 @@ class CalendarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = settings.calendarStyle;
+    final still = MediaQuery.disableAnimationsOf(context);
+    final key = ValueKey(style);
     final card = _card(context);
-    return entrance ? card : _NoEntrance(child: card);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Today and Month trade places like the weather's pages: the month
+        // rises into place from below, Today settles from above
+        AnimatedSwitcher(
+          duration: still ? Duration.zero : Motion.medium,
+          switchInCurve: easeOutStrong,
+          switchOutCurve: easeOutStrong,
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
+          transitionBuilder: (child, anim) {
+            final incoming = child.key == key;
+            final dir = style == CalendarStyle.month ? 1.0 : -1.0;
+            return AnimatedBuilder(
+              animation: anim,
+              builder: (context, c) => anim.value == 1
+                  ? c!
+                  : FractionalTranslation(
+                      translation: Offset(
+                        0,
+                        (incoming ? dir : -dir) * 0.12 * (1 - anim.value),
+                      ),
+                      child: Opacity(
+                        opacity: anim.value.clamp(0.0, 1.0),
+                        child: c,
+                      ),
+                    ),
+              child: child,
+            );
+          },
+          child: KeyedSubtree(
+            key: key,
+            child: entrance ? card : _NoEntrance(child: card),
+          ),
+        ),
+        // the pill and dots naming the view, for a moment after each swipe
+        SwipeRail(index: style.index, labels: const ['Today', 'Month']),
+      ],
+    );
   }
+
+  // the calendar's own color when one is picked, else the theme's accent
+  Color get _accent => settings.calendarColor == 0
+      ? settings.appAccentInk
+      : Color(settings.calendarColor);
 
   Widget _card(BuildContext context) {
     // the accent color eases to a new one, instead of jumping
     return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: settings.appAccentInk),
+      tween: ColorTween(end: _accent),
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : Motion.fast,
-      builder: (context, tinted, _) =>
-          _content(context, tinted ?? settings.appAccentInk),
+      builder: (context, tinted, _) => _content(context, tinted ?? _accent),
     );
   }
 

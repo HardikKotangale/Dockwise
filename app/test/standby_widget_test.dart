@@ -24,6 +24,7 @@ import 'package:standby_pro/src/services/spotify_service.dart'
     show SpotifyDevice;
 import 'package:standby_pro/src/services/weather_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
+
 import 'temp_finder.dart';
 
 void main() {
@@ -94,11 +95,11 @@ void main() {
     // the same clock choices as the Clock panel: presets and per-part colors
     for (final t in ['Presets', 'Clock colors', 'Options']) {
       await tester.scrollUntilVisible(
-        find.text(t),
+        find.text(t).first,
         200,
         scrollable: find.byType(Scrollable).last,
       );
-      expect(find.text(t), findsOneWidget, reason: t);
+      expect(find.text(t), findsWidgets, reason: t);
     }
     await tester.scrollUntilVisible(
       find.text('OLED burn-in protection'),

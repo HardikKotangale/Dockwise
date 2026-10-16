@@ -18,11 +18,15 @@ class ClockFace extends StatelessWidget {
     required this.time,
     required this.settings,
     this.onPartTap,
+    this.onCityTap,
   });
 
   final DateTime time;
   final StandbySettings settings;
   final PartTap? onPartTap;
+
+  /// World clock: a tap on the second city (to choose another)
+  final VoidCallback? onCityTap;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +112,7 @@ class ClockFace extends StatelessWidget {
         time: time,
         settings: settings,
         onPartTap: onPartTap,
+        onCityTap: onCityTap,
         stacked: lineStyle,
       ),
     };

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+
 import '../core/palette.dart';
 
 enum StandbyLayoutMode { duo, single }
@@ -121,6 +123,9 @@ enum StandbyWidgetType { clock, weather, calendar, music, summary, timer }
 /// How the timer's countdown is drawn.
 enum TimerStyle { digital, flip }
 
+/// How the two time tiles on the Summary panel draw the time.
+enum TileClockStyle { digital, flip, analog }
+
 T _enumFromName<T extends Enum>(List<T> values, Object? name, T fallback) {
   if (name is! String) return fallback;
   for (final value in values) {
@@ -170,15 +175,28 @@ class ThemePreset {
 const clockPalette = <({String name, int argb})>[
   (name: 'White', argb: 0xFFFFFFFF),
   (name: 'Silver', argb: 0xFFC7C7CC),
+  (name: 'Slate', argb: 0xFF8E9AAF),
   (name: 'Red', argb: 0xFFFF453A),
-  (name: 'Orange', argb: 0xFFFF9F0A),
-  (name: 'Yellow', argb: 0xFFFFD60A),
-  (name: 'Green', argb: 0xFF30D158),
-  (name: 'Mint', argb: 0xFF63E6BE),
-  (name: 'Cyan', argb: 0xFF64D2FF),
-  (name: 'Blue', argb: 0xFF0A84FF),
-  (name: 'Purple', argb: 0xFFBF5AF2),
+  (name: 'Coral', argb: 0xFFFF6B5E),
+  (name: 'Rose', argb: 0xFFFF7EB6),
   (name: 'Pink', argb: 0xFFFF375F),
+  (name: 'Magenta', argb: 0xFFE040C8),
+  (name: 'Purple', argb: 0xFFBF5AF2),
+  (name: 'Lavender', argb: 0xFFB7A6FF),
+  (name: 'Indigo', argb: 0xFF5E5CE6),
+  (name: 'Blue', argb: 0xFF0A84FF),
+  (name: 'Sky', argb: 0xFF7DB8FF),
+  (name: 'Cyan', argb: 0xFF64D2FF),
+  (name: 'Teal', argb: 0xFF2ED0C0),
+  (name: 'Mint', argb: 0xFF63E6BE),
+  (name: 'Green', argb: 0xFF30D158),
+  (name: 'Lime', argb: 0xFFB8F04A),
+  (name: 'Yellow', argb: 0xFFFFD60A),
+  (name: 'Gold', argb: 0xFFE8B84A),
+  (name: 'Amber', argb: 0xFFFFB340),
+  (name: 'Orange', argb: 0xFFFF9F0A),
+  (name: 'Peach', argb: 0xFFFFC8A2),
+  (name: 'Brown', argb: 0xFFAC8E68),
 ];
 
 /// A ready-made look: a theme (for the single color / color-block panel) plus
@@ -438,6 +456,15 @@ class StandbySettings {
     this.timerSound = 'alarm',
     this.timerVibrate = true,
     this.timerColor = 0,
+    this.calendarColor = 0,
+    this.musicColor = 0,
+    this.hereColor = 0,
+    this.thereColor = 0,
+    this.summaryClockStyle = TileClockStyle.digital,
+    this.summaryThereStyle = -1,
+    this.summaryTimeColor = 0,
+    this.summaryDetailColor = 0,
+    this.summaryHours = 0,
     this.timerFigureColor = 0,
     this.hoursColor = 0,
     this.minutesColor = 0,
@@ -505,6 +532,33 @@ class StandbySettings {
   /// The timer's own colors; 0 = follow the clock's. [timerColor] is the
   /// time, [timerFigureColor] the horse, the player and their track.
   final int timerColor;
+
+  /// The calendar's accent (day name, today's marker) and the music card's
+  /// (progress bar, play button, icon); 0 = the theme's own.
+  final int calendarColor;
+  final int musicColor;
+
+  /// The Summary panel's two clock tiles (here, and the second city); 0 = plain.
+  final int hereColor;
+  final int thereColor;
+  final TileClockStyle summaryClockStyle;
+
+  /// The second city's own look (an index into [TileClockStyle]); -1 = the
+  /// same as the first.
+  final int summaryThereStyle;
+
+  TileClockStyle get thereStyle => summaryThereStyle < 0
+      ? summaryClockStyle
+      : TileClockStyle.values[summaryThereStyle];
+
+  /// The Summary clocks' own parts, like the Clock's colours: the time (digits,
+  /// hands) and the detail (AM/PM, the second hand, the day line); 0 = follow
+  /// the tile's colour.
+  final int summaryTimeColor;
+  final int summaryDetailColor;
+
+  /// Hours on the Summary clocks: 0 = like the Clock, 1 = 12-hour, 2 = 24-hour.
+  final int summaryHours;
   final int timerFigureColor;
 
   /// Per-part clock colors as ARGB ints; 0 = follow the theme.
@@ -633,6 +687,15 @@ class StandbySettings {
     String? timerSound,
     bool? timerVibrate,
     int? timerColor,
+    int? calendarColor,
+    int? musicColor,
+    int? hereColor,
+    int? thereColor,
+    TileClockStyle? summaryClockStyle,
+    int? summaryThereStyle,
+    int? summaryTimeColor,
+    int? summaryDetailColor,
+    int? summaryHours,
     int? timerFigureColor,
     int? hoursColor,
     int? minutesColor,
@@ -688,6 +751,15 @@ class StandbySettings {
       timerSound: timerSound ?? this.timerSound,
       timerVibrate: timerVibrate ?? this.timerVibrate,
       timerColor: timerColor ?? this.timerColor,
+      calendarColor: calendarColor ?? this.calendarColor,
+      musicColor: musicColor ?? this.musicColor,
+      hereColor: hereColor ?? this.hereColor,
+      thereColor: thereColor ?? this.thereColor,
+      summaryClockStyle: summaryClockStyle ?? this.summaryClockStyle,
+      summaryThereStyle: summaryThereStyle ?? this.summaryThereStyle,
+      summaryTimeColor: summaryTimeColor ?? this.summaryTimeColor,
+      summaryDetailColor: summaryDetailColor ?? this.summaryDetailColor,
+      summaryHours: summaryHours ?? this.summaryHours,
       timerFigureColor: timerFigureColor ?? this.timerFigureColor,
       hoursColor: hoursColor ?? this.hoursColor,
       minutesColor: minutesColor ?? this.minutesColor,
@@ -745,6 +817,15 @@ class StandbySettings {
       'timerSound': timerSound,
       'timerVibrate': timerVibrate,
       'timerColor': timerColor,
+      'calendarColor': calendarColor,
+      'musicColor': musicColor,
+      'hereColor': hereColor,
+      'thereColor': thereColor,
+      'summaryClockStyle': summaryClockStyle.name,
+      'summaryThereStyle': summaryThereStyle,
+      'summaryTimeColor': summaryTimeColor,
+      'summaryDetailColor': summaryDetailColor,
+      'summaryHours': summaryHours,
       'timerFigureColor': timerFigureColor,
       'hoursColor': hoursColor,
       'minutesColor': minutesColor,
@@ -846,6 +927,20 @@ class StandbySettings {
       timerSound: json['timerSound'] as String? ?? 'alarm',
       timerVibrate: json['timerVibrate'] as bool? ?? true,
       timerColor: (json['timerColor'] as num?)?.toInt() ?? 0,
+      calendarColor: (json['calendarColor'] as num?)?.toInt() ?? 0,
+      musicColor: (json['musicColor'] as num?)?.toInt() ?? 0,
+      hereColor: (json['hereColor'] as num?)?.toInt() ?? 0,
+      thereColor: (json['thereColor'] as num?)?.toInt() ?? 0,
+      summaryClockStyle: _enumFromName(
+        TileClockStyle.values,
+        json['summaryClockStyle'],
+        defaults.summaryClockStyle,
+      ),
+      summaryThereStyle: ((json['summaryThereStyle'] as num?)?.toInt() ?? -1)
+          .clamp(-1, TileClockStyle.values.length - 1),
+      summaryTimeColor: (json['summaryTimeColor'] as num?)?.toInt() ?? 0,
+      summaryDetailColor: (json['summaryDetailColor'] as num?)?.toInt() ?? 0,
+      summaryHours: ((json['summaryHours'] as num?)?.toInt() ?? 0).clamp(0, 2),
       timerFigureColor: (json['timerFigureColor'] as num?)?.toInt() ?? 0,
       fahrenheit: json['fahrenheit'] as bool? ?? defaults.fahrenheit,
       fullscreen: json['fullscreen'] as bool? ?? defaults.fullscreen,
@@ -898,6 +993,15 @@ class StandbySettings {
         other.timerSound == timerSound &&
         other.timerVibrate == timerVibrate &&
         other.timerColor == timerColor &&
+        other.calendarColor == calendarColor &&
+        other.musicColor == musicColor &&
+        other.hereColor == hereColor &&
+        other.thereColor == thereColor &&
+        other.summaryClockStyle == summaryClockStyle &&
+        other.summaryThereStyle == summaryThereStyle &&
+        other.summaryTimeColor == summaryTimeColor &&
+        other.summaryDetailColor == summaryDetailColor &&
+        other.summaryHours == summaryHours &&
         other.timerFigureColor == timerFigureColor &&
         other.hoursColor == hoursColor &&
         other.minutesColor == minutesColor &&
@@ -965,6 +1069,15 @@ class StandbySettings {
     timerSound,
     timerVibrate,
     timerColor,
+    calendarColor,
+    musicColor,
+    hereColor,
+    thereColor,
+    summaryClockStyle,
+    summaryThereStyle,
+    summaryTimeColor,
+    summaryDetailColor,
+    summaryHours,
     timerFigureColor,
     hoursColor,
     minutesColor,

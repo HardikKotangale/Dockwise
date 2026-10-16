@@ -13,6 +13,7 @@ import '../core/night_mode_policy.dart';
 import '../core/room_light.dart';
 import '../data/settings_repository.dart';
 import '../domain/standby_models.dart';
+import '../domain/summary_layout.dart';
 import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
@@ -210,7 +211,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     if (_autostartTicker) {
       // retry sooner after a failure so granting permission shows up quickly
       _weatherTimer = Timer(
-        Duration(minutes: weatherIsLive ? 30 : 2),
+        Duration(minutes: weatherIsLive ? 15 : 2),
         () => unawaited(refreshWeather()),
       );
     }
@@ -322,6 +323,18 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       if (settings.layoutMode == StandbyLayoutMode.duo) settings.rightWidget,
     ];
     for (final t in shown) {
+      if (t == StandbyWidgetType.summary) {
+        // the Summary holds a music tile and/or a timer tile
+        final tiles = SummaryLayout.parse(settings.summaryLayout).tiles;
+        if (tiles.contains(SummaryTile.music)) {
+          unawaited(sendMediaCommand('playPause'));
+          return true;
+        }
+        if (tiles.contains(SummaryTile.timer)) {
+          timerRunning ? timerPause() : timerStart();
+          return true;
+        }
+      }
       if (t == StandbyWidgetType.music) {
         unawaited(sendMediaCommand('playPause'));
         return true;
@@ -338,6 +351,21 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     const styles = ClockStyle.values;
     final next = styles[(settings.clockStyle.index + step) % styles.length];
     unawaited(updateSettings(settings.copyWith(clockStyle: next)));
+  }
+
+  /// Frame, Flip, Analog for the two time tiles on the Summary panel. The
+  /// second city has its own look once it is changed on its own tile.
+  void cycleSummaryClockStyle([int step = 1, bool second = false]) {
+    const styles = TileClockStyle.values;
+    final from = second ? settings.thereStyle : settings.summaryClockStyle;
+    final next = styles[(from.index + step) % styles.length];
+    unawaited(
+      updateSettings(
+        second
+            ? settings.copyWith(summaryThereStyle: next.index)
+            : settings.copyWith(summaryClockStyle: next),
+      ),
+    );
   }
 
   void toggleCalendarStyle() {
@@ -377,6 +405,19 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   // otherwise the Android media session of this phone.
   bool get spotifyConfigured => _spotify.isConfigured;
   bool get spotifyConnected => _spotify.isConnected;
+  bool get spotifyOwnClientId => _spotify.usingSavedClientId;
+  String get spotifyClientIdMasked => _spotify.maskedClientId;
+  Future<bool> saveSpotifyClientId(String raw) async {
+    final ok = await _spotify.saveClientId(raw);
+    notifyListeners();
+    return ok;
+  }
+
+  Future<void> removeSpotifyClientId() async {
+    await _spotify.removeClientId();
+    notifyListeners();
+  }
+
   Future<List<SpotifyPlaylist>> spotifyPlaylists() => _spotify.playlists();
 
   /// The last device list Spotify gave us, so the volume bar can show at once.
@@ -742,6 +783,10 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     final ok = await playOnSpotifyDevice(id, wake: false);
+    if (ok && defaultTargetPlatform == TargetPlatform.iOS) {
+      musicNotice =
+          'Playing on this iPhone. Tap the banner at the top to come back.';
+    }
     if (ok) unawaited(_backToHushdock());
     return ok;
   }
@@ -771,8 +816,17 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<bool> getSpotify() => _systemService.openUrl(spotifyDownload);
 
+  /// Opens a web link in the browser (the Spotify dashboard in the setup guide).
+  Future<bool> openLink(String url) => _systemService.openUrl(url);
+
   /// Opens the Spotify app here; when that fails, says why.
   Future<bool> _openSpotifyHere() async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // Spotify takes the screen: keep Hushdock alive (about 30 s) to start the
+      // music from here, and let go on its own if that never happens
+      await _systemService.beginBackgroundWork();
+      Timer(const Duration(seconds: 28), _systemService.endBackgroundWork);
+    }
     final ok = await _systemService.openSpotify();
     spotifyMissing = !ok && _onComputer;
     if (!ok) {
@@ -786,7 +840,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   /// After waking Spotify, bring Hushdock back: on Android by opening it
   /// again (it may refuse unless Hushdock may display over other apps), on a
   /// PC by raising its window over Spotify's. iOS does not let an app open
-  /// itself from the background.
+  /// itself from the background, so it posts a "tap to return" notification.
   Future<void> _backToHushdock() async {
     if (defaultTargetPlatform == TargetPlatform.android) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -794,10 +848,19 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     } else if (_onComputer) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       await _systemService.bringToFront();
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // iOS has no way to bring an app forward by itself: a notification that
+      // opens Hushdock with one tap is the nearest thing
+      await _systemService.returnPrompt();
+      await _systemService.endBackgroundWork();
     }
   }
 
   bool _pendingPhonePlay = false;
+
+  /// A short, friendly line to show once after a command (the iPhone hand-off
+  /// to the Spotify app); the card shows it and clears it.
+  String? musicNotice;
 
   Future<String?> _thisDeviceId() async => thisSpotifyDevice(
     await spotifyDevices(),
@@ -826,7 +889,22 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
       _systemService.openNotificationAccessSettings();
 
   Future<bool> connectSpotify() async {
+    // A full-screen window hides the sign-in window behind it (a separate
+    // space on a Mac, behind the borderless window on Windows): step out of
+    // full screen for the sign-in, then come back and raise Hushdock.
+    final computer = const {
+      TargetPlatform.windows,
+      TargetPlatform.macOS,
+    }.contains(defaultTargetPlatform);
+    final wasFull = computer && settings.fullscreen;
+    if (wasFull) {
+      await _systemService.setFullscreen(false);
+      // the Mac animates out of full screen; the sign-in must not start mid-way
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+    }
     final ok = await _spotify.connect();
+    if (wasFull) await _systemService.setFullscreen(true);
+    if (computer) await _systemService.bringToFront();
     notifyListeners();
     if (ok) unawaited(refreshMusic());
     return ok;
@@ -841,8 +919,9 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> setMusicSource(String source) {
     snapshots = IntegrationSnapshotBundle(
       weather: snapshots.weather,
-      nowPlaying: IntegrationSnapshotBundle.fallback(now: DateTime.now())
-          .nowPlaying,
+      nowPlaying: IntegrationSnapshotBundle.fallback(
+        now: DateTime.now(),
+      ).nowPlaying,
     );
     return updateSettings(settings.copyWith(musicSource: source));
   }
@@ -977,6 +1056,18 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
+  /// The volume of the Spotify device that is playing, up or down by [delta]
+  /// percent (only a device Spotify lets us control).
+  Future<bool> nudgeVolume(int delta) async {
+    if (!_spotify.isConnected) return false;
+    final active = (await spotifyDevices()).where(
+      (d) => d.isActive && d.volume != null,
+    );
+    if (active.isEmpty) return false;
+    final d = active.first;
+    return setSpotifyVolume(d.id, (d.volume! + delta).clamp(0, 100));
+  }
+
   /// Commands: playPause, next, previous, back10, forward10.
   Future<bool> sendMediaCommand(String command) async {
     final now = snapshots.nowPlaying;
@@ -986,6 +1077,16 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         _spotify.isConnected &&
         _spotify.playerIdle) {
       ok = await playOnThisDevice();
+    } else if (command == 'playPause' &&
+        !now.isPlaying &&
+        !_spotify.isConnected &&
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      // not signed in on an iPhone: the Spotify app is the only player, so
+      // open it (an iPhone cannot see or control it from here)
+      ok = await _openSpotifyHere();
+      musicError = ok ? null : 'Spotify is not installed on this phone';
+      if (ok)
+        musicNotice = 'Spotify is open. Switch back here when you are done.';
     } else if (now.viaSpotifyApi) {
       ok = await _spotify.command(
         command,

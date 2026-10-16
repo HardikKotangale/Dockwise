@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/key_capture.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/city_search.dart';
@@ -11,10 +12,18 @@ import '../widgets/mini_keyboard.dart';
 
 /// Row showing the chosen second city; opens the city search page.
 class CityRow extends StatelessWidget {
-  const CityRow({super.key, required this.settings, required this.onTap});
+  const CityRow({
+    super.key,
+    required this.settings,
+    required this.onTap,
+    this.onChanged,
+  });
 
   final StandbySettings settings;
   final VoidCallback onTap;
+
+  /// With this, a city that is set gets a trash button that clears it.
+  final ValueChanged<StandbySettings>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +39,28 @@ class CityRow extends StatelessWidget {
         style: TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(name),
-      trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onChanged != null && settings.worldZone.isNotEmpty)
+            IconButton(
+              tooltip: 'Remove the second city',
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: Color(0xFFFF453A),
+              ),
+              onPressed: () => onChanged!(
+                settings.copyWith(
+                  worldZone: '',
+                  worldCity: '',
+                  worldLat: 0,
+                  worldLon: 0,
+                ),
+              ),
+            ),
+          const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+        ],
+      ),
       onTap: onTap,
     );
   }
@@ -54,7 +84,7 @@ class _CityPageState extends State<CityPage> {
   List<CityResult> _results = const [];
   bool _loading = false;
   bool _offline = false;
-  bool _keyboard = true;
+  bool _keyboard = !onComputer;
 
   @override
   void dispose() {
@@ -132,12 +162,30 @@ class _CityPageState extends State<CityPage> {
           // readOnly: typing uses our own keyboard, never the system one
           TextField(
             controller: _text,
-            readOnly: true,
+            // a phone types on our own keyboard, never the system one; a
+            // computer types straight into the field
+            readOnly: !onComputer,
+            autofocus: onComputer,
             showCursor: true,
-            enableInteractiveSelection: false,
-            onTap: () => setState(() => _keyboard = true),
+            enableInteractiveSelection: onComputer,
+            textInputAction: TextInputAction.search,
+            style: const TextStyle(fontSize: 17),
+            onChanged: onComputer
+                ? (q) {
+                    setState(() {});
+                    _changed(q);
+                  }
+                : null,
+            onSubmitted: onComputer
+                ? (_) {
+                    if (_results.isNotEmpty) _pick(_results.first);
+                  }
+                : null,
+            onTap: onComputer ? null : () => setState(() => _keyboard = true),
             decoration: InputDecoration(
-              hintText: 'Search any city in the world',
+              hintText: onComputer
+                  ? 'Type a city, then Enter'
+                  : 'Search any city in the world',
               hintStyle: const TextStyle(color: Colors.white60),
               prefixIcon: const Icon(
                 Icons.search_rounded,

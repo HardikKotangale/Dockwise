@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/rendering.dart';
 
 import 'motion.dart';
 
@@ -37,6 +40,19 @@ class _SplitPanelsState extends State<SplitPanels>
   );
   final _firstKey = GlobalKey();
   final _secondKey = GlobalKey();
+  final _firstBoundary = GlobalKey();
+
+  // The first panel is laid out at its final size at once and stays that way
+  // while the layout glides; what you see until it lands is a picture of how
+  // it was, stretched into the moving place and fading away. A card that was
+  // laid out afresh on every frame (and its big text drawn again at every
+  // size) is what made the switch stutter.
+  ui.Image? _before;
+
+  void _dropPicture() {
+    _before?.dispose();
+    _before = null;
+  }
 
   @override
   void didUpdateWidget(SplitPanels old) {
@@ -44,77 +60,129 @@ class _SplitPanelsState extends State<SplitPanels>
     if (old.duo == widget.duo) return;
     final target = widget.duo ? 1.0 : 0.0;
     if (MediaQuery.disableAnimationsOf(context)) {
+      _dropPicture();
       _c.value = target;
       return;
     }
-    _c.animateWith(
-      SpringSimulation(
-        appleSpring(damping: 0.9, response: 0.5),
-        _c.value,
-        target,
-        _c.velocity,
-      ),
-    );
+    // the first panel as it is now, before this rebuild changes its size
+    _dropPicture();
+    final box = _firstBoundary.currentContext?.findRenderObject();
+    if (box is RenderRepaintBoundary && box.hasSize && !box.size.isEmpty) {
+      try {
+        _before = box.toImageSync(
+          pixelRatio: MediaQuery.devicePixelRatioOf(context),
+        );
+      } catch (_) {
+        _before = null;
+      }
+    }
+    _c
+        .animateWith(
+          SpringSimulation(
+            appleSpring(damping: 0.9, response: 0.5),
+            _c.value,
+            target,
+            _c.velocity,
+          ),
+        )
+        .whenComplete(() {
+          if (!mounted || _c.isAnimating) return;
+          setState(_dropPicture);
+        });
   }
 
   @override
   void dispose() {
     _c.dispose();
+    _before?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final first = KeyedSubtree(key: _firstKey, child: widget.first);
+    final first = KeyedSubtree(
+      key: _firstKey,
+      child: RepaintBoundary(key: _firstBoundary, child: widget.first),
+    );
     final second = KeyedSubtree(key: _secondKey, child: widget.second);
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
         final t = _c.value.clamp(0.0, 1.0);
-        if (!widget.duo && t <= 0.001) return first;
         final gap = widget.gap;
-        if (widget.duo && t >= 0.999) {
-          final kids = [
-            Expanded(child: first),
-            SizedBox(width: gap, height: gap),
-            Expanded(child: second),
-          ];
-          return widget.vertical ? Column(children: kids) : Row(children: kids);
-        }
+        final showSecond = widget.duo || t > 0.001;
         return LayoutBuilder(
           builder: (context, c) {
-            final total = widget.vertical ? c.maxHeight : c.maxWidth;
+            final vertical = widget.vertical;
+            final total = vertical ? c.maxHeight : c.maxWidth;
+            final cross = vertical ? c.maxWidth : c.maxHeight;
             final half = (total - gap) / 2;
-            final firstSize = total + (half - total) * t;
-            final secondSize = half * t;
-            Widget sized(double size, Widget child) => SizedBox(
-              width: widget.vertical ? null : size,
-              height: widget.vertical ? size : null,
+            // where the split is right now (for the second panel and the
+            // picture), and where the first panel will stay
+            final firstNow = total + (half - total) * t;
+            final firstFinal = widget.duo ? half : total;
+            final secondNow = half * t;
+            // how far the glide is towards where it is going (0 to 1)
+            final done = (widget.duo ? t : 1 - t).clamp(0.0, 1.0);
+
+            Widget place({
+              required double at,
+              required double along,
+              required Widget child,
+            }) => Positioned(
+              left: vertical ? 0 : at,
+              top: vertical ? at : 0,
+              width: vertical ? cross : along,
+              height: vertical ? along : cross,
               child: child,
             );
-            final kids = [
-              sized(firstSize, first),
-              SizedBox(width: gap * t, height: gap * t),
-              sized(
-                secondSize,
-                ClipRect(
-                  // full size inside, so it is revealed rather than squashed
-                  child: OverflowBox(
-                    alignment: widget.vertical
-                        ? Alignment.topCenter
-                        : Alignment.centerLeft,
-                    minWidth: widget.vertical ? null : half,
-                    maxWidth: widget.vertical ? null : half,
-                    minHeight: widget.vertical ? half : null,
-                    maxHeight: widget.vertical ? half : null,
-                    child: Opacity(opacity: t, child: second),
-                  ),
+
+            final before = _before;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // the first panel, at its final size, brought in as the
+                // picture of how it was fades away
+                place(
+                  at: 0,
+                  along: firstFinal,
+                  child: before == null
+                      ? first
+                      : Opacity(opacity: done, child: first),
                 ),
-              ),
-            ];
-            return widget.vertical
-                ? Column(children: kids)
-                : Row(children: kids);
+                if (before != null)
+                  place(
+                    at: 0,
+                    along: firstNow,
+                    child: IgnorePointer(
+                      child: RawImage(
+                        image: before,
+                        fit: BoxFit.fill,
+                        opacity: AlwaysStoppedAnimation(1 - done),
+                      ),
+                    ),
+                  ),
+                if (showSecond)
+                  place(
+                    at: firstNow + gap * t,
+                    along: secondNow,
+                    child: ClipRect(
+                      // full size inside, so it is revealed rather than
+                      // squashed
+                      child: OverflowBox(
+                        alignment: vertical
+                            ? Alignment.topCenter
+                            : Alignment.centerLeft,
+                        minWidth: vertical ? null : half,
+                        maxWidth: vertical ? null : half,
+                        minHeight: vertical ? half : null,
+                        maxHeight: vertical ? half : null,
+                        child: Opacity(opacity: t, child: second),
+                      ),
+                    ),
+                  ),
+              ],
+            );
           },
         );
       },

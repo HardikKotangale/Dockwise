@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import '../../../core/motion/motion.dart';
 import '../../../services/spotify_service.dart';
 import '../../../state/standby_controller.dart';
+import '../settings/controls.dart' show AllSettingsButton;
+import '../settings/simple_settings.dart' show ColorRow;
+import '../settings/spotify_setup_page.dart';
 
 /// Music settings shown in the dock: Spotify login, where to play, playlists,
 /// and phone (notification-access) control.
@@ -78,6 +81,21 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  // a Mac shows the Spotify app's song without any sign-in (see MainFlutterWindow)
+  bool get _localSpotify => defaultTargetPlatform == TargetPlatform.macOS;
+
+  Future<void> _openSetup() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => SpotifySetupPage(controller: c),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {});
+    if (c.spotifyConnected) _load();
   }
 
   Future<void> _connect() async {
@@ -261,10 +279,22 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
+        // at the top, where it is seen (it used to sit at the end of a long list)
+        if (widget.onAllSettings != null) ...[
+          AllSettingsButton(onPressed: widget.onAllSettings!),
+          const SizedBox(height: 20),
+        ],
         if (c.spotifyConnected) ...[
           SpotifyVolume(controller: c),
           const SizedBox(height: 20),
         ],
+        ColorRow(
+          label: 'Accent color',
+          autoLabel: 'White',
+          value: c.settings.musicColor,
+          onChanged: (v) =>
+              c.updateSettings(c.settings.copyWith(musicColor: v)),
+        ),
         // Which player the card follows (and controls).
         Row(
           children: [
@@ -324,16 +354,26 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
           ],
         ),
         const SizedBox(height: 8),
-        if (!c.spotifyConfigured)
-          const Text(
-            'Put your Spotify Client ID in assets/local/spotify.json, or build with --dart-define=SPOTIFY_CLIENT_ID=YOUR_ID.',
-          )
-        else if (!c.spotifyConnected)
-          FilledButton(
-            onPressed: _connect,
-            child: const Text('Connect Spotify'),
-          )
-        else ...[
+        if (!c.spotifyConnected)
+          _SpotifyCard(
+            title: c.spotifyOwnClientId || !_localSpotify
+                ? 'Spotify account'
+                : 'Spotify on this Mac',
+            subtitle: c.spotifyOwnClientId
+                ? 'Almost done. Tap to sign in.'
+                : c.spotifyConfigured
+                ? 'Tap to sign in for search, playlists and devices.'
+                : _localSpotify
+                ? 'Shows what it is playing. Tap to add search, playlists and devices.'
+                : defaultTargetPlatform == TargetPlatform.iOS
+                ? 'Connect to show and control your Spotify music.'
+                : 'Tap to add search, playlists and devices.',
+            // a build that came with its own Client ID signs straight in
+            onTap: c.spotifyConfigured && !c.spotifyOwnClientId
+                ? _connect
+                : _openSetup,
+          ),
+        if (c.spotifyConnected) ...[
           Row(
             children: [
               const Expanded(
@@ -425,13 +465,6 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
           FilledButton(
             onPressed: c.openNotificationAccess,
             child: const Text('Open notification access settings'),
-          ),
-        ],
-        if (widget.onAllSettings != null) ...[
-          const Divider(height: 32),
-          TextButton(
-            onPressed: widget.onAllSettings,
-            child: const Text('All settings'),
           ),
         ],
       ],
@@ -738,6 +771,60 @@ class _SpotifyVolumeState extends State<SpotifyVolume> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One quiet row: what Spotify is doing now, and a way into the setup guide.
+class _SpotifyCard extends StatelessWidget {
+  const _SpotifyCard({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Row(
+            children: [
+              const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white60,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -79,17 +79,20 @@ class _SwipeRailState extends State<SwipeRail> {
                       ),
                       child: AnimatedSwitcher(
                         duration: d(180),
-                        child: Text(
-                          widget.labels[i],
+                        // a small panel shrinks the words to fit, never cuts them
+                        child: FittedBox(
                           key: ValueKey(i),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2,
-                            decoration: TextDecoration.none,
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            widget.labels[i],
+                            maxLines: 1,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.2,
+                              decoration: TextDecoration.none,
+                            ),
                           ),
                         ),
                       ),

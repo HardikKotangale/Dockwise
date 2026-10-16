@@ -8,6 +8,7 @@ import '../widgets/clock_faces.dart';
 import '../widgets/dock.dart';
 import 'city_page.dart';
 import 'controls.dart';
+import 'simple_settings.dart' show ColorRow;
 
 // Settings for the clock panel only.
 class ClockSettings extends StatelessWidget {
@@ -35,7 +36,7 @@ class ClockSettings extends StatelessWidget {
         children: [
           ClockBody(controller: controller, selected: selected, onCity: onCity),
           const Divider(height: 40, color: Colors.white12),
-          TextButton(onPressed: onAll, child: const Text('All settings')),
+          AllSettingsButton(onPressed: onAll),
         ],
       ),
     );
@@ -133,7 +134,11 @@ class _ClockBodyState extends State<ClockBody> {
           SettingsSection(
             title: 'World clock',
             nested: n,
-            child: CityRow(settings: settings, onTap: widget.onCity),
+            child: CityRow(
+              settings: settings,
+              onTap: widget.onCity,
+              onChanged: set,
+            ),
           ),
         SettingsSection(
           title: 'Options',
@@ -195,7 +200,6 @@ class ClockColors extends StatelessWidget {
   final Map<ClockPart, GlobalKey> rowKeys;
   final ClockPart? selected;
 
-  static const _white = 0xFFFFFFFF;
   static const _blue = 0xFF0A84FF;
 
   int _value(ClockPart p) => switch (p) {
@@ -233,52 +237,18 @@ class ClockColors extends StatelessWidget {
               ? Border.all(color: const Color(_blue), width: 1.5)
               : null,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                ChoiceChip(
-                  label: const Text('Auto'),
-                  selected: value == 0,
-                  onSelected: (_) => onChanged(_apply(part, 0)),
-                ),
-                for (final c in clockPalette)
-                  Semantics(
-                    button: true,
-                    selected: value == c.argb,
-                    label: '$label ${c.name}',
-                    child: GestureDetector(
-                      onTap: () => onChanged(_apply(part, c.argb)),
-                      child: AnimatedContainer(
-                        duration: calm(context, Motion.fast),
-                        curve: easeOutStrong,
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color(c.argb),
-                          border: Border.all(
-                            // ring contrasts with the swatch (white gets blue)
-                            color: value == c.argb
-                                ? (c.argb == _white
-                                      ? const Color(_blue)
-                                      : Colors.white)
-                                : Colors.white24,
-                            width: value == c.argb ? 3 : 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
+        child: ColorRow(
+          label: label,
+          value: value,
+          focus: active,
+          icon: switch (part) {
+            ClockPart.hours => Icons.hourglass_top_rounded,
+            ClockPart.minutes => Icons.timelapse_rounded,
+            ClockPart.colon => Icons.more_vert_rounded,
+            ClockPart.detail => Icons.text_fields_rounded,
+            ClockPart.label => Icons.label_rounded,
+          },
+          onChanged: (c) => onChanged(_apply(part, c)),
         ),
       ),
     );
@@ -453,6 +423,263 @@ class PreviewTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One option of a [LookPicker]: a name over a small picture of the result.
+class LookTile extends StatelessWidget {
+  const LookTile({
+    super.key,
+    required this.name,
+    required this.selected,
+    required this.onTap,
+    required this.preview,
+  });
+
+  final String name;
+  final bool selected;
+  final VoidCallback onTap;
+
+  /// drawn into a 96 x 66 frame
+  final Widget preview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: name,
+      child: Pressable(
+        scale: 0.94,
+        child: GestureDetector(
+          onTap: () {
+            tick();
+            onTap();
+          },
+          child: SizedBox(
+            width: 96,
+            child: Column(
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? Colors.white : Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                AnimatedContainer(
+                  duration: calm(context, Motion.fast),
+                  curve: easeOutStrong,
+                  foregroundDecoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? Palette.blue : Colors.white24,
+                      width: selected ? 3 : 1,
+                    ),
+                  ),
+                  child: Container(
+                    width: 96,
+                    height: 66,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    // a full-size picture scaled down, so nothing can overflow
+                    child: MediaQuery(
+                      // a picture, not text: it does not grow with the text size
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(textScaler: TextScaler.noScaling),
+                      child: IgnorePointer(
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: SizedBox(
+                            width: 160,
+                            height: 110,
+                            child: preview,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A "Style" row for a card: every option drawn as it really looks, so you
+/// can see what is next before you pick it.
+class LookPicker<T> extends StatefulWidget {
+  const LookPicker({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.values,
+    required this.name,
+    required this.preview,
+    required this.onChanged,
+    this.id,
+  });
+
+  final String label;
+  final T value;
+  final List<T> values;
+  final String Function(T) name;
+  final Widget Function(T) preview;
+  final ValueChanged<T> onChanged;
+
+  /// With an [id] (and a [label]) the picker is a dropdown: one line with the
+  /// current choice, and the pictures only when you open it.
+  final String? id;
+
+  static final Set<String> _open = {};
+
+  /// Opens the dropdown with this id the next time it is built.
+  static void requestOpen(String id) => _open.add(id);
+
+  @override
+  State<LookPicker<T>> createState() => _LookPickerState<T>();
+}
+
+class _LookPickerState<T> extends State<LookPicker<T>> {
+  late bool _isOpen = widget.id == null || LookPicker._open.contains(widget.id);
+
+  Widget _tiles() => Wrap(
+    spacing: 10,
+    runSpacing: 12,
+    children: [
+      for (final v in widget.values)
+        LookTile(
+          name: widget.name(v),
+          selected: v == widget.value,
+          onTap: () => widget.onChanged(v),
+          preview: widget.preview(v),
+        ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final drop = widget.id != null && widget.label.isNotEmpty;
+    if (!drop) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        // full width, so it sits at the left like the rows around it
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.label.isNotEmpty) ...[
+                Text(
+                  widget.label,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+              ],
+              _tiles(),
+            ],
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              tick();
+              setState(() => _isOpen = !_isOpen);
+              _isOpen
+                  ? LookPicker._open.add(widget.id!)
+                  : LookPicker._open.remove(widget.id!);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  // a small picture of the current choice, at the right
+                  if (widget.values.contains(widget.value)) ...[
+                    Container(
+                      width: 48,
+                      height: 33,
+                      margin: const EdgeInsets.only(right: 10),
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: MediaQuery(
+                        data: MediaQuery.of(
+                          context,
+                        ).copyWith(textScaler: TextScaler.noScaling),
+                        child: IgnorePointer(
+                          child: FittedBox(
+                            child: SizedBox(
+                              width: 160,
+                              height: 110,
+                              child: widget.preview(widget.value),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  Flexible(
+                    child: Text(
+                      widget.name(widget.value),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white54),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  AnimatedRotation(
+                    turns: _isOpen ? 0.5 : 0,
+                    duration: calm(context, Motion.fast),
+                    child: const Icon(
+                      Icons.expand_more_rounded,
+                      color: Colors.white54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: calm(context, Motion.fast),
+            curve: easeOutStrong,
+            alignment: Alignment.topCenter,
+            child: _isOpen
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 6),
+                    child: _tiles(),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
       ),
     );
   }

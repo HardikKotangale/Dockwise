@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/motion/motion.dart';
 
 /// Dims everything under it to about half when [idle]. It fades down slowly

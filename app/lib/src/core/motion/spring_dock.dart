@@ -15,6 +15,7 @@ class SpringDock extends StatefulWidget {
     required this.onClosed,
     required this.builder,
     this.overlay = false,
+    this.onClosing,
   });
 
   /// horizontal: slides in from the right; vertical: up from the bottom
@@ -30,6 +31,9 @@ class SpringDock extends StatefulWidget {
 
   /// called once it has finished leaving
   final VoidCallback onClosed;
+
+  /// called when it starts to leave (a close, or a flick that sends it away)
+  final VoidCallback? onClosing;
 
   /// [dismiss] closes it with the animation; [dragStart]/[dragUpdate]/
   /// [dragEnd] are for whatever the user grabs to move it (its header)
@@ -119,6 +123,7 @@ class SpringDockState extends State<SpringDock>
     if (_closing) return;
     _closing = true;
     tick();
+    widget.onClosing?.call();
     if (MediaQuery.disableAnimationsOf(context)) {
       widget.onClosed();
       return;
@@ -171,6 +176,7 @@ class SpringDockState extends State<SpringDock>
     if (heading > widget.extent / 2) {
       _closing = true;
       tick();
+      widget.onClosing?.call();
       _spring(
         widget.extent,
         velocity,

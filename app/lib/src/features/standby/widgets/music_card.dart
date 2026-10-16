@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../../core/apple.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/spotify_service.dart' show SpotifyDevice;
@@ -26,7 +28,12 @@ class MusicCard extends StatefulWidget {
     this.loadDevices,
     this.onDevice,
     this.nextUp,
+    this.onLink,
   });
+
+  /// Shown as a button when nothing can be played yet because Spotify is not
+  /// linked (an iPhone before sign-in): opens the way to link it.
+  final VoidCallback? onLink;
 
   /// Asked for when the Next button is held: the name of the song after this
   /// one, shown in a glass label; null when it cannot be known.
@@ -135,6 +142,14 @@ class _MusicCardState extends State<MusicCard> {
 
   // Progress bar. Press and hold, drag to a point, release to jump there. A
   // long press (not a drag) so it never fights the swipe that changes widgets.
+  /// secondary icons: the accent when one is picked, else the usual soft white
+  Color get _tone => widget.settings.musicColor == 0 ? Colors.white70 : _ink;
+
+  // the card's own colour when one is picked (progress, buttons), else white
+  Color get _ink => widget.settings.musicColor == 0
+      ? Colors.white
+      : Color(widget.settings.musicColor);
+
   Widget _bar(double progress, int position) {
     final canSeek = widget.onSeek != null && snapshot.durationMs > 0;
     final scrubbing = _scrub != null;
@@ -200,7 +215,7 @@ class _MusicCardState extends State<MusicCard> {
                           duration: const Duration(milliseconds: 120),
                           height: scrubbing ? 9 : 4,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _ink,
                             borderRadius: BorderRadius.circular(99),
                           ),
                         ),
@@ -211,10 +226,10 @@ class _MusicCardState extends State<MusicCard> {
                           child: Container(
                             width: 22,
                             height: 22,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
+                            decoration: BoxDecoration(
+                              color: _ink,
                               shape: BoxShape.circle,
-                              boxShadow: [
+                              boxShadow: const [
                                 BoxShadow(color: Colors.black54, blurRadius: 6),
                               ],
                             ),
@@ -359,7 +374,11 @@ class _MusicCardState extends State<MusicCard> {
   // choose from it is a button that opens the device menu.
   Widget _sourceLabel() {
     final text = Text(
-      snapshot.isControllable ? snapshot.source : 'Nothing playing',
+      snapshot.isControllable
+          ? snapshot.source
+          : widget.onLink != null
+          ? 'Spotify not linked'
+          : 'Nothing playing',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(
@@ -490,11 +509,7 @@ class _MusicCardState extends State<MusicCard> {
                   if (tall)
                     Row(
                       children: [
-                        const Icon(
-                          Icons.graphic_eq,
-                          size: 16,
-                          color: Colors.white70,
-                        ),
+                        Icon(Icons.graphic_eq, size: 16, color: _tone),
                         const SizedBox(width: 6),
                         Expanded(child: _sourceLabel()),
                         if (widget.queueView != null)
@@ -510,10 +525,10 @@ class _MusicCardState extends State<MusicCard> {
                               setState(() => _showQueue = true);
                               _keepQueueOpen();
                             },
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.queue_music_rounded,
                               size: 22,
-                              color: Colors.white70,
+                              color: _tone,
                             ),
                           ),
                         if (widget.onSearch != null)
@@ -526,10 +541,10 @@ class _MusicCardState extends State<MusicCard> {
                               height: 36,
                             ),
                             onPressed: widget.onSearch,
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.search_rounded,
                               size: 22,
-                              color: Colors.white70,
+                              color: _tone,
                             ),
                           ),
                         if (widget.volumeBar != null)
@@ -547,10 +562,10 @@ class _MusicCardState extends State<MusicCard> {
                                   ? _keepVolumeOpen()
                                   : _hideVolume?.cancel();
                             },
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.volume_up_rounded,
                               size: 22,
-                              color: Colors.white70,
+                              color: _tone,
                             ),
                           ),
                       ],
@@ -612,16 +627,64 @@ class _MusicCardState extends State<MusicCard> {
                             letterSpacing: -0.5,
                           ),
                         ),
-                        Text(
-                          snapshot.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: (unit / 18).clamp(13.0, 20.0),
-                            fontWeight: FontWeight.w500,
+                        // the "link Spotify" explanation is a sentence: on a narrow
+                        // card (two panels, or one panel in portrait) it wraps
+                        // to the next line instead of being cut off
+                        LayoutBuilder(
+                          builder: (context, box) => Text(
+                            snapshot.artist,
+                            maxLines:
+                                widget.onLink != null &&
+                                    !snapshot.isControllable &&
+                                    box.maxWidth < 560
+                                ? 3
+                                : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: (unit / 18).clamp(13.0, 20.0),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
+                        if (widget.onLink != null && !snapshot.isControllable)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            // arrives a beat after the words, with a small overshoot
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0, end: 1),
+                              duration: calm(
+                                context,
+                                const Duration(milliseconds: 900),
+                              ),
+                              curve: const Interval(
+                                0.35,
+                                1,
+                                curve: Curves.easeOutBack,
+                              ),
+                              builder: (context, v, child) => Opacity(
+                                opacity: v.clamp(0.0, 1.0),
+                                child: Transform.scale(
+                                  scale: 0.85 + 0.15 * v,
+                                  alignment: Alignment.centerLeft,
+                                  child: child,
+                                ),
+                              ),
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1DB954),
+                                  foregroundColor: Colors.black,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () {
+                                  tick();
+                                  widget.onLink!();
+                                },
+                                icon: const Icon(Icons.link_rounded, size: 18),
+                                label: const Text('Link Spotify'),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -635,6 +698,7 @@ class _MusicCardState extends State<MusicCard> {
                           icon: Icons.replay_10_rounded,
                           label: 'Back 10 seconds',
                           size: button,
+                          tint: _ink,
                           onPressed: () => onCommand('back10'),
                         ),
                       TransportButton(
@@ -642,6 +706,7 @@ class _MusicCardState extends State<MusicCard> {
                         nudge: -1,
                         label: 'Previous',
                         size: button,
+                        tint: _ink,
                         onPressed: () => onCommand('previous'),
                       ),
                       TransportButton(
@@ -650,6 +715,7 @@ class _MusicCardState extends State<MusicCard> {
                         label: snapshot.isPlaying ? 'Pause' : 'Play',
                         size: button * 1.2,
                         filled: true,
+                        tint: _ink,
                         onPressed: () => onCommand('playPause'),
                       ),
                       TransportButton(
@@ -659,6 +725,7 @@ class _MusicCardState extends State<MusicCard> {
                         holdLabel: 'Next',
                         loadHoldLabel: widget.nextUp,
                         size: button,
+                        tint: _ink,
                         onPressed: () => onCommand('next'),
                       ),
                       if (!compact)
@@ -666,6 +733,7 @@ class _MusicCardState extends State<MusicCard> {
                           icon: Icons.forward_10_rounded,
                           label: 'Forward 10 seconds',
                           size: button,
+                          tint: _ink,
                           onPressed: () => onCommand('forward10'),
                         ),
                     ],

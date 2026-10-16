@@ -14,85 +14,187 @@ import 'clock_settings.dart';
 import 'controls.dart';
 import 'simple_settings.dart';
 
+/// What the battery prompt calls the device, and when it speaks, by platform:
+/// a phone on a dock waits for its charger; a laptop asks to be plugged in.
+String get _lowBatteryTitle =>
+    _windows ? 'Low battery warning' : 'Low battery prompt';
+
+String get _lowBatteryText => _windows
+    ? 'When the laptop is low and not plugged in, ask to plug it in. A desktop PC has no battery, so it never shows.'
+    : 'When the phone is low and not charging, ask to put it on its charger before using Hushdock.';
+
 bool get _windows => const {
   TargetPlatform.windows,
   TargetPlatform.macOS,
 }.contains(defaultTargetPlatform);
 
 /// One row of the key list: the keys (each drawn as a key; "or" and
-/// "+ ..." are plain words between them) and what they do.
+/// "+ ..." are plain words between them) and what they do. A second line
+/// (after \n) is a quiet hint.
 typedef KeyShortcut = ({List<String> keys, String what});
 
 /// The keys a PC understands (see StandbyScreen), in groups, as the ? / F1
-/// help and Settings list them.
+/// help and Settings list them. Short words, one idea per line.
 const keyboardShortcuts = <(String, List<KeyShortcut>)>[
   (
     'Cards',
     [
-      (keys: ['←', '→'], what: 'Show the previous or next card'),
+      (keys: ['←', '→'], what: 'Previous or next card'),
+      (keys: ['↑', '↓'], what: 'Change the look of a card'),
       (
-        keys: ['↑', '↓'],
+        keys: ['Q', 'W', 'E', 'R', 'A', '+ ↑ ↓'],
         what:
-            'Change how the card looks: the clock style, the calendar '
-            '(today or the month), the weather page or the timer style',
+            'Swipe one tile on Summary\n'
+            // no break inside a pair: "R weather" never splits across lines
+            'Q\u00A0clock\u00A01 · W\u00A0clock\u00A02 · E\u00A0calendar · '
+            'R\u00A0weather · A\u00A0timer',
       ),
-      (
-        keys: ['Shift', '+ arrows'],
-        what: 'The same, on the second card (with two cards on screen)',
-      ),
+      (keys: ['Shift', '+ ← →'], what: 'Use the second card'),
     ],
   ),
   (
     'Layout',
     [
-      (keys: ['1'], what: 'One card on the screen'),
-      (keys: ['2'], what: 'Two cards side by side'),
-      (keys: ['D'], what: 'Switch between one and two cards'),
+      (
+        keys: ['O'],
+        what:
+            'One card\n'
+            'With two cards, the card under the pointer stays',
+      ),
+      (keys: ['T'], what: 'Two cards'),
+      (
+        keys: ['D'],
+        what:
+            'Switch between one and two\n'
+            'With two cards, the card under the pointer stays',
+      ),
     ],
   ),
   (
-    'Controls',
+    'Music',
     [
-      (
-        keys: ['Space'],
-        what:
-            'Play or pause the music, or start or pause the timer '
-            '(whichever card is showing)',
-      ),
-      (
-        keys: ['N'],
-        what:
-            'Turn the red night look on or off, until the night hours '
-            'next begin or end',
-      ),
+      (keys: ['Space'], what: 'Play or pause'),
+      (keys: ['N', 'M'], what: 'Back or forward 10 seconds'),
+      (keys: [',', '.'], what: 'Previous or next song'),
+      (keys: ['-', '+'], what: 'Volume down or up'),
+    ],
+  ),
+  (
+    'More',
+    [
+      (keys: ['B'], what: 'Night mode on or off'),
       (
         keys: ['S', 'or', 'Enter'],
-        what: 'Open the settings for the first card; again to close them',
+        what:
+            'Open or close the settings of what the pointer is on\n'
+            'On Summary: hold Q W E R or A, then press S',
       ),
       (
         keys: ['0 – 9'],
-        what:
-            'Type a time on the timer\'s number pad (Backspace takes one '
-            'back, Enter is done)',
+        what: 'Type a time on the timer\nBackspace deletes. Enter is done.',
       ),
-    ],
-  ),
-  (
-    'Window',
-    [
-      (keys: ['F11'], what: 'Turn full screen on or off'),
-      (keys: ['Esc'], what: 'Close the open panel, or else leave full screen'),
+      (keys: ['F', 'or', 'F11'], what: 'Full screen on or off'),
+      (keys: ['Esc'], what: 'Close, or leave full screen'),
       (keys: ['?', 'or', 'F1'], what: 'Show or hide this list'),
     ],
   ),
 ];
 
-/// The [keyboardShortcuts]: a small heading per group, then one row per
-/// shortcut with the keys drawn as keys and what they do beside them.
+/// The [keyboardShortcuts], laid out like iOS settings: a small heading, then
+/// one rounded card per group. Each row is a picture, a few words, and the
+/// keys drawn as keys (under the words when there are many).
 class ShortcutList extends StatelessWidget {
   const ShortcutList({super.key});
 
   static bool _plain(String token) => token == 'or' || token.startsWith('+');
+
+  // a small picture of what the row does, by its first key
+  static const _icons = <String, IconData>{
+    '←': Icons.swap_horiz_rounded,
+    '↑': Icons.style_rounded,
+    'Q': Icons.touch_app_rounded,
+    'D': Icons.cached_rounded,
+    'Space': Icons.play_arrow_rounded,
+    'N': Icons.forward_10_rounded,
+    ',': Icons.skip_next_rounded,
+    '-': Icons.volume_up_rounded,
+    'B': Icons.nightlight_round,
+    'S': Icons.settings_rounded,
+    '0 – 9': Icons.dialpad_rounded,
+    'F': Icons.fullscreen_rounded,
+    'Esc': Icons.close_rounded,
+    '?': Icons.help_outline_rounded,
+  };
+
+  Widget _keys(List<String> keys) => Wrap(
+    spacing: 5,
+    runSpacing: 5,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      for (final k in keys)
+        _plain(k)
+            ? Text(k, style: const TextStyle(color: Colors.white54))
+            : _KeyCap(k),
+    ],
+  );
+
+  Widget _row(KeyShortcut row) {
+    final lines = row.what.split('\n');
+    // many keys go under the words, so the words keep their room
+    final below = row.keys.length > 3;
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          lines.first,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        ),
+        if (lines.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              lines[1],
+              style: const TextStyle(color: Colors.white54, fontSize: 12.5),
+            ),
+          ),
+        if (below)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _keys(row.keys),
+          ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: switch (row.keys.first) {
+              // the layout rows are drawn as the cards they name
+              'O' => const _CardsGlyph(cards: 1),
+              'T' => const _CardsGlyph(cards: 2),
+              'Shift' => const _CardsGlyph(cards: 2, lit: 1),
+              _ => Icon(
+                _icons[row.keys.first] ?? Icons.keyboard_rounded,
+                size: 18,
+                color: Colors.white70,
+              ),
+            },
+          ),
+          Expanded(child: words),
+          if (!below) ...[const SizedBox(width: 10), _keys(row.keys)],
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Column(
@@ -100,7 +202,7 @@ class ShortcutList extends StatelessWidget {
     children: [
       for (final (group, rows) in keyboardShortcuts) ...[
         Padding(
-          padding: const EdgeInsets.only(top: 14, bottom: 6),
+          padding: const EdgeInsets.only(left: 6, top: 16, bottom: 8),
           child: Text(
             group.toUpperCase(),
             style: const TextStyle(
@@ -111,44 +213,66 @@ class ShortcutList extends StatelessWidget {
             ),
           ),
         ),
-        for (final row in rows)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 150,
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      for (final k in row.keys)
-                        _plain(k)
-                            ? Text(
-                                k,
-                                style: const TextStyle(color: Colors.white54),
-                              )
-                            : _KeyCap(k),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(
-                      row.what,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
           ),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    indent: 56,
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                _row(rows[i]),
+              ],
+            ],
+          ),
+        ),
       ],
     ],
   );
+}
+
+/// [cards] rounded boxes side by side, as many as the row speaks of, with one
+/// of them lit when the row is about that one (the second card).
+class _CardsGlyph extends StatelessWidget {
+  const _CardsGlyph({required this.cards, this.lit});
+
+  final int cards;
+  final int? lit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 19,
+        height: 15,
+        child: Row(
+          // stretch: a box with no child would otherwise have no height
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < cards; i++) ...[
+              if (i > 0) const SizedBox(width: 2.5),
+              Expanded(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: lit == i ? Colors.white : null,
+                    border: Border.all(color: Colors.white70, width: 1.6),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// One key, drawn like a key on the keyboard.
@@ -182,12 +306,16 @@ class AllSettings extends StatelessWidget {
     required this.onCity,
     required this.onMusic,
     required this.selected,
+    this.focus,
   });
 
   final StandbyController controller;
   final VoidCallback onCity;
   final VoidCallback onMusic; // opens the Music dock
   final ValueNotifier<ClockPart?> selected;
+
+  /// the title of a group to open and scroll to (a tap on a Summary clock)
+  final String? focus;
 
   @override
   Widget build(BuildContext context) {
@@ -201,46 +329,57 @@ class AllSettings extends StatelessWidget {
         children: [
           SettingsSection(
             title: 'Layout',
-            subtitle: 'Tip: pinch with two fingers on the screen. Spread = one panel, pinch together = two.',
+            subtitle:
+                'Tip: pinch with two fingers on the screen. Spread = one panel, pinch together = two.',
             first: true,
             child: Column(
               children: [
-                EnumPicker<StandbyLayoutMode>(
+                LookPicker<StandbyLayoutMode>(
                   label: 'Panels',
                   value: settings.layoutMode,
                   values: StandbyLayoutMode.values,
-                  display: (v) =>
+                  name: (v) =>
                       v == StandbyLayoutMode.duo ? 'Two panels' : 'Single',
+                  preview: (v) => PanelsPreview(
+                    two: v == StandbyLayoutMode.duo,
+                    settings: settings,
+                  ),
                   onChanged: (v) => set(settings.copyWith(layoutMode: v)),
                 ),
                 // One panel: there is only the one to choose; no left or right.
                 if (settings.layoutMode == StandbyLayoutMode.single)
-                  EnumPicker<StandbyWidgetType>(
+                  LookPicker<StandbyWidgetType>(
+                    id: 'layout-widget',
                     label: 'Widget',
                     value: settings.leftWidget,
                     values: StandbyWidgetType.values,
-                    display: widgetLabel,
+                    name: widgetLabel,
+                    preview: (t) => WidgetPreview(type: t, settings: settings),
                     onChanged: (v) => set(settings.copyWith(leftWidget: v)),
                   )
                 else ...[
-                  EnumPicker<StandbyWidgetType>(
+                  LookPicker<StandbyWidgetType>(
+                    id: 'layout-left',
                     label: 'Left widget',
                     value: settings.leftWidget,
                     values: [
                       for (final t in StandbyWidgetType.values)
                         if (t != StandbyWidgetType.summary) t,
                     ],
-                    display: widgetLabel,
+                    name: widgetLabel,
+                    preview: (t) => WidgetPreview(type: t, settings: settings),
                     onChanged: (v) => set(settings.copyWith(leftWidget: v)),
                   ),
-                  EnumPicker<StandbyWidgetType>(
+                  LookPicker<StandbyWidgetType>(
+                    id: 'layout-right',
                     label: 'Right widget',
                     value: settings.rightWidget,
                     values: [
                       for (final t in StandbyWidgetType.values)
                         if (t != StandbyWidgetType.summary) t,
                     ],
-                    display: widgetLabel,
+                    name: widgetLabel,
+                    preview: (t) => WidgetPreview(type: t, settings: settings),
                     onChanged: (v) => set(settings.copyWith(rightWidget: v)),
                   ),
                 ],
@@ -253,6 +392,12 @@ class AllSettings extends StatelessWidget {
             child: Column(
               children: [
                 SpotifyVolume(controller: controller),
+                ColorRow(
+                  label: 'Accent color',
+                  autoLabel: 'White',
+                  value: settings.musicColor,
+                  onChanged: (c) => set(settings.copyWith(musicColor: c)),
+                ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.library_music_outlined),
@@ -273,12 +418,14 @@ class AllSettings extends StatelessWidget {
           if (defaultTargetPlatform == TargetPlatform.android)
             SettingsSection(
               title: 'Auto-start',
-              subtitle: 'Open Hushdock by itself when the phone is charging and propped up.',
+              subtitle:
+                  'Open Hushdock by itself when the phone is charging and propped up.',
               child: AutoStartSection(controller: controller),
             ),
           SettingsSection(
             title: 'Theme',
-            subtitle: 'Accent color for the date card and highlights. The clock keeps its own colors under Clock.',
+            subtitle:
+                'Accent color for the date card and highlights. The clock keeps its own colors under Clock.',
             child: AccentPicker(settings: settings, onChanged: set),
           ),
           SettingsSection(
@@ -290,6 +437,19 @@ class AllSettings extends StatelessWidget {
               nested: true,
             ),
           ),
+          _FocusOnOpen(
+            active: focus == 'Summary clocks',
+            title: 'Summary clocks',
+            child: SettingsSection(
+              title: 'Summary clocks',
+              subtitle: 'The two time tiles on the Summary panel.',
+              child: SummaryClocksBody(
+                settings: settings,
+                onChanged: set,
+                onCity: onCity,
+              ),
+            ),
+          ),
           SettingsSection(
             title: 'Weather',
             child: SwitchListTile.adaptive(
@@ -299,19 +459,18 @@ class AllSettings extends StatelessWidget {
               title: const Text('Temperature in °F'),
             ),
           ),
-          SettingsSection(
+          _FocusOnOpen(
+            active: focus == 'Calendar',
             title: 'Calendar',
-            child: EnumPicker<CalendarStyle>(
-              label: 'View',
-              value: settings.calendarStyle,
-              values: CalendarStyle.values,
-              display: (v) => v == CalendarStyle.day ? 'Today' : 'Whole month',
-              onChanged: (v) => set(settings.copyWith(calendarStyle: v)),
+            child: SettingsSection(
+              title: 'Calendar',
+              child: CalendarBody(controller: controller),
             ),
           ),
           SettingsSection(
             title: 'Timer',
-            subtitle: 'Its own colors, separate from the clock, and what happens when it ends.',
+            subtitle:
+                'Its own colors, separate from the clock, and what happens when it ends.',
             child: TimerBody(controller: controller),
           ),
           SettingsSection(
@@ -445,61 +604,65 @@ class AllSettings extends StatelessWidget {
                     'Lowers the screen to about half after this long without a touch. Touch to wake.',
                   ),
                 ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final m in const [0, 2, 5, 10])
-                      ChoiceChip(
-                        label: Text(m == 0 ? 'Off' : '$m min'),
-                        selected: settings.idleDimMinutes == m,
-                        onSelected: (_) =>
-                            set(settings.copyWith(idleDimMinutes: m)),
-                      ),
-                  ],
+                // one line: shrinks a little rather than wrapping
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final m in const [0, 2, 5, 10])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(m == 0 ? 'Off' : '$m min'),
+                            selected: settings.idleDimMinutes == m,
+                            onSelected: (_) =>
+                                set(settings.copyWith(idleDimMinutes: m)),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: settings.lowBatteryAlert,
                   onChanged: (v) => set(settings.copyWith(lowBatteryAlert: v)),
-                  title: const Text('Low battery prompt'),
-                  subtitle: const Text(
-                    'When low and not charging, ask to charge the phone before using Hushdock',
-                  ),
+                  title: Text(_lowBatteryTitle),
+                  subtitle: Text(_lowBatteryText),
                 ),
                 if (settings.lowBatteryAlert)
-                  Row(
-                    children: [
-                      const SizedBox(
-                        width: 92,
-                        child: Text(
-                          'Alert at',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Warn me at',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      ),
-                      Expanded(
-                        child: Slider(
-                          value: settings.lowBatteryLevel.toDouble().clamp(
-                            5.0,
-                            50.0,
-                          ),
-                          min: 5,
-                          max: 50,
-                          divisions: 9, // steps of 5%
-                          label: '${settings.lowBatteryLevel}%',
-                          onChanged: (v) => set(
-                            settings.copyWith(lowBatteryLevel: v.round()),
-                          ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final p in {
+                              10,
+                              15,
+                              20,
+                              30,
+                              settings.lowBatteryLevel,
+                            }.toList()..sort())
+                              ChoiceChip(
+                                label: Text('$p%'),
+                                selected: settings.lowBatteryLevel == p,
+                                onSelected: (_) =>
+                                    set(settings.copyWith(lowBatteryLevel: p)),
+                              ),
+                          ],
                         ),
-                      ),
-                      SizedBox(
-                        width: 44,
-                        child: Text(
-                          '${settings.lowBatteryLevel}%',
-                          textAlign: TextAlign.end,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
@@ -528,7 +691,7 @@ class AllSettings extends StatelessWidget {
                     onChanged: (v) => set(settings.copyWith(fullscreen: v)),
                     title: const Text('Full screen'),
                     subtitle: const Text(
-                      'Fills the whole screen. F11 or Esc to leave.',
+                      'Fills the whole screen. F or Esc to leave.',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -710,4 +873,46 @@ class _AutoStartSectionState extends State<AutoStartSection> {
       ],
     );
   }
+}
+
+/// Opens a settings group and scrolls it into view the first time it is shown.
+class _FocusOnOpen extends StatefulWidget {
+  const _FocusOnOpen({
+    required this.active,
+    required this.title,
+    required this.child,
+  });
+
+  final bool active;
+  final String title;
+  final Widget child;
+
+  @override
+  State<_FocusOnOpen> createState() => _FocusOnOpenState();
+}
+
+class _FocusOnOpenState extends State<_FocusOnOpen> {
+  final _key = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.active) return;
+    SettingsSection.requestOpen(widget.title);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _key.currentContext;
+      if (ctx != null && mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+          alignment: 0.05,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: _key, child: widget.child);
 }

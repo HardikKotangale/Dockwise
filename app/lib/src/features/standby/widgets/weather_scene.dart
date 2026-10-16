@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
 
-import '../../../core/power_mode.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 
 /// What the animated backdrop shows for a WMO weather code.
 enum Precip { none, rain, snow }
@@ -75,8 +76,8 @@ SceneSpec sceneFor(int? code, bool isDay) {
 /// in, new weather, back to the app) the rain, snow and clouds move for
 /// [playFor], slow down and come to rest, then it is a still picture that
 /// costs nothing. A card that is sliding in waits for [settleFirst] before it
-/// moves, so the slide and the scene never compete for the same frames. One painter, ~20 fps while moving (30 on a PC on mains
-/// power, see [RichGraphics]), never moving when animations are disabled.
+/// moves, so the slide and the scene never compete for the same frames. One painter; 20 fps on a phone, every frame the screen shows on a
+/// computer; never moving when animations are disabled.
 class WeatherScene extends StatefulWidget {
   const WeatherScene({super.key, required this.spec});
 
@@ -92,21 +93,30 @@ class WeatherScene extends StatefulWidget {
 }
 
 class WeatherSceneState extends State<WeatherScene>
-    with WidgetsBindingObserver {
-  // 20 fps; 30 fps (smoother rain and snow) on a PC on mains power
-  static const _light = Duration(milliseconds: 50);
-  static const _rich = Duration(milliseconds: 33);
+    with WidgetsBindingObserver, TickerProviderStateMixin {
+  // Phones: 20 fps (battery). A computer: every frame the screen shows, with
+  // no limit (60, 120, 270 Hz...). The scene moves on the screen's own clock
+  // (a Ticker), not on a timer. The heavy sky is a picture drawn once, so a
+  // frame costs only the rain, snow and lightning.
+  static const _phone = Duration(milliseconds: 50);
+
+  static bool get _onComputer => const {
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  }.contains(defaultTargetPlatform);
   // the end of the play slows down to rest instead of freezing
   static const _easeOut = 700;
-  Duration _frame = _light;
+  Duration _frame = _phone;
   bool _still = false; // animations disabled
   final _time = ValueNotifier<double>(0);
   // the slow layers (sky, clouds, fog) are drawn at this time: it only moves
   // when a play ends, so during the play they stay one cached picture
   final _restTime = ValueNotifier<double>(0);
   final _cache = SnapshotController(allowSnapshotting: true);
-  Timer? _timer;
+  Ticker? _ticker;
   int _playedMs = 0;
+  bool _quiet = true; // at rest (set false while it plays)
 
   Timer? _wait;
 
@@ -120,29 +130,36 @@ class WeatherSceneState extends State<WeatherScene>
       return;
     }
     _playedMs = 0;
+    if (_quiet) setState(() => _quiet = false);
     final total = WeatherScene.playFor.inMilliseconds;
-    _timer = Timer.periodic(_frame, (_) {
-      _playedMs += _frame.inMilliseconds;
+    var last = Duration.zero;
+    _ticker = createTicker((elapsed) {
+      // a phone keeps to its slow rate; a computer takes every frame
+      if (_frame > Duration.zero && elapsed - last < _frame) return;
+      final dt = (elapsed - last).inMicroseconds / 1000; // ms since the last
+      last = elapsed;
+      _playedMs = elapsed.inMilliseconds;
       final left = total - _playedMs;
       if (left <= 0) {
         _restTime.value = _time.value; // the sky catches up, once
+        if (mounted) setState(() => _quiet = true);
         return _stop();
       }
       // the scene moves at the same speed whatever the frame rate
       final speed = left < _easeOut ? left / _easeOut : 1.0;
-      _time.value += _frame.inMilliseconds / 1000 * speed;
-    });
+      _time.value += dt / 1000 * speed;
+    })..start();
   }
 
   void _stop() {
     _wait?.cancel();
     _wait = null;
-    _timer?.cancel();
-    _timer = null;
+    _ticker?.dispose();
+    _ticker = null;
   }
 
   /// Moving right now (false once it has come to rest).
-  bool get playing => _timer != null || _wait != null;
+  bool get playing => _ticker != null || _wait != null;
 
   @override
   void initState() {
@@ -155,7 +172,7 @@ class WeatherSceneState extends State<WeatherScene>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final frame = RichGraphics.of(context) ? _rich : _light;
+    final frame = _onComputer ? Duration.zero : _phone;
     final still = MediaQuery.disableAnimationsOf(context);
     final changed = frame != _frame || still != _still;
     _frame = frame;
@@ -163,7 +180,7 @@ class WeatherSceneState extends State<WeatherScene>
     if (!_started) {
       _started = true;
       _play(after: WeatherScene.settleFirst); // the card just appeared
-    } else if (changed && _timer != null) {
+    } else if (changed && _ticker != null) {
       _play(); // mid-play: carry on at the new rate (or stop if still)
     }
   }
@@ -200,33 +217,54 @@ class WeatherSceneState extends State<WeatherScene>
     // are drawn again on each frame.
     final dpr = MediaQuery.devicePixelRatioOf(context);
     return RepaintBoundary(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (_Layer.sharp.has(widget.spec))
-            CustomPaint(
-              painter: _ScenePainter(widget.spec, _restTime, _Layer.sharp),
-              size: Size.infinite,
-            ),
-          MediaQuery(
-            data: MediaQuery.of(context).copyWith(devicePixelRatio: dpr / 2),
-            child: SnapshotWidget(
-              controller: _cache,
-              mode: SnapshotMode.permissive,
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _ScenePainter(widget.spec, _restTime, _Layer.soft),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // The soft sky is a picture of about 0.35 megapixels at most (half the
+          // screen's density on a small card, less on a big one): its shapes are
+          // blurry anyway, and drawing it again at every new size (a dock opening
+          // beside the card) is the heaviest thing the weather does.
+          final area = box.maxWidth * box.maxHeight;
+          final soft = area <= 0
+              ? dpr / 2
+              : math.min(dpr / 2, math.max(0.2, math.sqrt(350000 / area)));
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_Layer.sharp.has(widget.spec))
+                CustomPaint(
+                  painter: _ScenePainter(widget.spec, _time, _Layer.sharp),
                   size: Size.infinite,
                 ),
+              MediaQuery(
+                data: MediaQuery.of(context).copyWith(devicePixelRatio: soft),
+                child: SnapshotWidget(
+                  controller: _cache,
+                  mode: SnapshotMode.permissive,
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _ScenePainter(
+                        widget.spec,
+                        _restTime,
+                        _Layer.soft,
+                      ),
+                      size: Size.infinite,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          if (_Layer.weather.has(widget.spec))
-            CustomPaint(
-              painter: _ScenePainter(widget.spec, _time, _Layer.weather),
-              size: Size.infinite,
-            ),
-        ],
+              if (_Layer.weather.has(widget.spec))
+                CustomPaint(
+                  painter: _ScenePainter(
+                    widget.spec,
+                    _time,
+                    _Layer.weather,
+                    quiet: _quiet,
+                  ),
+                  size: Size.infinite,
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -248,11 +286,15 @@ enum _Layer {
 }
 
 class _ScenePainter extends CustomPainter {
-  _ScenePainter(this.spec, this.time, this.layer) : super(repaint: time);
+  _ScenePainter(this.spec, this.time, this.layer, {this.quiet = false})
+    : super(repaint: time);
 
   final SceneSpec spec;
   final ValueNotifier<double> time;
   final _Layer layer;
+
+  /// the scene has come to rest: no bolt may be caught mid-flash
+  final bool quiet;
 
   // Fixed pseudo-random seeds so particles are stable between frames.
   static final _rnd = math.Random(11);
@@ -313,7 +355,7 @@ class _ScenePainter extends CustomPainter {
           _snow(canvas, size, t);
         case Precip.none:
       }
-      if (spec.lightning) _lightning(canvas, size, t);
+      if (spec.lightning && !quiet) _lightning(canvas, size, t);
       return;
     }
     if (spec.sun) _sun(canvas, size, t);
@@ -370,10 +412,17 @@ class _ScenePainter extends CustomPainter {
     _blob(canvas, c, r * 0.85, r * 0.85, Colors.white, 1);
   }
 
+  // A moon the way Apple draws it: a wide cool glow, the dark side faintly
+  // there (earthshine), and a soft-lit crescent with a gentle edge.
   void _moon(Canvas canvas, Size size) {
     final c = Offset(size.width * 0.8, size.height * 0.2);
     final r = size.shortestSide * 0.085;
-    _blob(canvas, c, r * 4.5, r * 4.5, const Color(0xFFBFD0FF), 0.3);
+    _blob(canvas, c, r * 7, r * 7, const Color(0xFF8FA8FF), 0.14);
+    _blob(canvas, c, r * 3.6, r * 3.6, const Color(0xFFBFD0FF), 0.3);
+    _paint
+      ..shader = null
+      ..color = const Color(0xFFBFD0FF).withValues(alpha: 0.1);
+    canvas.drawCircle(c, r, _paint);
     final crescent = Path.combine(
       PathOperation.difference,
       Path()..addOval(Rect.fromCircle(center: c, radius: r)),
@@ -385,9 +434,10 @@ class _ScenePainter extends CustomPainter {
       ),
     );
     _paint
-      ..shader = null
-      ..color = const Color(0xFFFFF4D6);
+      ..color = const Color(0xFFFFF4D6)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.8);
     canvas.drawPath(crescent, _paint);
+    _paint.maskFilter = null;
   }
 
   void _stars(Canvas canvas, Size size, double t) {
@@ -395,33 +445,13 @@ class _ScenePainter extends CustomPainter {
     for (var i = 0; i < 36; i++) {
       final s = _seeds[i];
       final tw =
-          0.3 + 0.7 * (0.5 + 0.5 * math.sin(t * (0.5 + s.$3) + s.$3 * 20));
+          0.3 + 0.7 * (0.5 + 0.5 * math.sin(t * 3 * (0.5 + s.$3) + s.$3 * 20));
       _paint.color = Colors.white.withValues(alpha: 0.75 * tw);
       canvas.drawCircle(
         Offset(s.$1 * size.width, s.$2 * size.height * 0.7),
         0.7 + s.$3 * 1.4,
         _paint,
       );
-    }
-    // a shooting star every ~9 seconds
-    final p = (t % 9) / 0.9;
-    if (p < 1) {
-      final head = Offset(
-        size.width * (0.15 + 0.5 * p),
-        size.height * (0.06 + 0.22 * p),
-      );
-      for (var k = 0; k < 6; k++) {
-        final a = (1 - p) * (1 - k / 6) * 0.9;
-        _paint
-          ..color = Colors.white.withValues(alpha: a)
-          ..strokeWidth = 1.8 - k * 0.2
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(
-          head - Offset(k * 9.0, k * 4.0),
-          head - Offset((k + 1) * 9.0, (k + 1) * 4.0),
-          _paint,
-        );
-      }
     }
   }
 
@@ -582,7 +612,7 @@ class _ScenePainter extends CustomPainter {
     if (flash <= 0) return;
     _paint
       ..shader = null
-      ..color = Colors.white.withValues(alpha: 0.26 * flash);
+      ..color = Colors.white.withValues(alpha: 0.14 * flash);
     canvas.drawRect(Offset.zero & size, _paint);
     // bolt: deterministic zigzag per cycle
     final r = math.Random(cycle * 31 + 5);
@@ -610,5 +640,8 @@ class _ScenePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ScenePainter old) =>
-      old.spec != spec || old.layer != layer || old.time != time;
+      old.spec != spec ||
+      old.layer != layer ||
+      old.time != time ||
+      old.quiet != quiet;
 }

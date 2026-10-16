@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
 import '../../../core/apple.dart';
 import '../../../domain/standby_models.dart';
 
@@ -50,6 +53,7 @@ class TransportButton extends StatefulWidget {
     required this.size,
     required this.onPressed,
     this.filled = false,
+    this.tint,
     this.nudge = 0,
     this.playing,
     this.holdLabel,
@@ -60,6 +64,10 @@ class TransportButton extends StatefulWidget {
   final String label;
   final double size;
   final bool filled;
+
+  /// the filled button's colour (white when null); the arrow turns black or
+  /// white to stay readable on it
+  final Color? tint;
   final VoidCallback onPressed;
 
   /// -1 / +1: the icon hops that way when pressed (previous / next); 0: none
@@ -77,12 +85,16 @@ class TransportButton extends StatefulWidget {
 }
 
 class _TransportButtonState extends State<TransportButton>
-    with SingleTickerProviderStateMixin {
-  bool _hop = false;
-  Timer? _back;
+    with TickerProviderStateMixin {
+  // one burst per press: a bloom of light that swells and fades, and for Previous / Next
+  // the arrow leaving one side while a new one arrives from the other
+  late final AnimationController _fx = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 460),
+  );
   late final AnimationController _morph = AnimationController(
     vsync: this,
-    duration: Motion.fast,
+    duration: Motion.medium,
     value: widget.playing == true ? 1 : 0,
   );
 
@@ -100,34 +112,65 @@ class _TransportButtonState extends State<TransportButton>
 
   @override
   void dispose() {
-    _back?.cancel();
+    _fx.dispose();
     _morph.dispose();
     super.dispose();
   }
 
   void _pressed() {
     tick();
-    if (widget.nudge != 0 && !MediaQuery.disableAnimationsOf(context)) {
-      setState(() => _hop = true);
-      _back?.cancel();
-      _back = Timer(const Duration(milliseconds: 100), () {
-        if (mounted) setState(() => _hop = false);
-      });
-    }
+    if (!MediaQuery.disableAnimationsOf(context)) _fx.forward(from: 0);
     widget.onPressed();
+  }
+
+  Widget _glyph(Color color, double t) {
+    final size = widget.size * 0.55;
+    if (widget.playing != null) {
+      // the shape morphs and the button swells a little while it does
+      return Transform.scale(
+        scale: 1 + 0.16 * math.sin(math.pi * _morph.value),
+        child: AnimatedIcon(
+          icon: AnimatedIcons.play_pause,
+          progress: _morph,
+          size: size,
+          color: color,
+        ),
+      );
+    }
+    final icon = Icon(widget.icon, size: size, color: color);
+    if (widget.nudge == 0 || t == 0 || t == 1) return icon;
+    // skip: the arrow slides out the way it points, a fresh one slides in
+    final e = Curves.easeOutCubic.transform(t);
+    final dist = widget.size * 0.42 * widget.nudge;
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: widget.size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Transform.translate(
+              offset: Offset(dist * e, 0),
+              child: Opacity(opacity: (1 - e).clamp(0.0, 1.0), child: icon),
+            ),
+            Transform.translate(
+              offset: Offset(-dist * (1 - e), 0),
+              child: Opacity(opacity: e.clamp(0.0, 1.0), child: icon),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.filled ? Colors.black : Colors.white;
-    final glyph = widget.playing != null
-        ? AnimatedIcon(
-            icon: AnimatedIcons.play_pause,
-            progress: _morph,
-            size: widget.size * 0.55,
-            color: color,
-          )
-        : Icon(widget.icon, size: widget.size * 0.55, color: color);
+    final fill = widget.tint ?? Colors.white;
+    final color = widget.filled
+        ? (ThemeData.estimateBrightnessForColor(fill) == Brightness.light
+              ? Colors.black
+              : Colors.white)
+        : (widget.tint ?? Colors.white);
+    final glow = widget.tint ?? Colors.white;
     return HoldLabel(
       label: widget.holdLabel ?? widget.label,
       loadLabel: widget.loadHoldLabel,
@@ -143,7 +186,7 @@ class _TransportButtonState extends State<TransportButton>
             highlight: !widget.filled,
             round: true,
             child: Material(
-              color: widget.filled ? Colors.white : Colors.transparent,
+              color: widget.filled ? fill : Colors.transparent,
               shape: const CircleBorder(),
               child: InkWell(
                 customBorder: const CircleBorder(),
@@ -151,12 +194,43 @@ class _TransportButtonState extends State<TransportButton>
                 onTap: _pressed,
                 child: SizedBox.square(
                   dimension: widget.size,
-                  child: AnimatedSlide(
-                    // a quick hop one way, then it springs back
-                    offset: _hop ? Offset(0.14 * widget.nudge, 0) : Offset.zero,
-                    duration: Duration(milliseconds: _hop ? 90 : 300),
-                    curve: _hop ? easeOutStrong : easeBounce,
-                    child: Center(child: glyph),
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_fx, _morph]),
+                    builder: (context, _) {
+                      final t = _fx.value;
+                      return Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          // a soft bloom of the accent swells from the middle
+                          // and melts away: light, not a ring
+                          if (t > 0 && t < 1)
+                            IgnorePointer(
+                              child: Transform.scale(
+                                scale:
+                                    0.55 +
+                                    0.85 * Curves.easeOutCubic.transform(t),
+                                child: Container(
+                                  width: widget.size,
+                                  height: widget.size,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        glow.withValues(
+                                          alpha: 0.55 * math.pow(1 - t, 1.6),
+                                        ),
+                                        glow.withValues(alpha: 0),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          _glyph(color, t),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

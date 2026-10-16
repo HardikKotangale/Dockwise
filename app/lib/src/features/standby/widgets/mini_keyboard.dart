@@ -32,12 +32,12 @@ class MiniKeyboard extends StatelessWidget {
       onBackspace: onBackspace,
       onDone: onDone,
       child: TweenAnimationBuilder<double>(
-      tween: Tween(end: portrait ? 1.0 : 0.0),
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : Motion.medium,
-      curve: easeOutStrong,
-      builder: (context, t, _) => _build(t),
+        tween: Tween(end: portrait ? 1.0 : 0.0),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : Motion.medium,
+        curve: easeOutStrong,
+        builder: (context, t, _) => _build(t),
       ),
     );
   }

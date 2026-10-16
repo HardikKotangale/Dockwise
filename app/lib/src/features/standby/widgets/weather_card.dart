@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
+import '../../../core/motion/dissolve.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../services/weather_service.dart';
@@ -627,30 +628,42 @@ class _WeatherCardState extends State<WeatherCard> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        AnimatedSwitcher(
-          duration: still ? Duration.zero : Motion.medium,
-          switchInCurve: easeOutStrong,
-          switchOutCurve: easeOutStrong,
-          layoutBuilder: (current, previous) =>
-              Stack(fit: StackFit.expand, children: [...previous, ?current]),
-          // the next page rises into place from below (swiping up); going
-          // back it settles from above
-          transitionBuilder: (child, anim) {
-            final incoming = child.key == _page().key;
-            final dir = forward ? 1.0 : -1.0;
-            return AnimatedBuilder(
-              animation: anim,
-              builder: (context, c) {
-                final gone = 1 - anim.value;
-                return FractionalTranslation(
-                  translation: Offset(0, (incoming ? dir : -dir) * 0.12 * gone),
-                  child: Opacity(opacity: anim.value.clamp(0.0, 1.0), child: c),
-                );
-              },
-              child: child,
-            );
-          },
-          child: _page(),
+        // removing the second city while its page is shown: particles
+        DissolveSwitcher(
+          present: _hasSecondCity,
+          enabled: widget.page == 3,
+          fadeIn: false,
+          child: AnimatedSwitcher(
+            duration: still ? Duration.zero : Motion.medium,
+            switchInCurve: easeOutStrong,
+            switchOutCurve: easeOutStrong,
+            layoutBuilder: (current, previous) =>
+                Stack(fit: StackFit.expand, children: [...previous, ?current]),
+            // the next page rises into place from below (swiping up); going
+            // back it settles from above
+            transitionBuilder: (child, anim) {
+              final incoming = child.key == _page().key;
+              final dir = forward ? 1.0 : -1.0;
+              return AnimatedBuilder(
+                animation: anim,
+                builder: (context, c) {
+                  final gone = 1 - anim.value;
+                  return FractionalTranslation(
+                    translation: Offset(
+                      0,
+                      (incoming ? dir : -dir) * 0.12 * gone,
+                    ),
+                    child: Opacity(
+                      opacity: anim.value.clamp(0.0, 1.0),
+                      child: c,
+                    ),
+                  );
+                },
+                child: child,
+              );
+            },
+            child: _page(),
+          ),
         ),
         // dots and a name for the page, for a moment after each swipe
         SwipeRail(

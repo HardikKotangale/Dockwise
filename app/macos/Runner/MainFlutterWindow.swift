@@ -7,6 +7,7 @@ class MainFlutterWindow: NSWindow {
   private var keepAwakeId: IOPMAssertionID = 0
   private var keepingAwake = false
   private var timerPlayer: AVAudioPlayer?
+  private var art: (url: String, data: Data?) = ("", nil)
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -34,6 +35,10 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+    // once the window is up: offer to move a downloaded copy to Applications
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+      (NSApp.delegate as? AppDelegate)?.offerMoveToApplications()
+    }
   }
 
   deinit { setKeepAwake(false) }
@@ -69,6 +74,21 @@ class MainFlutterWindow: NSWindow {
         timerPlayer?.play()
       }
       result(true)
+    case "nowPlaying":
+      result(spotifyNowPlaying())
+    case "mediaCommand":
+      switch (args?["command"] as? String) ?? "" {
+      case "playPause": result(spotifyScript("playpause") != nil)
+      case "next": result(spotifyScript("next track") != nil)
+      case "previous": result(spotifyScript("previous track") != nil)
+      default: result(false)
+      }
+    case "seekBy":
+      let ms = (args?["deltaMs"] as? Int) ?? 0
+      result(spotifyScript("set player position to (player position) + (\(ms) / 1000)") != nil)
+    case "seekTo":
+      let ms = (args?["positionMs"] as? Int) ?? 0
+      result(spotifyScript("set player position to (\(ms) / 1000)") != nil)
     case "deviceModel":
       // Spotify names this Mac's device after it
       result(Host.current().localizedName ?? "")
@@ -81,6 +101,55 @@ class MainFlutterWindow: NSWindow {
     }
   }
 
+
+
+  // The Spotify desktop app, driven with AppleScript: no Spotify account
+  // login, no developer app, no user limit. Never launches Spotify (a
+  // "tell" would): it is only asked while it is already running.
+  private func spotifyRunning() -> Bool {
+    !NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client").isEmpty
+  }
+
+  private func spotifyScript(_ body: String) -> NSAppleEventDescriptor? {
+    guard spotifyRunning() else { return nil }
+    var error: NSDictionary?
+    let out = NSAppleScript(source: "tell application \"Spotify\"\n\(body)\nend tell")?
+      .executeAndReturnError(&error)
+    if let error { NSLog("Hushdock: Spotify script failed: \(error)") }
+    return error == nil ? out : nil
+  }
+
+  private func spotifyNowPlaying() -> [String: Any]? {
+    guard let d = spotifyScript("""
+      if player state is stopped then return {}
+      set artUrl to ""
+      try
+        set artUrl to artwork url of current track
+      end try
+      return {player state as string, name of current track, artist of current track, (player position * 1000) as integer, duration of current track, artUrl}
+      """), d.numberOfItems >= 6
+    else { return nil }
+    func text(_ i: Int) -> String { d.atIndex(i)?.stringValue ?? "" }
+    let url = text(6)
+    if url != art.url {
+      art = (url, nil)
+      if let u = URL(string: url), !url.isEmpty {
+        URLSession.shared.dataTask(with: u) { [weak self] data, _, _ in
+          DispatchQueue.main.async { if self?.art.url == url { self?.art.data = data } }
+        }.resume()
+      }
+    }
+    var m: [String: Any] = [
+      "title": text(2),
+      "artist": text(3),
+      "app": "Spotify",
+      "playing": text(1) == "playing",
+      "position": Int(d.atIndex(4)?.int32Value ?? 0),
+      "duration": Int(d.atIndex(5)?.int32Value ?? 0),
+    ]
+    if let data = art.data { m["art"] = FlutterStandardTypedData(bytes: data) }
+    return m
+  }
 
   // The same three clips as the iPhone: a 22.05 kHz mono WAV made in memory.
   private func tone(_ f: Double, _ secs: Double, decay: Double = 0) -> [Int16] {

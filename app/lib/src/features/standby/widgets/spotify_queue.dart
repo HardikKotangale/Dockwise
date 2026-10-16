@@ -71,6 +71,8 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
     c.removeListener(_onController);
     _poll?.cancel();
     _commit?.cancel();
+    _stopAuto();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -227,6 +229,84 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
     );
   }
 
+  final _listKey = GlobalKey();
+  final _scroll = ScrollController();
+  Timer? _auto;
+  Offset? _dragAt;
+
+  // while a song is held near the top or bottom edge, the list scrolls
+  void _startAuto() {
+    _auto?.cancel();
+    _auto = Timer.periodic(const Duration(milliseconds: 30), (_) {
+      final at = _dragAt;
+      final box = _listKey.currentContext?.findRenderObject();
+      if (at == null || box is! RenderBox || !_scroll.hasClients) return;
+      final top = box.localToGlobal(Offset.zero).dy;
+      final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+      final edge = (bottom - top) * 0.18;
+      var step = 0.0;
+      if (at.dy < top + edge) step = -12;
+      if (at.dy > bottom - edge) step = 12;
+      if (step == 0) return;
+      final p = _scroll.position;
+      _scroll.jumpTo(
+        (p.pixels + step).clamp(p.minScrollExtent, p.maxScrollExtent),
+      );
+    });
+  }
+
+  void _stopAuto() {
+    _auto?.cancel();
+    _auto = null;
+    _dragAt = null;
+  }
+
+  Widget _draggableRow(int i, SpotifyHit hit) {
+    const handle = Padding(
+      padding: EdgeInsets.all(8),
+      child: Icon(Icons.drag_handle_rounded, size: 22, color: Colors.white38),
+    );
+    final row = _row(hit, onTap: () => _skipTo(i, hit), handle: handle);
+    return DragTarget<int>(
+      onWillAcceptWithDetails: (d) => d.data != i,
+      onAcceptWithDetails: (d) => _reorder(d.data, i),
+      builder: (context, over, _) => LayoutBuilder(
+        builder: (context, box) => LongPressDraggable<int>(
+          data: i,
+          delay: const Duration(milliseconds: 150),
+          onDragStarted: () {
+            widget.onTouch?.call();
+            _startAuto();
+          },
+          onDragUpdate: (d) => _dragAt = d.globalPosition,
+          onDragEnd: (_) => _stopAuto(),
+          feedback: Material(
+            color: const Color(0xFF1C1C1F),
+            elevation: 8,
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: box.maxWidth,
+              child: _row(hit, onTap: null, handle: handle),
+            ),
+          ),
+          childWhenDragging: Opacity(opacity: 0.25, child: row),
+          child: DecoratedBox(
+            // the song you are over: a line where the dragged one will go
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: over.isEmpty ? Colors.transparent : Palette.green,
+                  width: 2,
+                ),
+              ),
+            ),
+            child: row,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final q = _queue;
@@ -290,68 +370,38 @@ class _SpotifyQueueViewState extends State<SpotifyQueueView> {
                         widget.onTouch?.call(); // scrolling counts as using it
                         return false;
                       },
-                      child: ReorderableListView.builder(
+                      // Songs are reordered by drag and drop (not Flutter's
+                      // reorderable list): that one floats the dragged row at
+                      // the wrong place once the whole app is scaled to a big
+                      // screen (see ScreenFit).
+                      child: ListView.builder(
+                        key: _listKey,
+                        controller: _scroll,
                         padding: const EdgeInsets.only(right: 8),
-                        buildDefaultDragHandles: false,
-                        onReorderItem: _reorder,
-                        proxyDecorator: (child, index, animation) =>
-                            AnimatedBuilder(
-                              animation: animation,
-                              builder: (context, child) {
-                                final t = Curves.easeOut.transform(
-                                  animation.value,
-                                );
-                                return Transform.scale(
-                                  scale: 1 + 0.03 * t,
-                                  child: Material(
-                                    color: const Color(0xFF1C1C1F),
-                                    elevation: 8 * t,
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: child,
-                                  ),
-                                );
-                              },
-                              child: child,
-                            ),
-                        header: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (q.now != null) ...[
-                              _label('Now playing'),
-                              _row(q.now!, onTap: null, playing: true),
-                            ],
-                            _label('Next in queue'),
-                            if (q.next.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
-                                child: Text(
-                                  'Queue is empty',
-                                  style: TextStyle(color: Colors.white60),
-                                ),
-                              ),
-                          ],
-                        ),
-                        itemCount: q.next.length,
-                        itemBuilder: (context, i) =>
-                            ReorderableDelayedDragStartListener(
-                              key: ValueKey('${q.next[i].uri}#$i'),
-                              index: i,
-                              child: _row(
-                                q.next[i],
-                                onTap: () => _skipTo(i, q.next[i]),
-                                handle: ReorderableDragStartListener(
-                                  index: i,
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(8),
-                                    child: Icon(
-                                      Icons.drag_handle_rounded,
-                                      size: 22,
-                                      color: Colors.white38,
+                        itemCount: q.next.length + 1,
+                        itemBuilder: (context, i) {
+                          if (i == 0) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (q.now != null) ...[
+                                  _label('Now playing'),
+                                  _row(q.now!, onTap: null, playing: true),
+                                ],
+                                _label('Next in queue'),
+                                if (q.next.isEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
+                                    child: Text(
+                                      'Queue is empty',
+                                      style: TextStyle(color: Colors.white60),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
+                              ],
+                            );
+                          }
+                          return _draggableRow(i - 1, q.next[i - 1]);
+                        },
                       ),
                     ),
             ),

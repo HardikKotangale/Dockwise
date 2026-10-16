@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart'
     show PointerPanZoomUpdateEvent, PointerScrollEvent;
 import 'package:flutter/material.dart';
@@ -6,12 +8,14 @@ import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import '../../core/apple.dart';
 import '../../core/pinch_layout.dart';
 import '../../domain/standby_models.dart';
+import '../../domain/summary_layout.dart';
 import '../../state/standby_controller.dart';
 import 'settings/all_settings.dart';
 import 'settings/city_page.dart';
 import 'settings/clock_settings.dart';
-import 'settings/controls.dart' show clockLabel, widgetLabel;
+import 'settings/controls.dart' show SettingsSection, clockLabel, widgetLabel;
 import 'settings/simple_settings.dart';
+import 'settings/spotify_setup_page.dart';
 import 'settings/summary_add.dart';
 import 'widgets/clock_faces.dart';
 import 'widgets/integration_cards.dart';
@@ -29,12 +33,13 @@ const swipeVelocity = 300.0; // px/s: below this a drag is not a swipe
 
 /// Opens a settings dock with [title]; [build] runs on every settings change
 /// so the panels behind it update live.
-typedef OpenDock = void Function(
-  String title,
-  Widget Function() build, {
-  bool tall,
-  bool fill,
-});
+typedef OpenDock =
+    void Function(
+      String title,
+      Widget Function() build, {
+      bool tall,
+      bool fill,
+    });
 
 /// Tracks the fingers on screen so a two-finger pinch can be told apart from
 /// a one-finger swipe.
@@ -44,7 +49,13 @@ class PanelTouches {
   bool fired = false; // this pinch already switched the layout
   bool multi = false; // two or more fingers were down: not a card swipe
   bool locked = false; // a tile is being dragged: no card swipes
+
+  /// The panel whose own settings are open in the dock, so the dock can follow
+  /// it when that panel is swiped to another card; null for anything else.
+  ({bool isLeft, StandbyWidgetType type})? dockPanel;
   DateTime wheelAt = DateTime(0); // last mouse-wheel step (one step per flick)
+  SummaryTile? hoverTile; // the Summary tile the pointer is over
+  bool? hoverLeft; // the panel the pointer is over (true = first), if any
   Offset swipeDir = Offset.zero; // which way the last swipe travelled
   Offset get center => points.length < 2
       ? Offset.zero
@@ -63,6 +74,7 @@ void openPanelSettings({
   required ValueNotifier<ClockPart?> clockPart,
   required StandbyWidgetType type,
   bool fromPart = false,
+  String? focus,
 }) {
   late void Function() all;
   void city(VoidCallback back) => openDock(
@@ -80,6 +92,14 @@ void openPanelSettings({
     ),
   );
   late void Function() music;
+  void weather() => openDock(
+    'Weather',
+    () => WeatherSettings(
+      controller: controller,
+      onAll: all,
+      onCity: () => city(weather),
+    ),
+  );
   all = () => openDock(
     'Settings',
     () => AllSettings(
@@ -87,6 +107,7 @@ void openPanelSettings({
       selected: clockPart,
       onCity: () => city(all),
       onMusic: () => music(),
+      focus: focus,
     ),
   );
   music = () => openDock(
@@ -109,10 +130,7 @@ void openPanelSettings({
         () => MusicSourcesPanel(controller: controller, onAllSettings: all),
       );
     case StandbyWidgetType.weather:
-      openDock(
-        'Weather',
-        () => WeatherSettings(controller: controller, onAll: all),
-      );
+      weather();
     case StandbyWidgetType.calendar:
       openDock(
         'Calendar',
@@ -154,6 +172,62 @@ void stepPanel({
   } else if (type == StandbyWidgetType.weather) {
     // up: the next page (now, forecast, second city); down: the one before
     controller.cycleWeatherPage(step);
+  } else if (type == StandbyWidgetType.summary) {
+    // a Summary tile changes look only while the pointer is over it (wheel,
+    // arrow keys); a touch swipe on a tile is handled by the tile itself
+    final tile = touch.hoverTile;
+    if (tile != null) stepSummaryTile(controller, tile, step);
+  }
+}
+
+/// Opens the settings of one Summary tile: the clock tiles at their own
+/// style, the calendar at its group, the others at their card's settings.
+void openSummaryTileSettings({
+  required StandbyController controller,
+  required OpenDock openDock,
+  required ValueNotifier<ClockPart?> clockPart,
+  required SummaryTile tile,
+}) {
+  void open(StandbyWidgetType type, {String? focus}) => openPanelSettings(
+    controller: controller,
+    openDock: openDock,
+    clockPart: clockPart,
+    type: type,
+    focus: focus,
+  );
+  switch (tile) {
+    case SummaryTile.here || SummaryTile.there:
+      SettingsSection.requestOpenNested('Summary', 'Style');
+      LookPicker.requestOpen(
+        tile == SummaryTile.there ? 'summary-there' : 'summary-here',
+      );
+      open(StandbyWidgetType.summary, focus: 'Summary clocks');
+    case SummaryTile.date:
+      open(StandbyWidgetType.summary, focus: 'Calendar');
+    case SummaryTile.weather:
+      open(StandbyWidgetType.weather);
+    case SummaryTile.timer:
+      open(StandbyWidgetType.timer);
+    case SummaryTile.music:
+      open(StandbyWidgetType.music);
+  }
+}
+
+/// A swipe up (step 1) or down (-1) on one Summary tile: the next or previous
+/// look of that tile (clock style, calendar view, weather page, timer style).
+void stepSummaryTile(StandbyController c, SummaryTile tile, int step) {
+  switch (tile) {
+    case SummaryTile.here:
+      c.cycleSummaryClockStyle(step);
+    case SummaryTile.there:
+      c.cycleSummaryClockStyle(step, true);
+    case SummaryTile.date:
+      c.toggleCalendarStyle();
+    case SummaryTile.weather:
+      c.cycleWeatherPage(step);
+    case SummaryTile.timer:
+      c.toggleTimerStyle();
+    case SummaryTile.music:
   }
 }
 
@@ -264,7 +338,8 @@ class Dashboard extends StatelessWidget {
     touch.wheelAt = now;
     final size = context.size ?? Size.zero;
     final duo = settings.layoutMode == StandbyLayoutMode.duo;
-    final isLeft = !duo ||
+    final isLeft =
+        !duo ||
         (stacked
             ? e.localPosition.dy < size.height / 2
             : e.localPosition.dx < size.width / 2);
@@ -288,14 +363,22 @@ class Dashboard extends StatelessWidget {
     );
   }
 
-  void _open(StandbyWidgetType type, {bool fromPart = false}) =>
-      openPanelSettings(
-        controller: controller,
-        openDock: openDock,
-        clockPart: clockPart,
-        type: type,
-        fromPart: fromPart,
-      );
+  void _open(
+    StandbyWidgetType type, {
+    bool fromPart = false,
+    bool? isLeft,
+    String? focus,
+  }) {
+    touch.dockPanel = isLeft == null ? null : (isLeft: isLeft, type: type);
+    openPanelSettings(
+      controller: controller,
+      openDock: openDock,
+      clockPart: clockPart,
+      type: type,
+      fromPart: fromPart,
+      focus: focus,
+    );
+  }
 
   // Swipe sideways: next/previous widget. Swipe up/down: next/previous clock
   // style (clock panel only).
@@ -333,137 +416,150 @@ class Dashboard extends StatelessWidget {
               child: ClockFace(
                 time: controller.now,
                 settings: settings,
+                onCityTap: _chooseCity,
                 // tap hours / minutes... -> open Clock settings at that color
                 onPartTap: (part) {
                   clockPart.value = null;
                   clockPart.value = part;
-                  _open(StandbyWidgetType.clock, fromPart: true);
+                  _open(
+                    StandbyWidgetType.clock,
+                    fromPart: true,
+                    isLeft: isLeft,
+                  );
                 },
               ),
             ),
           )
         : _card(context, type);
-    return SizedBox.expand(
-      child: RepaintBoundary(
-        child: Pressable(
-          scale: 0.985,
-          // For a screen reader the panel is a button that opens its settings,
-          // with the swipes that change the panel as actions (a swipe is
-          // hard to make with VoiceOver or TalkBack on).
-          child: Semantics(
-            container: true,
-            label: '${widgetLabel(type)} panel',
-            hint: 'Opens its settings',
-            onTap: () => _open(type),
-            customSemanticsActions: {
-              const CustomSemanticsAction(label: 'Next panel'): () =>
-                  controller.cyclePanelWidget(left: isLeft, step: 1),
-              const CustomSemanticsAction(label: 'Previous panel'): () =>
-                  controller.cyclePanelWidget(left: isLeft, step: -1),
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _open(type),
-              onHorizontalDragEnd: (d) => _swiped(
-                context,
-                Axis.horizontal,
-                d.primaryVelocity ?? 0,
-                type,
-                isLeft,
-              ),
-              onVerticalDragEnd: (d) => _swiped(
-                context,
-                Axis.vertical,
-                d.primaryVelocity ?? 0,
-                type,
-                isLeft,
-              ),
-              // the panel's color eases to a new theme's, instead of jumping
-              child: AnimatedContainer(
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : Motion.medium,
-                curve: easeOutStrong,
-                decoration: BoxDecoration(
-                  color: isClock || type == StandbyWidgetType.timer
-                      ? (settings.theme.panelColor ?? Colors.transparent)
-                      : cardColor,
-                  borderRadius: BorderRadius.circular(32),
+    return MouseRegion(
+      // the pointer names the panel the arrow keys work on (two panels)
+      onEnter: (_) => touch.hoverLeft = isLeft,
+      onExit: (_) {
+        if (touch.hoverLeft == isLeft) touch.hoverLeft = null;
+      },
+      child: SizedBox.expand(
+        child: RepaintBoundary(
+          child: Pressable(
+            scale: 0.985,
+            // For a screen reader the panel is a button that opens its settings,
+            // with the swipes that change the panel as actions (a swipe is
+            // hard to make with VoiceOver or TalkBack on).
+            child: Semantics(
+              container: true,
+              label: '${widgetLabel(type)} panel',
+              hint: 'Opens its settings',
+              onTap: () => _open(type, isLeft: isLeft),
+              customSemanticsActions: {
+                const CustomSemanticsAction(label: 'Next panel'): () =>
+                    controller.cyclePanelWidget(left: isLeft, step: 1),
+                const CustomSemanticsAction(label: 'Previous panel'): () =>
+                    controller.cyclePanelWidget(left: isLeft, step: -1),
+              },
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _open(type, isLeft: isLeft),
+                onHorizontalDragEnd: (d) => _swiped(
+                  context,
+                  Axis.horizontal,
+                  d.primaryVelocity ?? 0,
+                  type,
+                  isLeft,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: MediaQuery.disableAnimationsOf(context)
-                            ? Duration.zero
-                            : Motion.slow,
-                        // leaving is quicker than arriving
-                        reverseDuration: calm(context, Motion.fast),
-                        switchInCurve: easeOutStrong,
-                        switchOutCurve: Curves.easeInCubic,
-                        layoutBuilder: (current, previous) => Stack(
-                          fit: StackFit.expand,
-                          children: [...previous, ?current],
-                        ),
-                        // A swipe slides the new card in from the side you swiped
-                        // toward while the old one eases away; anything else fades.
-                        // Slide and fade move a snapshot of each card (see
-                        // _Snapshotted), never rebuild or redraw it per frame
-                        transitionBuilder: (child, animation) {
-                          final dir = touch.swipeDir;
-                          final incoming = child.key == _currentKey(type);
-                          final travel = incoming ? dir : -dir;
-                          return SlideTransition(
-                            position: animation.drive(
-                              Tween(begin: travel * 0.18, end: Offset.zero),
-                            ),
-                            child: FadeTransition(
-                              opacity: animation,
-                              child: _Snapshotted(
-                                animation: animation,
-                                child: child,
-                              ),
-                            ),
-                          );
-                        },
-                        child: KeyedSubtree(
-                          key: ValueKey(
-                            '${type.name}-${isClock
-                                ? settings.clockStyle.name
-                                : type == StandbyWidgetType.calendar
-                                ? settings.calendarStyle.name
-                                : type == StandbyWidgetType.timer
-                                ? settings.timerStyle.name
-                                : ''}',
+                onVerticalDragEnd: (d) => _swiped(
+                  context,
+                  Axis.vertical,
+                  d.primaryVelocity ?? 0,
+                  type,
+                  isLeft,
+                ),
+                // the panel's color eases to a new theme's, instead of jumping
+                child: AnimatedContainer(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : Motion.medium,
+                  curve: easeOutStrong,
+                  decoration: BoxDecoration(
+                    color: isClock || type == StandbyWidgetType.timer
+                        ? (settings.theme.panelColor ?? Colors.transparent)
+                        : cardColor,
+                    borderRadius: BorderRadius.circular(32),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(32),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : Motion.slow,
+                          // leaving is quicker than arriving
+                          reverseDuration: calm(context, Motion.fast),
+                          switchInCurve: easeOutStrong,
+                          switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: (current, previous) => Stack(
+                            fit: StackFit.expand,
+                            children: [...previous, ?current],
                           ),
-                          child: content,
+                          // A swipe slides the new card in from the side you swiped
+                          // toward while the old one eases away; anything else fades.
+                          // Slide and fade move a snapshot of each card (see
+                          // _Snapshotted), never rebuild or redraw it per frame
+                          transitionBuilder: (child, animation) {
+                            final dir = touch.swipeDir;
+                            final incoming = child.key == _currentKey(type);
+                            final travel = incoming ? dir : -dir;
+                            return SlideTransition(
+                              position: animation.drive(
+                                Tween(begin: travel * 0.18, end: Offset.zero),
+                              ),
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: _Snapshotted(
+                                  animation: animation,
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: KeyedSubtree(
+                            key: ValueKey(
+                              '${type.name}-${isClock
+                                  ? settings.clockStyle.name
+                                  : type == StandbyWidgetType.calendar
+                                  ? settings.calendarStyle.name
+                                  : type == StandbyWidgetType.timer
+                                  ? settings.timerStyle.name
+                                  : ''}',
+                            ),
+                            child: content,
+                          ),
                         ),
-                      ),
-                      // Up and down swipes: small dots and a name for where it
-                      // took you (the clock's styles, the calendar's views)
-                      if (type == StandbyWidgetType.clock)
-                        SwipeRail(
-                          key: const ValueKey('clock-rail'),
-                          index: settings.clockStyle.index,
-                          labels: [
-                            for (final st in ClockStyle.values) clockLabel(st),
-                          ],
-                        )
-                      else if (type == StandbyWidgetType.calendar)
-                        SwipeRail(
-                          key: const ValueKey('calendar-rail'),
-                          index: settings.calendarStyle.index,
-                          labels: const ['Today', 'Month'],
-                        )
-                      else if (type == StandbyWidgetType.timer)
-                        SwipeRail(
-                          key: const ValueKey('timer-rail'),
-                          index: settings.timerStyle.index,
-                          labels: const ['Digital', 'Flip'],
-                        ),
-                    ],
+                        // Up and down swipes: small dots and a name for where it
+                        // took you (the clock's styles, the calendar's views)
+                        if (type == StandbyWidgetType.clock)
+                          SwipeRail(
+                            key: const ValueKey('clock-rail'),
+                            index: settings.clockStyle.index,
+                            labels: [
+                              for (final st in ClockStyle.values)
+                                clockLabel(st),
+                            ],
+                          )
+                        else if (type == StandbyWidgetType.calendar)
+                          SwipeRail(
+                            key: const ValueKey('calendar-rail'),
+                            index: settings.calendarStyle.index,
+                            labels: const ['Today', 'Month'],
+                          )
+                        else if (type == StandbyWidgetType.timer)
+                          SwipeRail(
+                            key: const ValueKey('timer-rail'),
+                            index: settings.timerStyle.index,
+                            labels: const ['Digital', 'Flip'],
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -545,6 +641,27 @@ class Dashboard extends StatelessWidget {
         weather: _weatherCard(),
         onWeatherSwipe: controller.cycleWeatherPage,
         onDateSwipe: controller.toggleCalendarStyle,
+        onClockSwipe: controller.cycleSummaryClockStyle,
+        onTileHover: (tile, over) {
+          if (over) {
+            touch.hoverTile = tile;
+          } else if (touch.hoverTile == tile) {
+            touch.hoverTile = null;
+          }
+        },
+        // a tap on a clock opens the settings at that clock's own style
+        onClockTap: (tile) {
+          // no second city yet: the tap goes to choosing one
+          if (tile == SummaryTile.there && settings.worldZone.isEmpty) {
+            _chooseCity();
+            return;
+          }
+          SettingsSection.requestOpenNested('Summary', 'Style');
+          LookPicker.requestOpen(
+            tile == SummaryTile.there ? 'summary-there' : 'summary-here',
+          );
+          _open(StandbyWidgetType.summary, focus: 'Summary clocks');
+        },
         music: _musicCard(context),
         timer: _timerTile(),
         onAddTile: _addTile,
@@ -554,6 +671,8 @@ class Dashboard extends StatelessWidget {
         onEditing: (on) => touch.locked = on,
         // tapping the second city goes straight to choosing another
         onCityTap: _chooseCity,
+        onOpenCalendar: () =>
+            _open(StandbyWidgetType.summary, focus: 'Calendar'),
         onOpenMusic: () => _open(StandbyWidgetType.music),
         onOpenWeather: () => _open(StandbyWidgetType.weather),
       ),
@@ -584,9 +703,40 @@ class Dashboard extends StatelessWidget {
 
   // The now-playing card. The Summary panel shows the very same one, so it
   // does everything the Music panel does.
+  // An iPhone cannot see what the Spotify app plays until you sign in, so an
+  // empty card says so instead of just "Nothing playing".
+  NowPlayingSnapshot _musicSnapshot() {
+    final np = controller.snapshots.nowPlaying;
+    if (!np.isControllable &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        !controller.spotifyConnected) {
+      return const NowPlayingSnapshot(
+        title: 'Listen with Spotify',
+        artist: 'Link your account to see and control your music here.',
+        source: 'Idle',
+        progress: 0,
+        isPlaying: false,
+        isControllable: false,
+      );
+    }
+    return np;
+  }
+
   Widget _musicCard(BuildContext context) {
+    final unlinked =
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        !controller.spotifyConnected &&
+        !controller.snapshots.nowPlaying.isControllable;
     return MusicCard(
-      snapshot: controller.snapshots.nowPlaying,
+      snapshot: _musicSnapshot(),
+      onLink: unlinked
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                fullscreenDialog: true,
+                builder: (_) => SpotifySetupPage(controller: controller),
+              ),
+            )
+          : null,
       settings: settings,
       currentSource: settings.musicSource,
       onSource: controller.setMusicSource,
@@ -644,6 +794,19 @@ class Dashboard extends StatelessWidget {
           : null,
       onCommand: (command) async {
         final ok = await controller.sendMediaCommand(command);
+        final notice = controller.musicNotice;
+        controller.musicNotice = null;
+        if (ok && notice != null && context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(notice),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 6),
+              ),
+            );
+        }
         if (!ok && context.mounted) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()

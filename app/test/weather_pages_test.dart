@@ -6,6 +6,7 @@ import 'package:standby_pro/src/domain/standby_models.dart';
 import 'package:standby_pro/src/features/standby/widgets/weather_card.dart';
 import 'package:standby_pro/src/services/weather_service.dart';
 import 'package:standby_pro/src/state/standby_controller.dart';
+
 import 'temp_finder.dart';
 
 // The weather card's pages, swiped up and down:
@@ -247,5 +248,17 @@ void main() {
         expect(tester.takeException(), isNull, reason: '$size page $page');
       }
     }
+  });
+
+  test('rain falling now beats a "cloudy" code', () {
+    expect(codeWithPrecipitation(3, {'precipitation': 0.0}), 3);
+    expect(codeWithPrecipitation(3, {'precipitation': 0.3}), 51);
+    expect(codeWithPrecipitation(3, {'precipitation': 2.0}), 61);
+    expect(codeWithPrecipitation(0, {'rain': 5.0, 'showers': 0.0}), 65);
+    expect(codeWithPrecipitation(2, {'snowfall': 0.4}), 71);
+    // already wet or stormy: left as it is
+    expect(codeWithPrecipitation(63, {'precipitation': 0.0}), 63);
+    expect(codeWithPrecipitation(95, {'precipitation': 9.0}), 95);
+    expect(codeWithPrecipitation(null, const {}), isNull);
   });
 }

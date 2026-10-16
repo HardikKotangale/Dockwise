@@ -12,3 +12,8 @@ PRODUCT_BUNDLE_IDENTIFIER = com.ytchannel.standbyPro
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.ytchannel. All rights reserved.
+
+// Optional, per developer: sign with your own Apple Development certificate so the
+// Keychain stops asking again after every build. Copy Local.xcconfig.example to
+// Local.xcconfig (git-ignored) and put your team in it.
+#include? "Local.xcconfig"

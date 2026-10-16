@@ -12,23 +12,29 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   for (final os in [TargetPlatform.windows, TargetPlatform.macOS])
-  for (final style in [ClockStyle.digital, ClockStyle.float, ClockStyle.flip]) {
-    testWidgets('starts on ${os.name} with the ${style.name} clock', (t) async {
-      debugDefaultTargetPlatformOverride = os;
-      try {
-        t.view.physicalSize = const Size(1600, 900);
-        t.view.devicePixelRatio = 1;
-        addTearDown(t.view.reset);
-        await t.pumpWidget(
-          StandbyProApp(initialSettings: StandbySettings(clockStyle: style)),
-        );
-        await t.pump(const Duration(seconds: 1));
-        expect(t.takeException(), isNull);
-        expect(find.byType(Scaffold), findsWidgets);
-        await t.pumpWidget(const SizedBox());
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
-    });
-  }
+    for (final style in [
+      ClockStyle.digital,
+      ClockStyle.float,
+      ClockStyle.flip,
+    ]) {
+      testWidgets('starts on ${os.name} with the ${style.name} clock', (
+        t,
+      ) async {
+        debugDefaultTargetPlatformOverride = os;
+        try {
+          t.view.physicalSize = const Size(1600, 900);
+          t.view.devicePixelRatio = 1;
+          addTearDown(t.view.reset);
+          await t.pumpWidget(
+            StandbyProApp(initialSettings: StandbySettings(clockStyle: style)),
+          );
+          await t.pump(const Duration(seconds: 1));
+          expect(t.takeException(), isNull);
+          expect(find.byType(Scaffold), findsWidgets);
+          await t.pumpWidget(const SizedBox());
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
 }

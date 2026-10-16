@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -164,9 +166,102 @@ class SpotifyService {
   bool get isConnected => _refresh != null;
 
   Future<void> load() async {
+    // the user's own saved Client ID wins; then the build's, then the file's
+    final saved = (await _tokens.readClientId())?.trim().toLowerCase();
+    if (saved != null && validClientId(saved)) {
+      clientId = saved;
+      usingSavedClientId = true;
+    }
     if (clientId.isEmpty) clientId = await _local('SPOTIFY_CLIENT_ID');
     if (redirectUri.isEmpty) redirectUri = await _local('SPOTIFY_REDIRECT_URI');
     _refresh = await _tokens.read();
+  }
+
+  /// The Client ID with all but its last 4 characters hidden, for showing.
+  String get maskedClientId => clientId.length < 8
+      ? ''
+      : '${'•' * (clientId.length - 4)}${clientId.substring(clientId.length - 4)}';
+
+  /// True when [clientId] is the one the user pasted in the setup guide.
+  bool usingSavedClientId = false;
+
+  /// A Spotify Client ID is 32 lowercase hex characters. Anything else (a
+  /// Client Secret pasted by mistake is the same length, so the guide says
+  /// never to paste it) is refused before it is stored.
+  static bool validClientId(String s) => RegExp(r'^[0-9a-f]{32}$').hasMatch(s);
+
+  /// Stores the user's own Client ID in the secure store and uses it from now
+  /// on. The sign-in belongs to the old app, so it is signed out. False when
+  /// [raw] is not a Client ID.
+  Future<bool> saveClientId(String raw) async {
+    final id = raw.trim().toLowerCase();
+    if (!validClientId(id)) return false;
+    if (id != clientId) await disconnect();
+    await _tokens.writeClientId(id);
+    clientId = id;
+    usingSavedClientId = true;
+    return true;
+  }
+
+  /// Forgets the user's Client ID and signs out (back to the build's own, or none).
+  Future<void> removeClientId() async {
+    await disconnect();
+    await _tokens.clearClientId();
+    usingSavedClientId = false;
+    clientId = const String.fromEnvironment('SPOTIFY_CLIENT_ID');
+    if (clientId.isEmpty) clientId = await _local('SPOTIFY_CLIENT_ID');
+  }
+
+  /// The sign-in page. On a Mac it opens in a window of Hushdock's own (so it
+  /// is on the same screen as the app, not in another browser's full-screen
+  /// space); the answer is the address Spotify sends the person back to. Any
+  /// problem with that window falls back to the system's sign-in sheet.
+  Future<String> _authenticate(
+    String url,
+    String scheme,
+    FlutterWebAuth2Options options,
+  ) async {
+    if (defaultTargetPlatform == TargetPlatform.macOS) {
+      try {
+        final answer = await _signInWindow(url, scheme);
+        if (answer != null) return answer;
+        throw StateError('sign-in window closed'); // the person closed it
+      } on StateError {
+        rethrow;
+      } catch (_) {
+        // no window available: use the system sheet below
+      }
+    }
+    return FlutterWebAuth2.authenticate(
+      url: url,
+      callbackUrlScheme: scheme,
+      options: options,
+    );
+  }
+
+  Future<String?> _signInWindow(String url, String scheme) async {
+    final answer = Completer<String?>();
+    final window = await WebviewWindow.create(
+      configuration: const CreateConfiguration(
+        windowWidth: 520,
+        windowHeight: 760,
+        title: 'Sign in to Spotify',
+        titleBarHeight: 0,
+      ),
+    );
+    window.addOnUrlRequestCallback((address) {
+      if (!answer.isCompleted && Uri.tryParse(address)?.scheme == scheme) {
+        answer.complete(address);
+        window.close();
+      }
+    });
+    unawaited(
+      window.onClose.whenComplete(() {
+        if (!answer.isCompleted) answer.complete(null);
+      }),
+    );
+    window.launch(url);
+    return answer.future;
   }
 
   Future<bool> connect() async {
@@ -175,6 +270,7 @@ class SpotifyService {
     final challenge = base64UrlEncode(
       sha256.convert(utf8.encode(verifier)).bytes,
     ).replaceAll('=', '');
+    final state = _randomString(32); // proves the answer is to this sign-in
     final authUrl = Uri.https('accounts.spotify.com', '/authorize', {
       'client_id': clientId,
       'response_type': 'code',
@@ -182,17 +278,21 @@ class SpotifyService {
       'scope': _scopes,
       'code_challenge_method': 'S256',
       'code_challenge': challenge,
+      'state': state,
       'show_dialog':
           'true', // always offer the account chooser, so signing in again can switch account
     });
     try {
       final back = callbackFor(_redirect);
-      final result = await FlutterWebAuth2.authenticate(
-        url: authUrl.toString(),
-        callbackUrlScheme: back.scheme,
-        options: back.options,
+      final result = await _authenticate(
+        authUrl.toString(),
+        back.scheme,
+        back.options,
       );
-      final code = Uri.parse(result).queryParameters['code'];
+      final answer = Uri.parse(result).queryParameters;
+      if (answer['state'] != state)
+        return false; // not an answer to our request
+      final code = answer['code'];
       if (code == null) return false;
       return await _token({
         'grant_type': 'authorization_code',
@@ -288,7 +388,9 @@ class SpotifyService {
     }
     final reason = res == null ? 'no connection' : _reason(res);
     lastError = 'Spotify: $reason';
-    debugPrint('Spotify call failed: ${res?.statusCode} ${res?.body}');
+    // debugPrint still prints in a release build: keep it to the status, in a
+    // debug build only, never the body (it can hold the person's own data)
+    if (kDebugMode) debugPrint('Spotify call failed: ${res?.statusCode}');
     return false;
   }
 

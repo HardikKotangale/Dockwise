@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+    show TargetPlatform, defaultTargetPlatform, listEquals;
 import 'package:flutter/services.dart';
 
 import '../domain/standby_models.dart';
@@ -92,6 +92,17 @@ class StandbySystemService {
   /// Opens a link with whatever handles it here (an app's own link, or a web
   /// page in the browser). False when nothing does.
   Future<bool> openUrl(String url) => _invokeBool('launchApp', {'url': url});
+
+  /// iPhone: keeps Hushdock running for a short while after Spotify takes the
+  /// screen, so it can still start the music. Call [endBackgroundWork] after.
+  Future<bool> beginBackgroundWork() =>
+      _invokeBool('beginBackgroundWork', const {});
+  Future<bool> endBackgroundWork() =>
+      _invokeBool('endBackgroundWork', const {});
+
+  /// iPhone: a notification that opens Hushdock again with one tap (an app
+  /// cannot bring itself back to the front on iOS).
+  Future<bool> returnPrompt() => _invokeBool('returnPrompt', const {});
 
   /// A PC: raises Hushdock's window over the others (after opening Spotify,
   /// whose window comes up on top).
@@ -207,6 +218,26 @@ class StandbySystemService {
   Future<bool> openNotificationAccessSettings() =>
       _invokeBool('openNotificationAccessSettings', const {});
 
+  Uint8List? _lastArt;
+  String _lastArtSong = '';
+
+  /// The cover, as the same object while its bytes have not changed. A fresh
+  /// list every poll would make the card think it is a new picture and flash
+  /// while it loads it again. For the same song, a poll that comes without
+  /// the cover keeps the one already shown; a new song starts without one.
+  Uint8List? _sameArt(Uint8List? art, String song) {
+    if (song != _lastArtSong) {
+      _lastArtSong = song;
+      _lastArt = null;
+    }
+    if (art == null) return _lastArt;
+    final last = _lastArt;
+    if (last != null && last.length == art.length && listEquals(last, art)) {
+      return last;
+    }
+    return _lastArt = art;
+  }
+
   /// Active Android media session (any player on this phone), or null.
   Future<NowPlayingSnapshot?> nowPlaying() async {
     try {
@@ -223,7 +254,10 @@ class StandbySystemService {
             : (position / duration).clamp(0, 1).toDouble(),
         isPlaying: m['playing'] as bool? ?? false,
         isControllable: true,
-        artBytes: m['art'] as Uint8List?,
+        artBytes: _sameArt(
+          m['art'] as Uint8List?,
+          '${m['title']}|${m['artist']}',
+        ),
         positionMs: position.toInt(),
         durationMs: duration.toInt(),
         fetchedAt: DateTime.now(),

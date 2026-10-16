@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../../../core/apple.dart';
+import '../../../core/motion/dissolve.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../domain/summary_layout.dart';
 import 'calendar_card.dart';
+import 'clock/dial_painter.dart';
 import 'clock_faces.dart';
 
 /// One panel that answers what you look at a bedside clock for: the time here
@@ -28,6 +30,10 @@ class SummaryCard extends StatefulWidget {
     this.timer = const SizedBox.shrink(),
     this.onWeatherSwipe,
     this.onDateSwipe,
+    this.onClockSwipe,
+    this.onTileHover,
+    this.onClockTap,
+    this.onOpenCalendar,
     this.onLayout,
     this.onCityTap,
     this.onOpenMusic,
@@ -48,6 +54,20 @@ class SummaryCard extends StatefulWidget {
 
   /// Swiped up or down on the date tile: Today and Month, as on the card.
   final VoidCallback? onDateSwipe;
+
+  /// A swipe up or down on a time tile: the next or previous look (1 or -1).
+  /// step (1 / -1) and whether it was the second city's tile
+  final void Function(int step, bool second)? onClockSwipe;
+
+  /// the pointer entered (true) or left (false) a tile
+  final void Function(SummaryTile tile, bool over)? onTileHover;
+
+  /// a tap on a time tile: its settings
+  /// a tap on the calendar tile
+  final VoidCallback? onOpenCalendar;
+
+  /// a tap on one of the two clock tiles (which one)
+  final void Function(SummaryTile tile)? onClockTap;
 
   /// A tap on the music or weather tile opens that card's settings.
   final VoidCallback? onOpenMusic;
@@ -84,6 +104,10 @@ class _SummaryCardState extends State<SummaryCard>
 
   bool _editing = false;
 
+  // Where the "+" has been dragged to while rearranging: the place (in the
+  // list of widgets) a new widget will take when it is added.
+  int? _plusPref;
+
   // drives the jiggle; only runs while editing
   late final AnimationController _jiggle = AnimationController(
     vsync: this,
@@ -110,6 +134,42 @@ class _SummaryCardState extends State<SummaryCard>
     }
   }
 
+  @override
+  void didUpdateWidget(SummaryCard old) {
+    super.didUpdateWidget(old);
+    final was = SummaryLayout.parse(old.settings.summaryLayout).tiles;
+    final now = _layout.tiles;
+    final at = _plusPref;
+    if (!_editing || at == null || now.length != was.length + 1) return;
+    // the one that just arrived: it is added at the end (or where it fits);
+    // move it to where the "+" was put
+    final fresh = now.firstWhere((t) => !was.contains(t));
+    final list = [...now]
+      ..remove(fresh)
+      ..insert(at.clamp(0, now.length - 1), fresh);
+    final next = SummaryLayout(list);
+    if (next.fits && next != _layout) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onLayout?.call(next.encode());
+      });
+    }
+  }
+
+  // The "+" dropped on a tile: it takes that tile's place, and the tile
+  // moves one place on. Ignored when the panel would not fit.
+  void _movePlus(String target) {
+    final real = [for (final t in _layout.tiles) t.name];
+    final at = real.indexOf(target);
+    if (at < 0) return;
+    final tryIds = [...real]..insert(at, _plusId);
+    if (SummaryLayout.pack(tryIds, (id) => id == _musicId).length >
+        SummaryLayout.maxColumns) {
+      return;
+    }
+    tick();
+    setState(() => _plusPref = at);
+  }
+
   SummaryLayout get _layout =>
       SummaryLayout.parse(widget.settings.summaryLayout);
 
@@ -125,7 +185,10 @@ class _SummaryCardState extends State<SummaryCard>
 
   void _setEditing(bool on) {
     if (_editing == on) return;
-    setState(() => _editing = on);
+    setState(() {
+      _editing = on;
+      if (!on) _plusPref = null;
+    });
     widget.onEditing?.call(on);
     if (on) {
       tick();
@@ -187,15 +250,39 @@ class _SummaryCardState extends State<SummaryCard>
     widget.onLayout?.call(_layout.without(tile.first).encode());
   }
 
-  Widget _tile(SummaryTile t) => switch (t) {
-    SummaryTile.here => _HereTile(now: widget.now, settings: widget.settings),
+  // swipe up = the next look, down = the one before (as on the Clock)
+  void _clockSwipe(DragEndDetails d, {bool second = false}) {
+    final v = d.primaryVelocity ?? 0;
+    if (v.abs() > 300) widget.onClockSwipe?.call(v < 0 ? 1 : -1, second);
+  }
+
+  // the pointer over a tile makes the keys and the wheel work that tile
+  Widget _tile(SummaryTile t) => MouseRegion(
+    onEnter: (_) => widget.onTileHover?.call(t, true),
+    onExit: (_) => widget.onTileHover?.call(t, false),
+    child: _tileBody(t),
+  );
+
+  Widget _tileBody(SummaryTile t) => switch (t) {
+    SummaryTile.here => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _editing ? null : () => widget.onClockTap?.call(SummaryTile.here),
+      onVerticalDragEnd: _editing ? null : _clockSwipe,
+      child: _HereTile(now: widget.now, settings: widget.settings),
+    ),
     SummaryTile.there => GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _editing ? null : widget.onCityTap,
+      onTap: _editing
+          ? null
+          : (widget.onClockTap == null
+                ? widget.onCityTap
+                : () => widget.onClockTap!(SummaryTile.there)),
+      onVerticalDragEnd: _editing ? null : (d) => _clockSwipe(d, second: true),
       child: _ThereTile(now: widget.now, settings: widget.settings),
     ),
     SummaryTile.date => GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: _editing ? null : widget.onOpenCalendar,
       onVerticalDragEnd: _editing
           ? null
           : (d) {
@@ -271,7 +358,8 @@ class _SummaryCardState extends State<SummaryCard>
     final phase = (id.hashCode % 7) / 7;
     return DragTarget<String>(
       onWillAcceptWithDetails: (d) => d.data != id,
-      onAcceptWithDetails: (d) => _drop(d.data, id),
+      onAcceptWithDetails: (d) =>
+          d.data == _plusId ? _movePlus(id) : _drop(d.data, id),
       builder: (context, candidates, rejected) {
         final hot = candidates.isNotEmpty;
         return LayoutBuilder(
@@ -292,31 +380,6 @@ class _SummaryCardState extends State<SummaryCard>
                   clipBehavior: Clip.none,
                   children: [
                     AbsorbPointer(child: content),
-                    // the "-" that takes this widget away, on the corner
-                    // The drawn badge is 26 px, but the part of this box that is
-                    // inside the tile (about 52 px square) takes the tap, so a
-                    // finger does not have to be exact.
-                    Positioned(
-                      top: -8,
-                      left: -8,
-                      width: 60,
-                      height: 60,
-                      child: Semantics(
-                        button: true,
-                        label: 'Remove this widget',
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _remove(id),
-                          child: const Align(
-                            alignment: Alignment.topLeft,
-                            child: _Badge(
-                              icon: Icons.remove_rounded,
-                              color: Palette.red,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                     // the tile you are about to swap with: a soft white wash
                     Positioned.fill(
                       child: IgnorePointer(
@@ -336,7 +399,7 @@ class _SummaryCardState extends State<SummaryCard>
                 ),
               ),
             );
-            return LongPressDraggable<String>(
+            final drag = LongPressDraggable<String>(
               data: id,
               delay: const Duration(milliseconds: 120),
               onDragStarted: tick,
@@ -376,6 +439,36 @@ class _SummaryCardState extends State<SummaryCard>
               ),
               childWhenDragging: Opacity(opacity: 0.25, child: shown),
               child: shown,
+            );
+            // The "-" sits beside the draggable, not inside it: a press that
+            // lingers a moment would otherwise start a drag and swallow the tap.
+            return Stack(
+              fit: StackFit.passthrough,
+              clipBehavior: Clip.none,
+              children: [
+                drag,
+                Positioned(
+                  top: -8,
+                  left: -8,
+                  width: 64,
+                  height: 64,
+                  child: Semantics(
+                    button: true,
+                    label: 'Remove this widget',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _remove(id),
+                      child: const Align(
+                        alignment: Alignment.topLeft,
+                        child: _Badge(
+                          icon: Icons.remove_rounded,
+                          color: Palette.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         );
@@ -463,9 +556,11 @@ class _SummaryCardState extends State<SummaryCard>
     // while editing, a "+" takes the next free place, if there is room for it
     final ids = [for (final t in layout.tiles) t.name];
     if (_editing && layout.missing.isNotEmpty) {
-      // the "+" goes where a new widget would fit (the end, else the first
-      // place from the end that still fits in three columns)
-      for (var at = ids.length; at >= 0; at--) {
+      // the "+" goes where it was dragged to, else where a new widget would
+      // fit (the end, else the first place from the end that still fits in
+      // three columns)
+      final first = _plusPref?.clamp(0, ids.length) ?? ids.length;
+      for (var at = first; at >= 0; at--) {
         final tryIds = [...ids]..insert(at, _plusId);
         if (SummaryLayout.pack(tryIds, (id) => id == _musicId).length <=
             SummaryLayout.maxColumns) {
@@ -491,7 +586,7 @@ class _SummaryCardState extends State<SummaryCard>
             curve: easeOutStrong,
             padding: EdgeInsets.fromLTRB(
               _gap,
-              _editing ? 54 : _gap,
+              _editing ? 76 : _gap,
               _gap,
               _gap,
             ),
@@ -513,10 +608,48 @@ class _SummaryCardState extends State<SummaryCard>
                   final fresh = settled && !_seen.contains(id);
                   final removing = _removing.contains(id);
                   final Widget body = id == _plusId
-                      ? _PlusTile(
-                          onTap: widget.onAddTile,
-                          onDrop: (dragged) =>
-                              _moveToEmpty(dragged, ids.indexOf(_plusId), ids),
+                      ? LongPressDraggable<String>(
+                          data: _plusId,
+                          delay: const Duration(milliseconds: 120),
+                          onDragStarted: tick,
+                          // the "+" lifted, as a tile is
+                          feedback: Material(
+                            type: MaterialType.transparency,
+                            child: SizedBox(
+                              width: rects[id]!.width,
+                              height: rects[id]!.height,
+                              child: Transform.scale(
+                                scale: 1.05,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black54,
+                                        blurRadius: 26,
+                                        offset: Offset(0, 14),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const _PlusTile(),
+                                ),
+                              ),
+                            ),
+                          ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.25,
+                            child: _PlusTile(onTap: widget.onAddTile),
+                          ),
+                          child: _PlusTile(
+                            onTap: widget.onAddTile,
+                            onDrop: (dragged) => dragged == _plusId
+                                ? null
+                                : _moveToEmpty(
+                                    dragged,
+                                    ids.indexOf(_plusId),
+                                    ids,
+                                  ),
+                          ),
                         )
                       : _slot(id, content[id]!);
                   children.add(
@@ -613,18 +746,32 @@ class _SummaryCardState extends State<SummaryCard>
   }
 }
 
-/// A rounded, slightly lighter block, sized to its content by its parent.
+/// A rounded, slightly lighter block, sized to its content by its parent. With
+/// a [tint] it takes on that colour: a soft wash from one corner and a fine
+/// edge of the same colour, so a picked colour reads as light, not paint.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.child});
+  const _Tile({required this.child, this.tint});
 
   final Widget child;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
+    final t = tint;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(20),
+        color: t == null ? Colors.white.withValues(alpha: 0.07) : null,
+        gradient: t == null
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [t.withValues(alpha: 0.34), t.withValues(alpha: 0.10)],
+              ),
+        border: Border.all(
+          color: (t ?? Colors.white).withValues(alpha: t == null ? 0.05 : 0.32),
+        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
@@ -650,88 +797,334 @@ class _HereTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final city = settings.localCity.isNotEmpty ? settings.localCity : 'Here';
-    return _ClockTile(label: city, time: timeOfDayText(now, settings));
+    return _ClockTile(
+      label: city,
+      when: now,
+      settings: settings,
+      daytime: _isDay(now),
+      ink: settings.hereColor == 0 ? null : Color(settings.hereColor),
+    );
   }
 }
 
-/// A city name over a large digital time, the way iOS shows a world clock.
-class _ClockTile extends StatelessWidget {
-  const _ClockTile({required this.label, required this.time, this.note});
+bool _isDay(DateTime t) => t.hour >= 6 && t.hour < 18;
 
-  final String label;
-  final ({String text, String? suffix}) time;
-  final String? note;
+/// A picked colour lifted so the time stays readable on the dark tile: dark
+/// picks (navy, brown) are lightened, bright ones are kept.
+Color _bright(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl.withLightness(hsl.lightness.clamp(0.62, 0.9)).toColor();
+}
+
+/// One Summary clock tile in a given look, for the settings pictures.
+class SummaryClockPreview extends StatelessWidget {
+  const SummaryClockPreview({
+    super.key,
+    required this.settings,
+    required this.style,
+    this.second = false,
+  });
+
+  final StandbySettings settings;
+  final TileClockStyle style;
+
+  /// draw the second city's tile (its colour) instead of the first
+  final bool second;
 
   @override
-  Widget build(BuildContext context) {
-    return _Tile(
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final u = math.min(c.maxWidth, c.maxHeight);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _caption((u * 0.13).clamp(12.0, 17.0), Colors.white70),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(6),
+    child: _ClockTile(
+      label: 'Tokyo',
+      when: DateTime(2026, 1, 1, 10, 9, 30),
+      settings: settings.copyWith(summaryClockStyle: style),
+      ink: (second ? settings.thereColor : settings.hereColor) == 0
+          ? null
+          : Color(second ? settings.thereColor : settings.hereColor),
+    ),
+  );
+}
+
+/// A city name over its time, the way iOS shows a world clock: as the Frame
+/// look, as flip cards, or as a dial (Settings > Summary clocks). Swipe up or
+/// down on it to change the look: the new one rises into place, and a small
+/// glass label names it for a moment, as on the weather card.
+class _ClockTile extends StatefulWidget {
+  const _ClockTile({
+    required this.label,
+    required this.when,
+    required this.settings,
+    this.note,
+    this.daytime,
+    this.ink,
+  });
+
+  final String label;
+
+  /// the time in that city, for the faces
+  final DateTime when;
+  final StandbySettings settings;
+  final String? note;
+
+  /// true: a sun beside the city, false: a moon (what it is like there now)
+  final bool? daytime;
+
+  /// the picked colour: tints the tile and colours the time; null = plain
+  final Color? ink;
+
+  @override
+  State<_ClockTile> createState() => _ClockTileState();
+}
+
+class _ClockTileState extends State<_ClockTile> {
+  static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', //
+  ];
+  static const _names = ['Frame', 'Flip', 'Analog'];
+
+  int _from = 0; // the look we came from, for the direction it rises from
+
+  @override
+  void didUpdateWidget(_ClockTile old) {
+    super.didUpdateWidget(old);
+    if (old.settings.summaryClockStyle != widget.settings.summaryClockStyle) {
+      _from = old.settings.summaryClockStyle.index;
+    }
+  }
+
+  Color get _time {
+    final s = widget.settings;
+    if (s.summaryTimeColor != 0) return Color(s.summaryTimeColor);
+    return widget.ink == null ? Colors.white : _bright(widget.ink!);
+  }
+
+  Color get _detail {
+    final s = widget.settings;
+    if (s.summaryDetailColor != 0) return Color(s.summaryDetailColor);
+    return widget.ink == null ? const Color(0xFFB4B4BC) : _bright(widget.ink!);
+  }
+
+  // The faces are the Clock's own widgets (or the dial below), so they take
+  // the tile's colours the way the Clock takes its colours.
+  StandbySettings _tileSettings(ClockStyle style) => widget.settings.copyWith(
+    // 12 or 24 hours on these tiles, or whatever the Clock uses
+    use24HourTime: switch (widget.settings.summaryHours) {
+      1 => false,
+      2 => true,
+      _ => widget.settings.use24HourTime,
+    },
+    clockStyle: style,
+    showSeconds: false,
+    hoursColor: _time.toARGB32(),
+    minutesColor: _time.toARGB32(),
+    colonColor: _detail.toARGB32(),
+    detailColor: _detail.toARGB32(), // the AM / PM tag
+    labelColor: _detail.toARGB32(), // the Frame's ticks
+  );
+
+  Widget _face(TileClockStyle style, double w, double h) {
+    switch (style) {
+      case TileClockStyle.digital:
+        // the Frame look: a heavy time inside a ring of ticks
+        return KeyedSubtree(
+          key: const ValueKey('frame'),
+          child: FrameClockFace(
+            time: widget.when,
+            settings: _tileSettings(ClockStyle.frame),
+          ),
+        );
+      case TileClockStyle.flip:
+        return KeyedSubtree(
+          key: const ValueKey('flip'),
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: FlipClockFace(
+                time: widget.when,
+                settings: _tileSettings(ClockStyle.flip),
+                // a tall tile stacks the hour over the minute
+                stacked: h > w * 1.1,
               ),
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.bottomLeft,
-                  child: AnimatedSwitcher(
-                    // 12 <-> 24-hour (and each new minute) fades, not jumps
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : Motion.fast,
-                    layoutBuilder: (current, previous) => Stack(
-                      alignment: Alignment.bottomLeft,
-                      children: [...previous, ?current],
-                    ),
-                    child: KeyedSubtree(
-                      key: ValueKey('${time.text}${time.suffix}'),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            time.text,
-                            style: const TextStyle(
-                              fontSize: 120,
-                              fontWeight: FontWeight.w200,
-                              letterSpacing: -5,
-                              height: 1.05,
-                              fontFeatures: [FontFeature.tabularFigures()],
-                            ),
-                          ),
-                          if (time.suffix != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: Text(
-                                time.suffix!,
-                                style: const TextStyle(
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white60,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+            ),
+          ),
+        );
+      case TileClockStyle.analog:
+        return KeyedSubtree(
+          key: const ValueKey('analog'),
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: DialPainter(
+                    widget.when,
+                    tint: widget.ink,
+                    hourInk: _time,
+                    minuteInk: _time,
+                    markInk: _time,
+                    accentInk: _detail,
+                    numeralInk: _time,
                   ),
                 ),
               ),
-              if (note != null)
-                Text(
-                  note!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _caption((u * 0.11).clamp(11.0, 15.0)),
-                ),
+            ),
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = widget.settings.summaryClockStyle;
+    final still = MediaQuery.disableAnimationsOf(context);
+    final forward = style.index > _from || (_from == 2 && style.index == 0);
+    final when = widget.when;
+    return _Tile(
+      tint: widget.ink,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final u = math.min(c.maxWidth, c.maxHeight);
+          final cap = (u * 0.13).clamp(12.0, 17.0);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                if (widget.daytime != null) ...[
+                                  Icon(
+                                    widget.daytime!
+                                        ? Icons.wb_sunny_rounded
+                                        : Icons.nightlight_round,
+                                    size: cap + 2,
+                                    color: widget.ink == null
+                                        ? Colors.white54
+                                        : _bright(
+                                            widget.ink!,
+                                          ).withValues(alpha: 0.9),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    widget.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _caption(cap, Colors.white70),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // the date there, under the city: 17 Oct · Thu
+                            Padding(
+                              padding: EdgeInsets.only(
+                                left: widget.daytime != null ? cap + 8 : 0,
+                                top: 1,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '${when.day} ${_months[when.month - 1]} · '
+                                  '${_days[when.weekday - 1]}',
+                                  maxLines: 1,
+                                  style: _caption(cap - 2, Colors.white54),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // how far ahead or behind, up here so the time can be large
+                      if (widget.note != null)
+                        ConstrainedBox(
+                          // never more than half the tile: a narrow one cuts it short
+                          constraints: BoxConstraints(
+                            maxWidth: c.maxWidth * 0.6,
+                          ),
+                          child: Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            // shrinks to fit, so it is never cut short
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                widget.note!,
+                                maxLines: 1,
+                                style: _caption(
+                                  (u * 0.11).clamp(11.0, 15.0),
+                                  Colors.white70,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: AnimatedSwitcher(
+                        duration: still ? Duration.zero : Motion.medium,
+                        switchInCurve: easeOutStrong,
+                        switchOutCurve: easeOutStrong,
+                        layoutBuilder: (current, previous) => Stack(
+                          fit: StackFit.expand,
+                          children: [...previous, ?current],
+                        ),
+                        // the next look rises into place from below (swiping
+                        // up); going back it settles from above
+                        transitionBuilder: (child, anim) {
+                          final incoming =
+                              child.key != null &&
+                              child.key ==
+                                  _face(style, c.maxWidth, c.maxHeight).key;
+                          final dir = forward ? 1.0 : -1.0;
+                          return AnimatedBuilder(
+                            animation: anim,
+                            builder: (context, ch) {
+                              final gone = 1 - anim.value;
+                              return FractionalTranslation(
+                                translation: Offset(
+                                  0,
+                                  (incoming ? dir : -dir) * 0.12 * gone,
+                                ),
+                                child: Opacity(
+                                  opacity: anim.value.clamp(0.0, 1.0),
+                                  child: ch,
+                                ),
+                              );
+                            },
+                            child: child,
+                          );
+                        },
+                        child: _face(style, c.maxWidth, c.maxHeight),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // the dots and the look's name, for a moment after each swipe
+              SwipeRail(index: style.index, labels: _names),
             ],
           );
         },
@@ -746,9 +1139,15 @@ class _ThereTile extends StatelessWidget {
   final DateTime now;
   final StandbySettings settings;
 
+  // Removing the city breaks the tile into particles (see DissolveSwitcher);
+  // adding one fades it in.
   @override
   Widget build(BuildContext context) {
     final zone = settings.worldZone;
+    return DissolveSwitcher(present: zone.isNotEmpty, child: _content(zone));
+  }
+
+  Widget _content(String zone) {
     if (zone.isEmpty) {
       return _Tile(
         child: Center(
@@ -775,11 +1174,15 @@ class _ThereTile extends StatelessWidget {
         : '${hours > 0 ? '+' : '−'}${hours.abs().toStringAsFixed(hours % 1 == 0 ? 0 : 1)} h';
     final when = dayDiff == 0
         ? away
-        : '$away · ${dayDiff > 0 ? 'Tomorrow' : 'Yesterday'}';
+        : '$away · ${dayDiff > 0 ? 'Tmrw' : 'Yday'}';
     return _ClockTile(
       label: city,
-      time: timeOfDayText(other, settings),
+      when: other,
+      // the second city may have a look of its own
+      settings: settings.copyWith(summaryClockStyle: settings.thereStyle),
       note: when,
+      daytime: _isDay(other),
+      ink: settings.thereColor == 0 ? null : Color(settings.thereColor),
     );
   }
 }
@@ -841,18 +1244,18 @@ class _Badge extends StatelessWidget {
 
 /// The "+" that takes a free place while editing: tap it to choose a widget.
 class _PlusTile extends StatelessWidget {
-  const _PlusTile({required this.onTap, required this.onDrop});
+  const _PlusTile({this.onTap, this.onDrop});
 
   final VoidCallback? onTap;
 
   /// a tile was dropped on this empty place
-  final ValueChanged<String> onDrop;
+  final ValueChanged<String>? onDrop;
 
   @override
   Widget build(BuildContext context) {
     return DragTarget<String>(
-      onWillAcceptWithDetails: (_) => true,
-      onAcceptWithDetails: (d) => onDrop(d.data),
+      onWillAcceptWithDetails: (_) => onDrop != null,
+      onAcceptWithDetails: (d) => onDrop?.call(d.data),
       builder: (context, candidates, rejected) =>
           _plus(context, hot: candidates.isNotEmpty),
     );

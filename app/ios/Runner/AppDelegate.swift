@@ -3,6 +3,7 @@ import UIKit
 import AudioToolbox
 import AVFoundation
 import CoreHaptics
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -18,6 +19,7 @@ import CoreHaptics
   // beeping alarm, a three-note chime, a little fanfare. The session is
   // "ambient", so the silent switch mutes them, as it should.
   private var timerPlayer: AVAudioPlayer?
+  private var backgroundTask = UIBackgroundTaskIdentifier.invalid
   private var haptics: CHHapticEngine?
 
   private func tone(_ f: Double, _ secs: Double, decay: Double = 0) -> [Int16] {
@@ -149,6 +151,36 @@ import CoreHaptics
         if sound != "none" { self.playTimerSound(sound) }
         if vibrate { self.buzz() }
         result(true)
+      case "beginBackgroundWork":
+        // iOS keeps the app running for a short while after it goes to the
+        // background (about 30 s): enough to start Spotify playing and say so
+        if self.backgroundTask == .invalid {
+          self.backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "spotify") {
+            UIApplication.shared.endBackgroundTask(self.backgroundTask)
+            self.backgroundTask = .invalid
+          }
+        }
+        result(true)
+      case "endBackgroundWork":
+        if self.backgroundTask != .invalid {
+          UIApplication.shared.endBackgroundTask(self.backgroundTask)
+          self.backgroundTask = .invalid
+        }
+        result(true)
+      case "returnPrompt":
+        // iOS never lets an app bring itself to the front from the background.
+        // The one way back that is one tap: a notification that opens Hushdock.
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+          guard granted else { return result(false) }
+          let content = UNMutableNotificationContent()
+          content.title = "Playing on this iPhone"
+          content.body = "Tap to go back to Hushdock."
+          let request = UNNotificationRequest(
+            identifier: "hushdock.return", content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false))
+          center.add(request) { error in result(error == nil) }
+        }
       case "deviceModel":
         result(UIDevice.current.model)  // e.g. "iPhone"; used to prefer this phone in Spotify
       default:

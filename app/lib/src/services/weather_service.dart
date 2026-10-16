@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+
 import '../domain/standby_models.dart';
 
 /// Why weather could not be loaded; shown on the card instead of fake data.
@@ -46,7 +49,10 @@ class WeatherService {
             Uri.https('api.open-meteo.com', '/v1/forecast', {
               'latitude': lat,
               'longitude': lon,
-              'current': 'temperature_2m,weather_code,is_day',
+              // precipitation: what is falling now (mm). The weather code is the
+              // model's own guess for the hour and can say "cloudy" in light rain.
+              'current':
+                  'temperature_2m,weather_code,is_day,precipitation,rain,showers,snowfall',
               'hourly': 'temperature_2m,weather_code,is_day',
               'daily': 'weather_code,temperature_2m_max,temperature_2m_min',
               'forecast_days': '7',
@@ -140,6 +146,22 @@ String conditionForCode(int? code) {
   return 'Weather';
 }
 
+/// The weather code, corrected by what is falling right now. Open-Meteo's code
+/// is the model's guess and can say clear, partly cloudy, cloudy or fog while
+/// its own precipitation figure for the same moment is above zero: that is rain
+/// (or snow) falling, and it is shown as such. A code that already names
+/// precipitation or a storm is left alone.
+int? codeWithPrecipitation(int? code, Map<String, dynamic> current) {
+  if (code != null && code >= 51) return code;
+  double mm(String key) => (current[key] as num?)?.toDouble() ?? 0;
+  if (mm('snowfall') > 0) return 71;
+  final wet = math.max(mm('precipitation'), mm('rain') + mm('showers'));
+  if (wet < 0.1) return code;
+  if (wet < 1.0) return 51; // drizzle
+  if (wet < 4.0) return 61; // rain
+  return 65; // heavy rain
+}
+
 /// Reads an Open-Meteo forecast answer (current, hourly and daily) into a
 /// [WeatherSnapshot]. Times are the place's own local times.
 WeatherSnapshot parseForecast(
@@ -148,7 +170,10 @@ WeatherSnapshot parseForecast(
 }) {
   final current = body['current'] as Map<String, dynamic>;
   final daily = body['daily'] as Map<String, dynamic>;
-  final code = (current['weather_code'] as num?)?.round();
+  final code = codeWithPrecipitation(
+    (current['weather_code'] as num?)?.round(),
+    current,
+  );
   final highs = (daily['temperature_2m_max'] as List).cast<num>();
   final lows = (daily['temperature_2m_min'] as List).cast<num>();
   final dates = (daily['time'] as List?)?.cast<String>() ?? const [];

@@ -38,6 +38,8 @@ dependencies:
   timezone: ^0.10.1
   geolocator: ^14.0.2
   flutter_web_auth_2: ^4.1.0
+  # the Mac sign-in opens in a window of its own, not in the default browser
+  desktop_webview_window: ^0.2.3
   battery_plus: ^7.1.2
   sensors_plus: ^7.1.1
   flutter_secure_storage: ^11.2.0
@@ -95,3 +97,10 @@ flutter:
     - family: Fredoka
       fonts:
         - asset: assets/fonts/Fredoka.ttf
+
+# A copy of desktop_webview_window with one change in macos/Classes/
+# WebViewLayoutController.swift (see third_party/desktop_webview_window/HUSHDOCK.md):
+# links to a custom scheme (the Spotify sign-in answer) reach Dart.
+dependency_overrides:
+  desktop_webview_window:
+    path: third_party/desktop_webview_window

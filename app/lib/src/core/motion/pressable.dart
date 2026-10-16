@@ -41,6 +41,7 @@ class _PressableState extends State<Pressable>
   double _glow = 0;
 
   void _to(double target, {required bool down}) {
+    if (!mounted) return; // lifted away while a finger was still down (a drag)
     if (MediaQuery.disableAnimationsOf(context)) {
       _c.value = target;
     } else {

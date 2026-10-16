@@ -152,7 +152,7 @@ Controls are at least 28 pt, secondary text is at least 4.5:1 contrast, and Redu
 
 ### Mac app
 
-The same app builds as a Mac program, `Hushdock.app`. It opens on the clock in a window that fills the screen under the menu bar; the green button (or ⌃⌘F, or F11) goes to full screen and Esc or F11 leaves it. It has the same keyboard as Windows (see the table above), plus: a trackpad's two-finger swipe changes the card, a trackpad pinch switches between one panel and two, and a mouse wheel over a card works like a swipe. While you type in the Spotify or city search, the real keyboard types into it and the one-key shortcuts (N, S, D...) stand aside; Esc goes back. The timer's end sound (alarm, chime, fanfare) plays on the Mac too.
+The same app builds as a Mac program, `Hushdock.app`. It opens on the clock in a window that fills the screen under the menu bar; the green button (or ⌃⌘F, or F11) goes to full screen and Esc or F11 leaves it. It has the same keyboard as Windows (see the table above), plus: a trackpad's two-finger swipe changes the card, a trackpad pinch switches between one panel and two, and a mouse wheel over a card works like a swipe. While you type in the Spotify or city search, the real keyboard types into it and the one-key shortcuts (B, S, D...) stand aside; Esc goes back. The timer's end sound (alarm, chime, fanfare) plays on the Mac too.
 
 **Keep awake** holds the display on while Hushdock is open. The burn-in shift is off on a Mac (its screen is not an OLED left on all night). Weather needs Location Services (System Settings > Privacy & Security > Location). **Spotify on a Mac:** with nothing playing, **Play** starts music on this Mac; if Spotify is closed, Hushdock opens it, plays on the device named after your Mac and comes back to the front. Without Spotify installed, the message offers **Get Spotify**.
 
@@ -164,27 +164,32 @@ The same app builds as a Windows program, `Hushdock.exe`. It has been built and 
 
 **What works:** every clock style, themes and layouts, weather and calendar, the world clock, timer, Summary, and Spotify (account control, search, queue, volume). **What a PC does not have:** a tilt sensor (the Float clock does not sway and the rotation hint is off), a charger to watch (no auto-start), a light sensor (no brightness that follows the room), and the phone's media sessions (no "music from other apps"). The battery number shows on laptops only. **Keep awake** (Settings) stops the display and the PC from sleeping while Hushdock is open; closing it hands control back to your power plan.
 
-**Full screen:** press **F11** (or Settings > Window & keyboard > Full screen) for a borderless display over the whole monitor, taskbar included. **Esc** or F11 leaves it and puts the window back where it was. Hushdock remembers it and starts in full screen next time. The mouse pointer hides after 3 still seconds.
+**Full screen:** press **F** or **F11** (or Settings > Window & keyboard > Full screen) for a borderless display over the whole monitor, taskbar included. **Esc**, F or F11 leaves it and puts the window back where it was. Hushdock remembers it and starts in full screen next time. The mouse pointer hides after 3 still seconds.
 
-**Keyboard:**
+**Keyboard:** with two panels, the card under the mouse pointer is the one a key works on.
 
 | Key | What it does |
 |---|---|
 | ← → | Previous / next card (like a sideways swipe) |
-| ↑ ↓ | Next / previous clock style (like a swipe up or down on the clock) |
-| Shift + arrows | The same on the second card, with two panels |
-| 1 / 2, or D | One panel / two panels (D switches between them) |
-| S or Enter | Open or close the settings for the card |
-| Space | Play / pause the music, or start / pause the timer, when that card is showing |
-| N | Night look on or off (until the night hours next start or end) |
-| F11 | Full screen |
+| ↑ ↓ | Change the look of the card: clock style, calendar view, weather page, timer style |
+| Shift + ← → | Use the second card, with two panels |
+| Q W E R A held, then ↑ ↓ | On Summary, swipe one tile: Q first clock, W second clock, E calendar, R weather, A timer |
+| Q W E R A held, then S | On Summary, open that tile's own settings |
+| O / T / D | One card / two cards / switch between them (with two cards, O and D keep the card under the pointer) |
+| S or Enter | Open or close the settings of what the pointer is on |
+| Space | Play / pause the music, or start / pause the timer, when that card is showing; on any other card it plays / pauses the music |
+| N / M | Music back / forward 10 seconds |
+| , / . | Previous / next song |
+| − / + (or =) | Spotify volume down / up |
+| B | Night look on or off (until the night hours next start or end) |
+| F or F11 | Full screen |
 | Esc | Close settings, then leave full screen |
 | 0 – 9 | Type a time on the timer's number pad (Backspace takes one back, Enter is done) |
 | ? or F1 | Show these keys |
 
 Keys never fire while you are typing in a text field.
 
-**Battery:** the display stays light. The clock redraws only when its digits change, and nothing moves while the window is hidden or minimized. The weather backdrop waits for its card to finish sliding in, plays its rain, snow or clouds for 2 seconds, slows to a stop and then stays a still picture (it plays again for new weather or when you come back to the app). On a PC on mains power it plays at 30 frames a second instead of 20. When you change cards, each card is drawn once into a picture and the picture slides and fades, so even the frosted-glass, blurred-cover and weather cards change smoothly on a big screen. The weather's sky and clouds are kept as one picture while only the rain or snow moves. Album art and thumbnails are scaled smoothly, so they stay sharp on a big monitor.
+**Battery:** the display stays light. The clock redraws only when its digits change, and nothing moves while the window is hidden or minimized. The weather backdrop waits for its card to finish sliding in, plays its rain, snow or clouds for 2 seconds, slows to a stop and then stays a still picture (it plays again for new weather or when you come back to the app). On a computer it plays at the screen's own frame rate (60, 120 or more frames a second); a phone keeps 20 to save battery. When you change cards, each card is drawn once into a picture and the picture slides and fades, so even the frosted-glass, blurred-cover and weather cards change smoothly on a big screen. The weather's sky and clouds are kept as one picture while only the rain or snow moves. Album art and thumbnails are scaled smoothly, so they stay sharp on a big monitor.
 
 To build and install it, see [Windows PC](#windows-pc) under Getting Started.
 

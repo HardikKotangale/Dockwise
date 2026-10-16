@@ -256,6 +256,74 @@ void main() {
     expect(adds, 1);
   });
 
+  testWidgets('the "-" takes the tap well away from the little badge', (
+    tester,
+  ) async {
+    String? saved;
+    await tester.pumpWidget(host(card(onLayout: (v) => saved = v)));
+    await tester.longPress(find.text('SUNDAY'));
+    await tester.pump(const Duration(milliseconds: 700));
+    final badge = tester.getCenter(find.byIcon(Icons.remove_rounded).first);
+    // 38 px along each side from the middle of the 26 px badge: well outside it
+    await tester.tapAt(badge + const Offset(38, 38));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(saved, isNotNull);
+    expect(SummaryLayout.parse(saved).tiles.length, 4);
+  });
+
+  testWidgets(
+    'the "+" can be dragged, and a new widget lands where it was left',
+    (tester) async {
+      String? saved;
+      var layout = 'v2:here,date,music';
+      late void Function(void Function()) rebuild;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 880,
+                height: 400,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    rebuild = setState;
+                    return SummaryCard(
+                      now: DateTime(2026, 10, 11, 14, 5),
+                      settings: StandbySettings(summaryLayout: layout),
+                      weather: const ColoredBox(color: Colors.blue),
+                      music: const ColoredBox(color: Colors.purple),
+                      timer: const Center(child: Text('TIMER TILE')),
+                      onLayout: (v) => setState(() => layout = saved = v),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 2));
+      await tester.longPress(find.text('SUNDAY'));
+      await tester.pump(const Duration(milliseconds: 700));
+      final plus = tester.getCenter(find.bySemanticsLabel('Add a widget'));
+      final here = tester.getCenter(find.textContaining('Here').first);
+      final g = await tester.startGesture(plus);
+      await tester.pump(const Duration(milliseconds: 200));
+      await g.moveTo(here);
+      await tester.pump();
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 500));
+      // the "+" took the first place; now a widget arrives (at the end, as the
+      // app adds it) and is put where the "+" stood
+      rebuild(() => layout = 'v2:here,date,music,weather');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(saved, isNotNull);
+      expect(SummaryLayout.parse(saved).tiles.first, SummaryTile.weather);
+    },
+  );
+
   testWidgets('the timer tile shows what it is given', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
