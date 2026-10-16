@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +27,10 @@ void main() {
     expect(taps, 1);
   });
 
-  testWidgets('"when touched" shows it only near the pointer', (tester) async {
+  testWidgets('"on hover" shows it only near the pointer (a computer)', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     await tester.pumpWidget(host(const StandbySettings(), () {}));
     double opacity() => tester
         .widget<AnimatedOpacity>(find.byType(AnimatedOpacity).last)
@@ -41,6 +45,19 @@ void main() {
     await mouse.moveTo(const Offset(900, 900));
     await tester.pump();
     expect(opacity(), 0);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('on a phone the button stays: a touch opens the settings', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    await tester.pumpWidget(host(const StandbySettings(), () {}));
+    final opacity = tester
+        .widget<AnimatedOpacity>(find.byType(AnimatedOpacity).last)
+        .opacity;
+    expect(opacity, 1);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('it is gone when turned off in settings', (tester) async {

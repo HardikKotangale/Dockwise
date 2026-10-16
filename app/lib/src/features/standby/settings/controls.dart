@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
@@ -395,3 +397,20 @@ class AllSettingsButton extends StatelessWidget {
     );
   }
 }
+
+/// The choices for the weather's refresh button. A phone has no pointer: there
+/// the button is either off or always there; a computer also offers "on hover"
+/// (it shows while the pointer is over the card).
+List<int> get weatherRefreshChoices =>
+    const {
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }.contains(defaultTargetPlatform)
+    ? const [0, 2]
+    : const [0, 1, 2];
+
+String weatherRefreshLabel(int v) => switch (v) {
+  0 => 'Off',
+  2 => 'Always',
+  _ => 'On hover',
+};

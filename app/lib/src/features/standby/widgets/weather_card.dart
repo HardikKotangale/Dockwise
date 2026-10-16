@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
@@ -606,6 +608,19 @@ class _WeatherCardState extends State<WeatherCard> {
     }
   }
 
+  // On a phone there is no pointer to bring the button near, and a touch on the
+  // card opens its settings, so there "when touched" means the button stays.
+  bool get _refreshAlways {
+    if (widget.onRefresh == null) return false;
+    final mode = widget.settings.weatherRefresh;
+    if (mode == 2) return true;
+    return mode == 1 &&
+        const {
+          TargetPlatform.iOS,
+          TargetPlatform.android,
+        }.contains(defaultTargetPlatform);
+  }
+
   bool get _hasSecondCity =>
       widget.settings.worldZone.isNotEmpty &&
       (widget.settings.worldLat != 0 || widget.settings.worldLon != 0);
@@ -625,6 +640,8 @@ class _WeatherCardState extends State<WeatherCard> {
           key: const ValueKey('forecast'),
           snapshot: widget.snapshot,
           settings: widget.settings,
+          // room for the refresh button below the last row, when it stays
+          reserveBottom: _refreshAlways ? 46 : 0,
         );
       case 3:
         if (!_hasSecondCity) {
@@ -718,10 +735,7 @@ class _WeatherCardState extends State<WeatherCard> {
               Positioned.fill(
                 child: LayoutBuilder(
                   builder: (context, box) {
-                    final shown =
-                        widget.settings.weatherRefresh == 2 ||
-                        _near ||
-                        widget.refreshing;
+                    final shown = _refreshAlways || _near || widget.refreshing;
                     return Align(
                       alignment: Alignment.bottomRight,
                       child: Padding(
@@ -795,10 +809,12 @@ class _ForecastView extends StatelessWidget {
     super.key,
     required this.snapshot,
     required this.settings,
+    this.reserveBottom = 0,
   });
 
   final WeatherSnapshot? snapshot;
   final StandbySettings settings;
+  final double reserveBottom;
 
   String _deg(int c) =>
       '${settings.fahrenheit ? (c * 9 / 5 + 32).round() : c}°';
@@ -828,7 +844,7 @@ class _ForecastView extends StatelessWidget {
               builder: (context, c) {
                 final unit = math.min(c.maxWidth, c.maxHeight);
                 final pad = (unit / 14).clamp(14.0, 24.0);
-                final inner = c.maxHeight - 2 * pad;
+                final inner = c.maxHeight - 2 * pad - reserveBottom;
                 const header = 34.0;
                 // hours only when there is room; days fill what is left
                 final showHours = w.hours.isNotEmpty && inner > 250;
@@ -846,7 +862,12 @@ class _ForecastView extends StatelessWidget {
                 final hi = highs.isEmpty ? 1 : highs.reduce(math.max);
                 final span = math.max(1, hi - lo);
                 return Padding(
-                  padding: EdgeInsets.all(pad),
+                  padding: EdgeInsets.fromLTRB(
+                    pad,
+                    pad,
+                    pad,
+                    pad + reserveBottom,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

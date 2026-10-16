@@ -463,12 +463,8 @@ class AllSettings extends StatelessWidget {
                 EnumPicker<int>(
                   label: 'Refresh button',
                   value: settings.weatherRefresh,
-                  values: const [0, 1, 2],
-                  display: (v) => switch (v) {
-                    0 => 'Off',
-                    2 => 'Always',
-                    _ => 'When touched',
-                  },
+                  values: weatherRefreshChoices,
+                  display: weatherRefreshLabel,
                   onChanged: (v) => set(settings.copyWith(weatherRefresh: v)),
                 ),
               ],
