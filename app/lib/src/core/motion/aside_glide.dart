@@ -91,7 +91,11 @@ class _AsideGlideState extends State<AsideGlide> {
           });
         }
         final child = RepaintBoundary(key: _boundary, child: widget.child);
+        // Clipped only while it glides. At rest the card must be free to sit
+        // outside this box: the burn-in shift moves the whole display a few
+        // points, and a clip here cut off the card's corners at the edges.
         return ClipRect(
+          clipBehavior: before == null ? Clip.none : Clip.hardEdge,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
