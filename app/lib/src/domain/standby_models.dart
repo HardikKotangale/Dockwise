@@ -10,7 +10,7 @@ enum StandbyLayoutMode { duo, single }
 // and frame (the time in a square whose border counts the seconds).
 enum ClockStyle { digital, analog, float, mono, frame, flip, text, world }
 
-enum CalendarStyle { day, month }
+enum CalendarStyle { day, month, agenda }
 
 /// The separately colorable parts of a clock face.
 enum ClockPart { hours, colon, minutes, detail, label }
@@ -118,7 +118,18 @@ extension ClockStyleInfo on ClockStyle {
   };
 }
 
-enum StandbyWidgetType { clock, weather, calendar, music, summary, timer }
+enum StandbyWidgetType {
+  clock,
+  weather,
+  calendar,
+  music,
+  summary,
+  timer,
+  photos,
+}
+
+/// Where the Photos card takes its pictures from.
+enum PhotoSource { none, library, folder }
 
 /// How the timer's countdown is drawn.
 enum TimerStyle { digital, flip }
@@ -451,6 +462,14 @@ class StandbySettings {
     this.musicSource = 'auto',
     this.worldCity = '',
     this.calendarStyle = CalendarStyle.day,
+    this.calendarTitles = true,
+    this.photoFill = true,
+    this.photoSeconds = 15,
+    this.photoFolderBookmark = '',
+    this.photoFolder = '',
+    this.photoAlbumName = '',
+    this.photoAlbumId = '',
+    this.photoSource = PhotoSource.none,
     this.timerStyle = TimerStyle.digital,
     this.timerSeconds = 300,
     this.timerSound = 'alarm',
@@ -519,6 +538,28 @@ class StandbySettings {
   /// 'auto', 'spotify' (account) or an Android package name to follow.
   final String musicSource;
   final CalendarStyle calendarStyle;
+
+  /// the Meetings tab names each meeting (off: only the times, and the
+  /// titles are never read from the calendar)
+  final bool calendarTitles;
+
+  /// true: the picture fills the card (cropped); false: all of it shows
+  final bool photoFill;
+
+  /// seconds each picture stays
+  final int photoSeconds;
+
+  /// a Mac's permission to read the chosen folder again after a restart
+  final String photoFolderBookmark;
+
+  final String photoFolder;
+
+  final String photoAlbumName;
+
+  final String photoAlbumId;
+
+  /// where the slideshow's pictures come from; read-only, never copied
+  final PhotoSource photoSource;
   final TimerStyle timerStyle;
 
   /// The length the timer starts from (the last one you set).
@@ -615,11 +656,20 @@ class StandbySettings {
   /// Seconds are shown only if turned on, the style can show them, and a
   /// clock is actually on screen (so nothing ticks every second needlessly).
   bool get secondsVisible =>
-      (clockStyle == ClockStyle.frame ||
-          (showSeconds && clockStyle.supportsSeconds)) &&
-      (leftWidget == StandbyWidgetType.clock ||
+      ((clockStyle == ClockStyle.frame ||
+              (showSeconds && clockStyle.supportsSeconds)) &&
+          (leftWidget == StandbyWidgetType.clock ||
+              (layoutMode == StandbyLayoutMode.duo &&
+                  rightWidget == StandbyWidgetType.clock))) ||
+      summaryTicksSeconds;
+
+  /// The Summary panel is on screen with a time tile: its Frame ticks and its
+  /// dial's second hand move every second.
+  bool get summaryTicksSeconds =>
+      (leftWidget == StandbyWidgetType.summary ||
           (layoutMode == StandbyLayoutMode.duo &&
-              rightWidget == StandbyWidgetType.clock));
+              rightWidget == StandbyWidgetType.summary)) &&
+      (summaryLayout.contains('here') || summaryLayout.contains('there'));
 
   /// Color rows worth showing now: this style's parts, with "AM/PM & seconds"
   /// only when there is an AM/PM or a seconds readout to color.
@@ -687,6 +737,14 @@ class StandbySettings {
     String? musicSource,
     String? worldCity,
     CalendarStyle? calendarStyle,
+    bool? calendarTitles,
+    bool? photoFill,
+    int? photoSeconds,
+    String? photoFolderBookmark,
+    String? photoFolder,
+    String? photoAlbumName,
+    String? photoAlbumId,
+    PhotoSource? photoSource,
     TimerStyle? timerStyle,
     int? timerSeconds,
     String? timerSound,
@@ -752,6 +810,14 @@ class StandbySettings {
       musicSource: musicSource ?? this.musicSource,
       worldCity: worldCity ?? this.worldCity,
       calendarStyle: calendarStyle ?? this.calendarStyle,
+      calendarTitles: calendarTitles ?? this.calendarTitles,
+      photoFill: photoFill ?? this.photoFill,
+      photoSeconds: photoSeconds ?? this.photoSeconds,
+      photoFolderBookmark: photoFolderBookmark ?? this.photoFolderBookmark,
+      photoFolder: photoFolder ?? this.photoFolder,
+      photoAlbumName: photoAlbumName ?? this.photoAlbumName,
+      photoAlbumId: photoAlbumId ?? this.photoAlbumId,
+      photoSource: photoSource ?? this.photoSource,
       timerStyle: timerStyle ?? this.timerStyle,
       timerSeconds: timerSeconds ?? this.timerSeconds,
       timerSound: timerSound ?? this.timerSound,
@@ -819,6 +885,14 @@ class StandbySettings {
       'musicSource': musicSource,
       'worldCity': worldCity,
       'calendarStyle': calendarStyle.name,
+      'calendarTitles': calendarTitles,
+      'photoFill': photoFill,
+      'photoSeconds': photoSeconds,
+      'photoFolderBookmark': photoFolderBookmark,
+      'photoFolder': photoFolder,
+      'photoAlbumName': photoAlbumName,
+      'photoAlbumId': photoAlbumId,
+      'photoSource': photoSource.name,
       'timerStyle': timerStyle.name,
       'timerSeconds': timerSeconds,
       'timerSound': timerSound,
@@ -926,6 +1000,18 @@ class StandbySettings {
         json['calendarStyle'],
         defaults.calendarStyle,
       ),
+      calendarTitles: json['calendarTitles'] as bool? ?? true,
+      photoFill: json['photoFill'] as bool? ?? true,
+      photoSeconds: (json['photoSeconds'] as num?)?.toInt() ?? 15,
+      photoFolderBookmark: json['photoFolderBookmark'] as String? ?? '',
+      photoFolder: json['photoFolder'] as String? ?? '',
+      photoAlbumName: json['photoAlbumName'] as String? ?? '',
+      photoAlbumId: json['photoAlbumId'] as String? ?? '',
+      photoSource: _enumFromName(
+        PhotoSource.values,
+        json['photoSource'],
+        defaults.photoSource,
+      ),
       timerStyle: _enumFromName(
         TimerStyle.values,
         json['timerStyle'],
@@ -999,6 +1085,14 @@ class StandbySettings {
         other.musicSource == musicSource &&
         other.worldCity == worldCity &&
         other.calendarStyle == calendarStyle &&
+        other.calendarTitles == calendarTitles &&
+        other.photoFill == photoFill &&
+        other.photoSeconds == photoSeconds &&
+        other.photoFolderBookmark == photoFolderBookmark &&
+        other.photoFolder == photoFolder &&
+        other.photoAlbumName == photoAlbumName &&
+        other.photoAlbumId == photoAlbumId &&
+        other.photoSource == photoSource &&
         other.timerStyle == timerStyle &&
         other.timerSeconds == timerSeconds &&
         other.timerSound == timerSound &&
@@ -1077,6 +1171,14 @@ class StandbySettings {
     fontWeight,
     glowIntensity,
     calendarStyle,
+    calendarTitles,
+    photoFill,
+    photoSeconds,
+    photoFolderBookmark,
+    photoFolder,
+    photoAlbumName,
+    photoAlbumId,
+    photoSource,
     timerStyle,
     timerSeconds,
     timerSound,

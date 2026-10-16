@@ -283,19 +283,27 @@ void main() {
       );
       expect(playingNow('Speaker'), findsOneWidget);
 
+      Finder connecting(String device) => find.descendant(
+        of: find.widgetWithText(ListTile, device),
+        matching: find.text('Connecting…'),
+      );
       await tester.tap(find.text('Phone'));
       await tester.pump(); // no waiting for Spotify
-      expect(playingNow('Phone'), findsOneWidget); // shown at once
+      expect(connecting('Phone'), findsOneWidget); // says so at once
       expect(playingNow('Speaker'), findsNothing);
+      // and a second tap meanwhile starts nothing
+      await tester.tap(find.text('Speaker'), warnIfMissed: false);
+      await tester.pump();
+      expect(connecting('Phone'), findsOneWidget);
 
       await tester.pump(
         const Duration(milliseconds: 1000),
       ); // 1st re-check: still the old answer
       await tester.pump();
-      expect(playingNow('Phone'), findsOneWidget); // did not flip back
+      expect(connecting('Phone'), findsOneWidget); // did not flip back
       await tester.pump(
-        const Duration(milliseconds: 1500),
-      ); // 2nd re-check: confirmed
+        const Duration(milliseconds: 1700),
+      ); // 2nd re-check: confirmed, and the wait is over
       await tester.pump();
       expect(playingNow('Phone'), findsOneWidget);
       expect(playingNow('Speaker'), findsNothing);

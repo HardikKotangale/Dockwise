@@ -27,6 +27,8 @@ void main() {
     c.cyclePanelWidget(left: true, step: 1);
     expect(c.settings.leftWidget, StandbyWidgetType.timer);
     c.cyclePanelWidget(left: true, step: 1);
+    expect(c.settings.leftWidget, StandbyWidgetType.photos);
+    c.cyclePanelWidget(left: true, step: 1);
     expect(c.settings.leftWidget, StandbyWidgetType.clock); // wraps round
   });
 

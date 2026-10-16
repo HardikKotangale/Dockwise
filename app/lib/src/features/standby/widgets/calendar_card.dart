@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/apple.dart';
 import '../../../domain/standby_models.dart';
+import '../../../services/calendar_service.dart';
+import 'calendar_agenda.dart';
 
 /// Calendar cells for [month], Sunday first: leading/trailing nulls pad the
 /// first and last week so the list length is a multiple of 7.
@@ -30,7 +32,16 @@ class CalendarCard extends StatelessWidget {
     required this.now,
     this.entrance = true,
     this.compact = false,
+    this.access = CalendarAccess.unknown,
+    this.meetings = const [],
+    this.onConnect,
   });
+
+  /// the Meetings tab: whether the calendar may be read, what is coming up,
+  /// and the button that asks for access
+  final CalendarAccess access;
+  final List<Meeting> meetings;
+  final VoidCallback? onConnect;
 
   /// A small tile (Summary): always the stacked arrangement. Today: weekday,
   /// number, month and year, the week's letters. Month: the month and year on
@@ -63,7 +74,7 @@ class CalendarCard extends StatelessWidget {
               Stack(fit: StackFit.expand, children: [...previous, ?current]),
           transitionBuilder: (child, anim) {
             final incoming = child.key == key;
-            final dir = style == CalendarStyle.month ? 1.0 : -1.0;
+            final dir = style == CalendarStyle.day ? -1.0 : 1.0;
             return AnimatedBuilder(
               animation: anim,
               builder: (context, c) => anim.value == 1
@@ -87,7 +98,10 @@ class CalendarCard extends StatelessWidget {
           ),
         ),
         // the pill and dots naming the view, for a moment after each swipe
-        SwipeRail(index: style.index, labels: const ['Today', 'Month']),
+        SwipeRail(
+          index: style.index,
+          labels: const ['Today', 'Month', 'Meetings'],
+        ),
       ],
     );
   }
@@ -104,7 +118,18 @@ class CalendarCard extends StatelessWidget {
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : Motion.fast,
-      builder: (context, tinted, _) => _content(context, tinted ?? _accent),
+      builder: (context, tinted, _) =>
+          settings.calendarStyle == CalendarStyle.agenda
+          ? CalendarAgenda(
+              now: now,
+              accent: tinted ?? _accent,
+              access: access,
+              meetings: meetings,
+              showTitles: settings.calendarTitles,
+              onConnect: onConnect,
+              compact: compact,
+            )
+          : _content(context, tinted ?? _accent),
     );
   }
 

@@ -108,10 +108,19 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
     }
   }
 
+  // the device Spotify is being switched to: its row says "Connecting..." and
+  // the others wait, so a second tap cannot start another switch
+  String? _connectingId;
+
   Future<void> _run(
     Future<bool> Function() action, {
     String? makeActive,
   }) async {
+    final started = DateTime.now();
+    if (makeActive != null) {
+      if (_connectingId != null) return;
+      setState(() => _connectingId = makeActive);
+    }
     if (makeActive != null) {
       _pendingActive = makeActive;
       _pendingUntil = DateTime.now().add(const Duration(seconds: 4));
@@ -136,6 +145,7 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
     if (!ok && mounted) _toast(c.musicError ?? 'Could not play');
     if (!mounted) return;
     if (!ok) {
+      if (makeActive != null) setState(() => _connectingId = null);
       _pendingActive = null;
       unawaited(_loadDevices()); // put the list back to what is really playing
       return;
@@ -147,6 +157,21 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
           if (mounted) _loadDevices();
         }),
       );
+    }
+    if (makeActive != null) {
+      // a switch that went through still reads as "connecting" for a moment
+      final rest =
+          const Duration(milliseconds: 2500) -
+          DateTime.now().difference(started);
+      if (rest > Duration.zero) {
+        unawaited(
+          Future<void>.delayed(rest, () {
+            if (mounted) setState(() => _connectingId = null);
+          }),
+        );
+      } else {
+        setState(() => _connectingId = null);
+      }
     }
   }
 
@@ -402,12 +427,25 @@ class _MusicSourcesPanelState extends State<MusicSourcesPanel> {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(_icon(d.type)),
                 title: Text(d.name),
-                subtitle: d.isActive ? const Text('Playing now') : null,
-                trailing: d.isActive
+                subtitle: _connectingId == d.id
+                    ? const Text('Connecting…')
+                    : d.isActive
+                    ? const Text('Playing now')
+                    : null,
+                trailing: _connectingId == d.id
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : d.isActive
                     ? const Icon(Icons.graphic_eq, size: 20)
                     : null,
-                onTap: () =>
-                    _run(() => c.playOnSpotifyDevice(d.id), makeActive: d.id),
+                onTap: _connectingId != null
+                    ? null
+                    : () => _run(
+                        () => c.playOnSpotifyDevice(d.id),
+                        makeActive: d.id,
+                      ),
               ),
           const SizedBox(height: 12),
           const Text(

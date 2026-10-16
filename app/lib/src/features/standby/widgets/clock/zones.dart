@@ -52,3 +52,20 @@ DateTime timeInZone(DateTime now, String zoneId) {
     return now.toUtc(); // unknown zone id: show UTC rather than crash
   }
 }
+
+/// How far ahead or behind [other] is of [here], for the pill beside a city:
+/// "+9.5 h", "−3 h" or "Same time". With [day] true and another date over
+/// there, "· Tmrw" or "· Yday" follows.
+String hoursAway(DateTime here, DateTime other, {bool day = false}) {
+  final hours = (other.timeZoneOffset - here.timeZoneOffset).inMinutes / 60;
+  final away = hours == 0
+      ? 'Same time'
+      : '${hours > 0 ? '+' : '−'}${hours.abs().toStringAsFixed(hours % 1 == 0 ? 0 : 1)} h';
+  if (!day) return away;
+  final diff = DateTime(
+    other.year,
+    other.month,
+    other.day,
+  ).difference(DateTime(here.year, here.month, here.day)).inDays;
+  return diff == 0 ? away : '$away · ${diff > 0 ? 'Tmrw' : 'Yday'}';
+}

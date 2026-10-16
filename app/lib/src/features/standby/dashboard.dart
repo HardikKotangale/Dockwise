@@ -14,12 +14,14 @@ import 'settings/all_settings.dart';
 import 'settings/city_page.dart';
 import 'settings/clock_settings.dart';
 import 'settings/controls.dart' show SettingsSection, clockLabel, widgetLabel;
+import 'settings/photos_settings.dart';
 import 'settings/simple_settings.dart';
 import 'settings/spotify_setup_page.dart';
 import 'settings/summary_add.dart';
 import 'widgets/clock_faces.dart';
 import 'widgets/integration_cards.dart';
 import 'widgets/music_sources_sheet.dart';
+import 'widgets/photos_card.dart';
 import 'widgets/spotify_queue.dart';
 import 'widgets/spotify_search.dart';
 import 'widgets/summary_card.dart';
@@ -141,6 +143,11 @@ void openPanelSettings({
         'Timer',
         () => TimerSettings(controller: controller, onAll: all),
       );
+    case StandbyWidgetType.photos:
+      openDock(
+        'Photos',
+        () => PhotosSettings(controller: controller, onAll: all),
+      );
     case StandbyWidgetType.summary:
       all();
   }
@@ -172,6 +179,8 @@ void stepPanel({
   } else if (type == StandbyWidgetType.weather) {
     // up: the next page (now, forecast, second city); down: the one before
     controller.cycleWeatherPage(step);
+  } else if (type == StandbyWidgetType.photos) {
+    controller.stepPhoto(step); // up: the next picture, down: the one before
   } else if (type == StandbyWidgetType.summary) {
     // a Summary tile changes look only while the pointer is over it (wheel,
     // arrow keys); a touch swipe on a tile is handled by the tile itself
@@ -210,6 +219,8 @@ void openSummaryTileSettings({
       open(StandbyWidgetType.timer);
     case SummaryTile.music:
       open(StandbyWidgetType.music);
+    case SummaryTile.photos:
+      open(StandbyWidgetType.photos);
   }
 }
 
@@ -227,6 +238,8 @@ void stepSummaryTile(StandbyController c, SummaryTile tile, int step) {
       c.cycleWeatherPage(step);
     case SummaryTile.timer:
       c.toggleTimerStyle();
+    case SummaryTile.photos:
+      c.stepPhoto(step);
     case SummaryTile.music:
   }
 }
@@ -550,7 +563,7 @@ class Dashboard extends StatelessWidget {
                           SwipeRail(
                             key: const ValueKey('calendar-rail'),
                             index: settings.calendarStyle.index,
-                            labels: const ['Today', 'Month'],
+                            labels: const ['Today', 'Month', 'Meetings'],
                           )
                         else if (type == StandbyWidgetType.timer)
                           SwipeRail(
@@ -642,6 +655,9 @@ class Dashboard extends StatelessWidget {
         settings: settings,
         weather: _weatherCard(),
         onWeatherSwipe: controller.cycleWeatherPage,
+        calendarAccess: controller.calendarAccess,
+        meetings: controller.meetings,
+        onConnectCalendar: controller.connectCalendar,
         onDateSwipe: controller.toggleCalendarStyle,
         onClockSwipe: controller.cycleSummaryClockStyle,
         onTileHover: (tile, over) {
@@ -665,6 +681,7 @@ class Dashboard extends StatelessWidget {
           _open(StandbyWidgetType.summary, focus: 'Summary clocks');
         },
         music: _musicCard(context),
+        photos: _photosCard(compact: true),
         timer: _timerTile(),
         onAddTile: _addTile,
         onLayout: (encoded) => controller.updateSettings(
@@ -682,8 +699,12 @@ class Dashboard extends StatelessWidget {
       StandbyWidgetType.calendar => CalendarCard(
         settings: settings,
         now: controller.now,
+        access: controller.calendarAccess,
+        meetings: controller.meetings,
+        onConnect: controller.connectCalendar,
       ),
       StandbyWidgetType.music => _musicCard(context),
+      StandbyWidgetType.photos => _photosCard(),
       StandbyWidgetType.timer => TimerCard(
         settings: settings,
         leftMs: controller.timerLeftMs,
@@ -702,6 +723,16 @@ class Dashboard extends StatelessWidget {
       ),
     };
   }
+
+  // The slideshow; the Summary panel shows the same one in a tile.
+  Widget _photosCard({bool compact = false}) => PhotosCard(
+    feed: controller.photoFeed,
+    settings: settings,
+    compact: compact,
+    steps: controller.photoStep,
+    problem: controller.photoProblem,
+    onSetup: () => _open(StandbyWidgetType.photos),
+  );
 
   // The now-playing card. The Summary panel shows the very same one, so it
   // does everything the Music panel does.
@@ -730,6 +761,7 @@ class Dashboard extends StatelessWidget {
         !controller.spotifyConnected &&
         !controller.snapshots.nowPlaying.isControllable;
     return MusicCard(
+      keys: controller.mediaKey,
       snapshot: _musicSnapshot(),
       onLink: unlinked
           ? () => Navigator.of(context).push(
@@ -755,9 +787,7 @@ class Dashboard extends StatelessWidget {
       loadDevices: controller.spotifyConnected
           ? controller.spotifyDevices
           : null,
-      onDevice: (id) {
-        controller.playOnSpotifyDevice(id);
-      },
+      onDevice: controller.playOnSpotifyDevice,
       // search is offered whenever Spotify is connected, even if nothing plays yet
       queueView: controller.spotifyConnected
           ? (close, keepOpen) => SpotifyQueueView(

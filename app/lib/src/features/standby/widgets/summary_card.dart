@@ -8,6 +8,7 @@ import '../../../core/motion/dissolve.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
 import '../../../domain/summary_layout.dart';
+import '../../../services/calendar_service.dart';
 import 'calendar_card.dart';
 import 'clock/dial_painter.dart';
 import 'clock_faces.dart';
@@ -28,6 +29,7 @@ class SummaryCard extends StatefulWidget {
     required this.weather,
     required this.music,
     this.timer = const SizedBox.shrink(),
+    this.photos = const SizedBox.shrink(),
     this.onWeatherSwipe,
     this.onDateSwipe,
     this.onClockSwipe,
@@ -40,7 +42,15 @@ class SummaryCard extends StatefulWidget {
     this.onAddTile,
     this.onOpenWeather,
     this.onEditing,
+    this.calendarAccess = CalendarAccess.unknown,
+    this.meetings = const [],
+    this.onConnectCalendar,
   });
+
+  /// the calendar tile's Meetings tab
+  final CalendarAccess calendarAccess;
+  final List<Meeting> meetings;
+  final VoidCallback? onConnectCalendar;
 
   final DateTime now;
   final StandbySettings settings;
@@ -79,6 +89,9 @@ class SummaryCard extends StatefulWidget {
 
   /// The timer tile (time left, a mini track and three buttons).
   final Widget timer;
+
+  /// The photo slideshow tile.
+  final Widget photos;
 
   /// The "+" tile was tapped: choose a widget to add.
   final VoidCallback? onAddTile;
@@ -290,11 +303,21 @@ class _SummaryCardState extends State<SummaryCard>
                 widget.onDateSwipe?.call();
               }
             },
-      child: _DateTile(now: widget.now, settings: widget.settings),
+      child: _DateTile(
+        now: widget.now,
+        settings: widget.settings,
+        access: widget.calendarAccess,
+        meetings: widget.meetings,
+        onConnect: widget.onConnectCalendar,
+      ),
     ),
     SummaryTile.timer => ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: widget.timer,
+    ),
+    SummaryTile.photos => ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: widget.photos,
     ),
     SummaryTile.music => ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -962,6 +985,7 @@ class _ClockTileState extends State<_ClockTile> {
                 child: CustomPaint(
                   painter: DialPainter(
                     widget.when,
+                    showSeconds: true,
                     tint: widget.ink,
                     hourInk: _time,
                     minuteInk: _time,
@@ -1200,18 +1224,7 @@ class _ThereTile extends StatelessWidget {
     final city = settings.worldCity.isNotEmpty
         ? settings.worldCity
         : zoneLabel(zone);
-    final dayDiff = DateTime(
-      other.year,
-      other.month,
-      other.day,
-    ).difference(DateTime(now.year, now.month, now.day)).inDays;
-    final hours = (other.timeZoneOffset - now.timeZoneOffset).inMinutes / 60;
-    final away = hours == 0
-        ? 'Same time'
-        : '${hours > 0 ? '+' : '−'}${hours.abs().toStringAsFixed(hours % 1 == 0 ? 0 : 1)} h';
-    final when = dayDiff == 0
-        ? away
-        : '$away · ${dayDiff > 0 ? 'Tmrw' : 'Yday'}';
+    final when = hoursAway(now, other, day: true);
     return _ClockTile(
       label: city,
       when: other,
@@ -1229,10 +1242,19 @@ class _ThereTile extends StatelessWidget {
 /// only number on Today, the grid the only numbers on Month), instead of a
 /// second, different way of drawing the date.
 class _DateTile extends StatelessWidget {
-  const _DateTile({required this.now, required this.settings});
+  const _DateTile({
+    required this.now,
+    required this.settings,
+    this.access = CalendarAccess.unknown,
+    this.meetings = const [],
+    this.onConnect,
+  });
 
   final DateTime now;
   final StandbySettings settings;
+  final CalendarAccess access;
+  final List<Meeting> meetings;
+  final VoidCallback? onConnect;
 
   @override
   Widget build(BuildContext context) {
@@ -1249,6 +1271,9 @@ class _DateTile extends StatelessWidget {
           now: now,
           entrance: false,
           compact: true,
+          access: access,
+          meetings: meetings,
+          onConnect: onConnect,
         ),
       ),
     );

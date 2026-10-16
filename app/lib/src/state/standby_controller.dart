@@ -14,6 +14,8 @@ import '../core/room_light.dart';
 import '../data/settings_repository.dart';
 import '../domain/standby_models.dart';
 import '../domain/summary_layout.dart';
+import '../services/calendar_service.dart';
+import '../services/photo_service.dart';
 import '../services/spotify_service.dart';
 import '../services/standby_system_service.dart';
 import '../services/weather_service.dart';
@@ -44,6 +46,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     StandbySystemService? systemService,
     SpotifyService? spotifyService,
     WeatherService? weatherService,
+    CalendarService? calendarService,
+    PhotoService? photoService,
     bool autostartTicker = true,
     Duration spotifyRetryDelay = const Duration(seconds: 2),
   }) : settings = initialSettings ?? const StandbySettings(),
@@ -53,6 +57,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
        _systemService = systemService ?? StandbySystemService(),
        _spotify = spotifyService ?? SpotifyService(),
        _weatherService = weatherService ?? WeatherService(),
+       _calendar = calendarService ?? CalendarService(),
+       _photos = photoService ?? PhotoService(),
        _autostartTicker = autostartTicker,
        _spotifyRetryDelay = spotifyRetryDelay,
        now = DateTime.now();
@@ -83,6 +89,8 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
   final StandbySystemService _systemService;
   final WeatherService _weatherService;
   final SpotifyService _spotify;
+  final CalendarService _calendar;
+  final PhotoService _photos;
   final bool _autostartTicker;
   final Duration _spotifyRetryDelay;
   Timer? _timer;
@@ -102,6 +110,11 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     if (_autostartTicker) {
       _scheduleNextTick();
       unawaited(refreshMusic());
+      unawaited(refreshMeetings());
+      unawaited(rebuildPhotoFeed());
+      _meetingTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+        if (appVisible) unawaited(refreshMeetings());
+      });
       // look at the room light every couple of seconds while the app is on screen
       _lightTimer = Timer.periodic(const Duration(seconds: 2), (_) {
         if (appVisible) unawaited(pollLight());
@@ -251,6 +264,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         value.worldZone != settings.worldZone ||
         value.worldLat != settings.worldLat ||
         value.worldLon != settings.worldLon;
+    final previous = settings;
     settings = value;
     // the second city changed while its weather is on screen: fetch it now
     if (cityChanged && weatherPage == secondCityPage) {
@@ -260,6 +274,21 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     // style without seconds). Re-plan it now, or seconds would sit frozen.
     now = DateTime.now();
     if (_autostartTicker) _scheduleNextTick();
+    final meetingsChanged =
+        value.calendarStyle != previous.calendarStyle ||
+        value.calendarTitles != previous.calendarTitles ||
+        value.leftWidget != previous.leftWidget ||
+        value.rightWidget != previous.rightWidget;
+    if (meetingsChanged) unawaited(refreshMeetings());
+    final photosChanged =
+        value.photoSource != previous.photoSource ||
+        value.photoAlbumId != previous.photoAlbumId ||
+        value.photoFolder != previous.photoFolder ||
+        value.leftWidget != previous.leftWidget ||
+        value.rightWidget != previous.rightWidget ||
+        value.layoutMode != previous.layoutMode ||
+        value.summaryLayout != previous.summaryLayout;
+    if (photosChanged) unawaited(rebuildPhotoFeed());
     notifyListeners(); // update the screen first so changes preview live
     final preferences = await SharedPreferences.getInstance();
     await SettingsRepository(preferences).save(value);
@@ -321,6 +350,26 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// A music key was pressed: (the command, a counter). The music card pulses
+  /// that control, wherever the card is (the Music panel or a Summary tile).
+  final mediaKey = ValueNotifier<(String, int)>(('', 0));
+
+  void flashMediaKey(String command) =>
+      mediaKey.value = (command, mediaKey.value.$2 + 1);
+
+  /// A music key: the button pulses and the command goes out.
+  void keyMedia(String command) {
+    flashMediaKey(command);
+    unawaited(sendMediaCommand(command));
+  }
+
+  /// The volume keys: the volume bar opens once the new level is set.
+  Future<void> keyVolume(int delta) async {
+    if (await nudgeVolume(delta)) {
+      flashMediaKey(delta > 0 ? 'volumeUp' : 'volumeDown');
+    }
+  }
+
   /// Space on the keyboard: play/pause the music or start/pause the timer,
   /// whichever is on screen (the first panel wins). False when neither is.
   bool playPauseShown() {
@@ -333,7 +382,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         // the Summary holds a music tile and/or a timer tile
         final tiles = SummaryLayout.parse(settings.summaryLayout).tiles;
         if (tiles.contains(SummaryTile.music)) {
-          unawaited(sendMediaCommand('playPause'));
+          keyMedia('playPause');
           return true;
         }
         if (tiles.contains(SummaryTile.timer)) {
@@ -342,7 +391,7 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
       if (t == StandbyWidgetType.music) {
-        unawaited(sendMediaCommand('playPause'));
+        keyMedia('playPause');
         return true;
       }
       if (t == StandbyWidgetType.timer) {
@@ -374,11 +423,136 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
+  /// Today -> Month -> Meetings -> Today
   void toggleCalendarStyle() {
-    final next = settings.calendarStyle == CalendarStyle.day
-        ? CalendarStyle.month
-        : CalendarStyle.day;
+    const all = CalendarStyle.values;
+    final next = all[(settings.calendarStyle.index + 1) % all.length];
     unawaited(updateSettings(settings.copyWith(calendarStyle: next)));
+  }
+
+  // ---- the Calendar's Meetings tab ----------------------------------------
+  // Read-only, from the system calendar, kept in memory only (see
+  // CalendarService). Fetched only while that tab is on screen.
+  CalendarAccess calendarAccess = CalendarAccess.unknown;
+  List<Meeting> meetings = const [];
+  Timer? _meetingTimer;
+
+  bool get _meetingsOnScreen =>
+      settings.calendarStyle == CalendarStyle.agenda &&
+      (_showing(StandbyWidgetType.calendar) ||
+          _showing(StandbyWidgetType.summary));
+
+  Future<void> refreshMeetings() async {
+    if (!_meetingsOnScreen) return;
+    calendarAccess = await _calendar.status();
+    meetings = calendarAccess == CalendarAccess.granted
+        ? await _calendar.meetings(titles: settings.calendarTitles)
+        : const [];
+    notifyListeners();
+  }
+
+  /// The system asks once; the Meetings tab fills in when it is allowed.
+  Future<void> connectCalendar() async {
+    calendarAccess = await _calendar.request();
+    notifyListeners();
+    await refreshMeetings();
+  }
+
+  // ---- the photo slideshow -------------------------------------------------
+  // The pictures are read one at a time from the album or folder you chose;
+  // see PhotoService. The feed is only opened while a Photos card is on screen.
+  PhotoFeed? photoFeed;
+  PhotoAccess photoAccess = PhotoAccess.unknown;
+  String? photoProblem;
+  int _photoGeneration = 0;
+
+  /// (direction, count): a key moved the slideshow one picture on or back
+  final photoStep = ValueNotifier<(int, int)>((0, 0));
+
+  void stepPhoto(int dir) => photoStep.value = (dir, photoStep.value.$2 + 1);
+
+  bool get _photosOnScreen =>
+      _showing(StandbyWidgetType.photos) ||
+      (_showing(StandbyWidgetType.summary) &&
+          SummaryLayout.parse(
+            settings.summaryLayout,
+          ).tiles.contains(SummaryTile.photos));
+
+  Future<void> rebuildPhotoFeed() async {
+    final generation = ++_photoGeneration;
+    if (!_photosOnScreen || settings.photoSource == PhotoSource.none) {
+      photoFeed = null;
+      photoProblem = null;
+      notifyListeners();
+      return;
+    }
+    PhotoFeed? feed;
+    String? problem;
+    if (settings.photoSource == PhotoSource.library) {
+      photoAccess = await _photos.libraryAccess();
+      if (photoAccess == PhotoAccess.granted) {
+        feed = settings.photoAlbumId.isEmpty
+            ? null
+            : await _photos.libraryFeed(settings.photoAlbumId);
+        if (feed == null && settings.photoAlbumId.isNotEmpty) {
+          problem = 'That album cannot be read';
+        }
+      } else if (photoAccess == PhotoAccess.denied) {
+        problem =
+            'Photos access is off. Allow it in System Settings > '
+            'Privacy & Security > Photos.';
+      }
+    } else {
+      feed = await _photos.folderFeed(
+        settings.photoFolder,
+        bookmark: settings.photoFolderBookmark,
+      );
+      if (feed == null) problem = 'That folder cannot be read';
+    }
+    if (generation != _photoGeneration) return; // a newer choice came in
+    photoFeed = feed;
+    photoProblem = problem;
+    notifyListeners();
+  }
+
+  /// Photos album: the system asks once; the album's pictures then play.
+  Future<bool> choosePhotoAlbum(PhotoAlbum album) async {
+    photoAccess = await _photos.requestLibrary();
+    if (photoAccess != PhotoAccess.granted) {
+      notifyListeners();
+      return false;
+    }
+    await updateSettings(
+      settings.copyWith(
+        photoSource: PhotoSource.library,
+        photoAlbumId: album.id,
+        photoAlbumName: album.name,
+      ),
+    );
+    return true;
+  }
+
+  Future<List<PhotoAlbum>> photoAlbums() async {
+    photoAccess = await _photos.requestLibrary();
+    notifyListeners();
+    return photoAccess == PhotoAccess.granted
+        ? _photos.albums()
+        : const <PhotoAlbum>[];
+  }
+
+  /// A folder: the system's own folder picker (a Mac keeps only the right to
+  /// read that one folder).
+  Future<bool> choosePhotoFolder() async {
+    final picked = await _photos.pickFolder();
+    if (picked == null) return false;
+    await updateSettings(
+      settings.copyWith(
+        photoSource: PhotoSource.folder,
+        photoFolder: picked.path,
+        photoFolderBookmark: picked.bookmark,
+      ),
+    );
+    return true;
   }
 
   /// Swipe a panel sideways to flip it to the next/previous widget.
@@ -1287,6 +1461,9 @@ class StandbyController extends ChangeNotifier with WidgetsBindingObserver {
     _queueTimer?.cancel();
     _weatherTimer?.cancel();
     _lightTimer?.cancel();
+    _meetingTimer?.cancel();
+    photoStep.dispose();
+    mediaKey.dispose();
     super.dispose();
   }
 }

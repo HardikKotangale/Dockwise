@@ -173,12 +173,12 @@ void main() {
     final s2 = await _saved();
     expect(s2.summaryClockStyle, TileClockStyle.analog);
     expect(s2.thereStyle, TileClockStyle.digital);
-    // the default Summary has no timer tile: A says so
-    await t.sendKeyDownEvent(LogicalKeyboardKey.keyA);
+    // the default Summary has five tiles: the sixth place (Z) is empty
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyZ);
     await _key(t, LogicalKeyboardKey.arrowUp);
-    await t.sendKeyUpEvent(LogicalKeyboardKey.keyA);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyZ);
     await t.pump();
-    expect(find.text('No timer in the Summary panel'), findsOneWidget);
+    expect(find.text('No card 6 in the Summary panel'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
 
@@ -236,6 +236,40 @@ void main() {
     await _key(t, LogicalKeyboardKey.keyS);
     expect(find.text('Weather'), findsOneWidget);
     expect(find.text('Clock'), findsNothing);
+    await t.pumpWidget(const SizedBox());
+  }, variant: pc);
+
+  testWidgets('Q and W follow the places after the tiles are rearranged', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      StandbyProApp(
+        // the second city's clock now sits first, the first clock second
+        initialSettings: _start.copyWith(
+          leftWidget: StandbyWidgetType.summary,
+          summaryLayout: 'v2:there,here,date,weather,music',
+          worldZone: 'Asia/Kolkata',
+        ),
+        systemService: _FakePc(),
+      ),
+    );
+    await t.pump();
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyQ);
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyQ);
+    var saved = await _saved();
+    // Q is the first place, now the second city's clock
+    expect(saved.thereStyle, isNot(TileClockStyle.digital));
+    expect(saved.summaryClockStyle, TileClockStyle.digital);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyW);
+    await _key(t, LogicalKeyboardKey.arrowUp);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyW);
+    saved = await _saved();
+    // W is the place below it: the first clock
+    expect(saved.summaryClockStyle, TileClockStyle.flip);
     await t.pumpWidget(const SizedBox());
   }, variant: pc);
 

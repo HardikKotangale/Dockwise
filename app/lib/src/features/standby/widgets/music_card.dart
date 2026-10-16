@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,7 +30,12 @@ class MusicCard extends StatefulWidget {
     this.onDevice,
     this.nextUp,
     this.onLink,
+    this.keys,
   });
+
+  /// (command, count) of the last music key pressed: the matching control
+  /// pulses, and the volume keys open the volume bar.
+  final ValueListenable<(String, int)>? keys;
 
   /// Shown as a button when nothing can be played yet because Spotify is not
   /// linked (an iPhone before sign-in): opens the way to link it.
@@ -44,7 +50,8 @@ class MusicCard extends StatefulWidget {
   final Future<List<SpotifyDevice>> Function()? loadDevices;
 
   /// Play on the device with this id.
-  final ValueChanged<String>? onDevice;
+  /// Play on the device with this id; answers whether it switched.
+  final Future<bool> Function(String id)? onDevice;
 
   /// Where the song comes from: 'auto' follows whatever Spotify is playing
   /// or this phone; the source menu lists the Spotify devices to pick from.
@@ -80,6 +87,35 @@ class _MusicCardState extends State<MusicCard> {
   Timer? _hideVolume;
   bool _showQueue = false;
   Timer? _hideQueue;
+
+  // one pulse per control, bumped by its key
+  final _pulse = {
+    for (final c in ['back10', 'previous', 'playPause', 'next', 'forward10'])
+      c: ValueNotifier<int>(0),
+  };
+  int _volumeShown = 0; // rebuilds the volume bar so it reads the new level
+  double? _hover; // 0..1 while a mouse is over the progress bar
+
+  // Switching to a device (an Echo, say) takes Spotify a couple of seconds.
+  // Meanwhile the label says so, the menu stays shut, and then the new device
+  // is named, so nobody taps twice wondering if the first one registered.
+  String? _connecting;
+  String? _connected; // the label for a few seconds after the switch
+  Timer? _connectedTimer;
+
+  void _onKey() {
+    final command = widget.keys!.value.$1;
+    final pulse = _pulse[command];
+    if (pulse != null) pulse.value++;
+    if (command == 'volumeUp' || command == 'volumeDown') {
+      if (widget.volumeBar == null) return;
+      setState(() {
+        _showVolume = true;
+        _volumeShown++;
+      });
+      _keepVolumeOpen();
+    }
+  }
 
   // The volume bar closes by itself a few seconds after the last touch.
   // The queue closes by itself after a while without a touch (it is an
@@ -124,16 +160,26 @@ class _MusicCardState extends State<MusicCard> {
   void initState() {
     super.initState();
     _syncTick();
+    widget.keys?.addListener(_onKey);
   }
 
   @override
   void didUpdateWidget(MusicCard old) {
     super.didUpdateWidget(old);
     _syncTick();
+    if (old.keys != widget.keys) {
+      old.keys?.removeListener(_onKey);
+      widget.keys?.addListener(_onKey);
+    }
   }
 
   @override
   void dispose() {
+    widget.keys?.removeListener(_onKey);
+    _connectedTimer?.cancel();
+    for (final p in _pulse.values) {
+      p.dispose();
+    }
     _hideVolume?.cancel();
     _hideQueue?.cancel();
     _tick?.cancel();
@@ -165,97 +211,151 @@ class _MusicCardState extends State<MusicCard> {
         return Semantics(
           label: 'Song position. Press and hold, then drag to seek',
           // Hold for just 220 ms (Flutter's default is 500 ms) before scrubbing.
-          child: RawGestureDetector(
-            behavior: HitTestBehavior.opaque,
-            gestures: {
-              LongPressGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<
-                    LongPressGestureRecognizer
-                  >(() => LongPressGestureRecognizer(duration: _holdToSeek), (
-                    r,
-                  ) {
-                    r.onLongPressStart = canSeek
-                        ? (d) {
-                            HapticFeedback.mediumImpact();
-                            update(d.localPosition);
-                          }
-                        : null;
-                    r.onLongPressMoveUpdate = canSeek
-                        ? (d) => update(d.localPosition)
-                        : null;
-                    r.onLongPressEnd = canSeek
-                        ? (d) {
-                            final f = frac(d.localPosition);
-                            setState(() => _scrub = null);
-                            widget.onSeek!((f * snapshot.durationMs).round());
-                          }
-                        : null;
-                    r.onLongPressCancel = () => setState(() => _scrub = null);
-                  }),
+          child: MouseRegion(
+            // a mouse over the bar shows where a click would jump to
+            onHover: canSeek
+                ? (e) => setState(() => _hover = frac(e.localPosition))
+                : null,
+            onExit: (_) {
+              if (_hover != null) setState(() => _hover = null);
             },
-            child: Column(
-              children: [
-                SizedBox(
-                  height: 30,
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    clipBehavior: Clip.none,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        height: scrubbing ? 9 : 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // a click (with a mouse) jumps there; a touch never gets this
+              // handler, so a tap on a phone still opens the settings
+              onTapUp: canSeek && _hover != null
+                  ? (d) {
+                      final f = frac(d.localPosition);
+                      widget.onSeek!((f * snapshot.durationMs).round());
+                    }
+                  : null,
+              child: RawGestureDetector(
+                behavior: HitTestBehavior.opaque,
+                gestures: {
+                  LongPressGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<
+                        LongPressGestureRecognizer
+                      >(
+                        () => LongPressGestureRecognizer(duration: _holdToSeek),
+                        (r) {
+                          r.onLongPressStart = canSeek
+                              ? (d) {
+                                  HapticFeedback.mediumImpact();
+                                  update(d.localPosition);
+                                }
+                              : null;
+                          r.onLongPressMoveUpdate = canSeek
+                              ? (d) => update(d.localPosition)
+                              : null;
+                          r.onLongPressEnd = canSeek
+                              ? (d) {
+                                  final f = frac(d.localPosition);
+                                  setState(() => _scrub = null);
+                                  widget.onSeek!(
+                                    (f * snapshot.durationMs).round(),
+                                  );
+                                }
+                              : null;
+                          r.onLongPressCancel = () =>
+                              setState(() => _scrub = null);
+                        },
                       ),
-                      FractionallySizedBox(
-                        widthFactor: shown,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          height: scrubbing ? 9 : 4,
-                          decoration: BoxDecoration(
-                            color: _ink,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                      ),
-                      if (scrubbing)
-                        Positioned(
-                          left: (shown * w - 11).clamp(-4.0, w - 18),
-                          child: Container(
-                            width: 22,
-                            height: 22,
+                },
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 30,
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            height: scrubbing ? 9 : 4,
                             decoration: BoxDecoration(
-                              color: _ink,
-                              shape: BoxShape.circle,
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black54, blurRadius: 6),
-                              ],
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(99),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (snapshot.durationMs > 0)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _mmss(shownMs),
-                        style: scrubbing
-                            ? _timeStyle.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              )
-                            : _timeStyle,
+                          FractionallySizedBox(
+                            widthFactor: shown,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
+                              height: scrubbing ? 9 : 4,
+                              decoration: BoxDecoration(
+                                color: _ink,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                            ),
+                          ),
+                          if (!scrubbing && _hover != null)
+                            Positioned(
+                              left: (_hover! * w - 9).clamp(-4.0, w - 14),
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: _ink,
+                                  shape: BoxShape.circle,
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black54,
+                                      blurRadius: 5,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          if (!scrubbing && _hover != null)
+                            Positioned(
+                              left: (_hover! * w - 22).clamp(0.0, w - 44),
+                              top: -14,
+                              child: Text(
+                                _mmss((_hover! * snapshot.durationMs).round()),
+                                style: _timeStyle.copyWith(color: Colors.white),
+                              ),
+                            ),
+                          if (scrubbing)
+                            Positioned(
+                              left: (shown * w - 11).clamp(-4.0, w - 18),
+                              child: Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: _ink,
+                                  shape: BoxShape.circle,
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black54,
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      Text(_mmss(snapshot.durationMs), style: _timeStyle),
-                    ],
-                  ),
-              ],
+                    ),
+                    if (snapshot.durationMs > 0)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _mmss(shownMs),
+                            style: scrubbing
+                                ? _timeStyle.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  )
+                                : _timeStyle,
+                          ),
+                          Text(_mmss(snapshot.durationMs), style: _timeStyle),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -364,17 +464,46 @@ class _MusicCardState extends State<MusicCard> {
     if (choice == null) return;
     tick();
     if (choice.startsWith('dev:')) {
-      widget.onDevice?.call(choice.substring(4));
+      final id = choice.substring(4);
+      final name = devices.firstWhere((d) => d.id == id).name;
+      unawaited(_switchTo(id, name));
     } else {
       widget.onSource?.call(choice);
     }
+  }
+
+  Future<void> _switchTo(String id, String name) async {
+    if (widget.onDevice == null || _connecting != null) return;
+    setState(() {
+      _connecting = name;
+      _connected = null;
+    });
+    final started = DateTime.now();
+    final ok = await widget.onDevice!(id);
+    // a switch that went through still reads as "connecting" for a moment
+    final rest =
+        const Duration(milliseconds: 2500) - DateTime.now().difference(started);
+    if (ok && rest > Duration.zero) await Future<void>.delayed(rest);
+    if (!mounted) return;
+    setState(() {
+      _connecting = null;
+      _connected = ok ? 'Spotify · $name' : "Couldn't connect to $name";
+    });
+    _connectedTimer?.cancel();
+    _connectedTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _connected = null);
+    });
   }
 
   // The source label ("Spotify · MacBook Pro"). When there is something to
   // choose from it is a button that opens the device menu.
   Widget _sourceLabel() {
     final text = Text(
-      snapshot.isControllable
+      _connecting != null
+          ? 'Connecting to $_connecting…'
+          : _connected != null
+          ? _connected!
+          : snapshot.isControllable
           ? snapshot.source
           : widget.onLink != null
           ? 'Spotify not linked'
@@ -397,7 +526,7 @@ class _MusicCardState extends State<MusicCard> {
           scale: 0.95,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => _openSourceMenu(anchor),
+            onTap: _connecting != null ? null : () => _openSourceMenu(anchor),
             child: Semantics(
               button: true,
               label: 'Music source',
@@ -412,11 +541,23 @@ class _MusicCardState extends State<MusicCard> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(child: text),
-                      const Icon(
-                        Icons.expand_more_rounded,
-                        size: 18,
-                        color: Colors.white70,
-                      ),
+                      if (_connecting != null)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 6, right: 4),
+                          child: SizedBox.square(
+                            dimension: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.expand_more_rounded,
+                          size: 18,
+                          color: Colors.white70,
+                        ),
                     ],
                   ),
                 ),
@@ -700,6 +841,7 @@ class _MusicCardState extends State<MusicCard> {
                           size: button,
                           tint: _ink,
                           onPressed: () => onCommand('back10'),
+                          pulse: _pulse['back10'],
                         ),
                       TransportButton(
                         icon: Icons.skip_previous_rounded,
@@ -708,6 +850,7 @@ class _MusicCardState extends State<MusicCard> {
                         size: button,
                         tint: _ink,
                         onPressed: () => onCommand('previous'),
+                        pulse: _pulse['previous'],
                       ),
                       TransportButton(
                         icon: Icons.play_arrow_rounded,
@@ -717,6 +860,7 @@ class _MusicCardState extends State<MusicCard> {
                         filled: true,
                         tint: _ink,
                         onPressed: () => onCommand('playPause'),
+                        pulse: _pulse['playPause'],
                       ),
                       TransportButton(
                         icon: Icons.skip_next_rounded,
@@ -727,6 +871,7 @@ class _MusicCardState extends State<MusicCard> {
                         size: button,
                         tint: _ink,
                         onPressed: () => onCommand('next'),
+                        pulse: _pulse['next'],
                       ),
                       if (!compact)
                         TransportButton(
@@ -735,6 +880,7 @@ class _MusicCardState extends State<MusicCard> {
                           size: button,
                           tint: _ink,
                           onPressed: () => onCommand('forward10'),
+                          pulse: _pulse['forward10'],
                         ),
                     ],
                   ),
@@ -755,7 +901,10 @@ class _MusicCardState extends State<MusicCard> {
                   child: Materialize(
                     visible: _showVolume,
                     child: _showVolume
-                        ? widget.volumeBar!(_keepVolumeOpen)
+                        ? KeyedSubtree(
+                            key: ValueKey(_volumeShown),
+                            child: widget.volumeBar!(_keepVolumeOpen),
+                          )
                         : const SizedBox(height: 48),
                   ),
                 ),

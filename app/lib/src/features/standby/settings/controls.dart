@@ -52,6 +52,10 @@ class SettingsSection extends StatefulWidget {
     'World clock': (Icons.public_rounded, Color(0xFF32ADE6)),
     'Options': (Icons.tune_rounded, Color(0xFF8E8E93)),
     'Colors': (Icons.color_lens_rounded, Color(0xFFFF375F)),
+    'Meetings': (Icons.event_available_rounded, Color(0xFF30B0C7)),
+    'Photos': (Icons.photo_library_rounded, Color(0xFFFF9F0A)),
+    'Source': (Icons.perm_media_rounded, Color(0xFF0A84FF)),
+    'Playing': (Icons.slideshow_rounded, Color(0xFFBF5AF2)),
   };
 
   /// which groups are open, by title; kept for the life of the app
@@ -299,6 +303,7 @@ String widgetLabel(StandbyWidgetType type) {
     StandbyWidgetType.music => 'Music',
     StandbyWidgetType.summary => 'Summary',
     StandbyWidgetType.timer => 'Timer',
+    StandbyWidgetType.photos => 'Photos',
   };
 }
 
@@ -323,6 +328,7 @@ IconData widgetIcon(StandbyWidgetType type) => switch (type) {
   StandbyWidgetType.music => Icons.music_note_rounded,
   StandbyWidgetType.summary => Icons.dashboard_rounded,
   StandbyWidgetType.timer => Icons.timer_rounded,
+  StandbyWidgetType.photos => Icons.photo_library_rounded,
 };
 
 /// The way into All settings from a card's own settings. It is not a special

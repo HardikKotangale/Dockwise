@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/motion/motion.dart';
 import '../../../core/palette.dart';
 import '../../../domain/standby_models.dart';
+import '../../../services/calendar_service.dart';
 import '../../../services/weather_service.dart';
 import '../../../state/standby_controller.dart';
 import '../widgets/calendar_card.dart';
@@ -644,16 +645,38 @@ class CalendarLookPicker extends StatelessWidget {
     label: 'Style',
     value: settings.calendarStyle,
     values: CalendarStyle.values,
-    name: (v) => v == CalendarStyle.day ? 'Today' : 'Month',
+    name: (v) => switch (v) {
+      CalendarStyle.day => 'Today',
+      CalendarStyle.month => 'Month',
+      CalendarStyle.agenda => 'Meetings',
+    },
     preview: (v) => CalendarCard(
       settings: settings.copyWith(calendarStyle: v),
       now: DateTime(2026, 1, 17, 10, 9),
       entrance: false,
       compact: true,
+      // the picture of the Meetings tab is made up, never your own calendar
+      access: CalendarAccess.granted,
+      meetings: _sampleMeetings,
     ),
     onChanged: (v) => onChanged(settings.copyWith(calendarStyle: v)),
   );
 }
+
+final _sampleMeetings = [
+  Meeting(
+    title: 'Team sync',
+    start: DateTime(2026, 1, 17, 10, 30),
+    end: DateTime(2026, 1, 17, 11),
+    allDay: false,
+  ),
+  Meeting(
+    title: 'Lunch',
+    start: DateTime(2026, 1, 17, 12),
+    end: DateTime(2026, 1, 17, 13),
+    allDay: false,
+  ),
+];
 
 const _timerPresets = <(String, int, int)>[
   ('Plain', 0, 0),
@@ -899,6 +922,37 @@ class CalendarBody extends StatelessWidget {
           child: CalendarLookPicker(settings: settings, onChanged: set),
         ),
         SettingsSection(
+          title: 'Meetings',
+          scope: 'Calendar',
+          nested: true,
+          subtitle:
+              'Read from the Calendar app (Outlook and Exchange show up when '
+              'they are added there). Read-only, never sent anywhere, never '
+              'stored.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: settings.calendarTitles,
+                onChanged: (v) => set(settings.copyWith(calendarTitles: v)),
+                title: const Text('Show meeting titles'),
+                subtitle: const Text(
+                  'Off: only the times, as "Busy". The titles are then not '
+                  'even read.',
+                ),
+              ),
+              ListenableBuilder(
+                listenable: controller,
+                builder: (context, _) => _CalendarAccessRow(
+                  access: controller.calendarAccess,
+                  onAllow: controller.connectCalendar,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SettingsSection(
           title: 'Presets',
           scope: 'Calendar',
           nested: true,
@@ -932,6 +986,102 @@ class CalendarBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Whether the calendar may be read, and the button that asks: one quiet row
+/// with a status icon, in the same look as the other rows.
+class _CalendarAccessRow extends StatelessWidget {
+  const _CalendarAccessRow({required this.access, required this.onAllow});
+
+  final CalendarAccess access;
+  final VoidCallback onAllow;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color, title, detail, canAsk) = switch (access) {
+      CalendarAccess.granted => (
+        Icons.check_circle_rounded,
+        const Color(0xFF30D158),
+        'Calendar access',
+        'Allowed. Read-only.',
+        false,
+      ),
+      CalendarAccess.denied => (
+        Icons.lock_rounded,
+        const Color(0xFFFF9F0A),
+        'Calendar access is off',
+        'Allow it in System Settings > Privacy & Security > Calendars.',
+        false,
+      ),
+      CalendarAccess.unsupported => (
+        Icons.event_busy_rounded,
+        const Color(0xFF8E8E93),
+        'Not available here',
+        'Meetings show on a Mac or an iPhone.',
+        false,
+      ),
+      CalendarAccess.unknown => (
+        Icons.event_available_rounded,
+        const Color(0xFF30B0C7),
+        'Calendar access',
+        'Not asked yet.',
+        true,
+      ),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(detail, style: const TextStyle(color: Colors.white60)),
+                    if (canAsk)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 32),
+                          ),
+                          onPressed: onAllow,
+                          child: const Text('Allow calendar'),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1185,6 +1335,20 @@ class WidgetPreview extends StatelessWidget {
         return _calendar();
       case StandbyWidgetType.music:
         return Padding(padding: const EdgeInsets.all(6), child: _music());
+      case StandbyWidgetType.photos:
+        // a made-up frame: the card's picture is never your own photo
+        return const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF3A6EA5), Color(0xFFE08E5A)],
+            ),
+          ),
+          child: Center(
+            child: Icon(Icons.photo_rounded, color: Colors.white70, size: 28),
+          ),
+        );
       case StandbyWidgetType.timer:
         return _TimerSketch(
           style: settings.timerStyle,

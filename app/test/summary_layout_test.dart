@@ -66,7 +66,7 @@ void main() {
 
     test('removing a tile frees room; adding one only works while it fits', () {
       const full = SummaryLayout.standard;
-      expect(full.missing, [SummaryTile.timer]);
+      expect(full.missing, [SummaryTile.timer, SummaryTile.photos]);
       expect(full.added(SummaryTile.timer), isNull); // three columns are full
       final room = full.without(SummaryTile.there);
       expect(room.tiles, [

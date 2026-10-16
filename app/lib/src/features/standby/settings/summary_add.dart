@@ -45,6 +45,11 @@ class SummaryAdd extends StatelessWidget {
       'What is playing, with all of its controls.',
       Icons.music_note_rounded,
     ),
+    SummaryTile.photos => (
+      'Photos',
+      'A slideshow of the pictures you choose. Swipe up or down for the next.',
+      Icons.photo_library_rounded,
+    ),
   };
 
   @override

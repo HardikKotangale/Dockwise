@@ -137,7 +137,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byType(CalendarCard));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('All settings'));
+      await _openAllSettings(tester);
       await tester.pump(const Duration(milliseconds: 200));
       await tester.pump(); // the first status answer arrives, then it redraws
 
@@ -190,7 +190,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byType(CalendarCard));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('All settings'));
+    await _openAllSettings(tester);
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(); // the first status answer arrives, then it redraws
     await tester.ensureVisible(find.text('Display over other apps'));
@@ -201,4 +201,18 @@ void main() {
     expect(find.textContaining('Not propped up'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+}
+
+// The settings list builds lazily, so with a longer page the button is below
+// the fold until it is scrolled to.
+Future<void> _openAllSettings(WidgetTester tester) async {
+  final button = find.text('All settings');
+  if (button.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      button,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+  }
+  await tester.tap(button);
 }

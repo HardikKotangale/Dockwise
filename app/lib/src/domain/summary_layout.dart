@@ -1,7 +1,7 @@
 /// The tiles the Summary panel can show. The music tile is double size: it
 /// takes a whole column (or row, in portrait); every other tile is small, two
 /// to a column. Any of them can be added or removed.
-enum SummaryTile { here, there, date, weather, timer, music }
+enum SummaryTile { here, there, date, weather, timer, music, photos }
 
 /// Which tiles the Summary panel shows, and in what order. The tiles are laid
 /// out in that order: small ones two to a column, music alone in its own.

@@ -43,7 +43,7 @@ The flip clock gives every digit its own hinged card, and AM / PM is a small car
 ### Weather and calendar
 
 - **Weather:** animated scenes (sun, clouds, rain, snow, fog, storm, night sky) from your phone's location. Swipe up and down for four pages: now, Fahrenheit, the forecast, and a second city. It shows rain that is falling now even when the forecast model says cloudy, and refreshes every 15 minutes. A small glass **refresh** button (bottom-right) fetches it again: it appears when the pointer is over the card or after a touch, and can be set to Off or Always in Settings > Weather.
-- **Calendar:** today or the whole month (swipe up or down). The text scales with the panel in portrait and landscape, and the days land one after another when it appears.
+- **Calendar:** today, the whole month, or your coming meetings (swipe up or down). Meetings come from the Calendar app on a Mac or an iPhone, read-only: nothing is changed, sent anywhere or kept, and a setting can hide the titles so they are never even read. Outlook and Exchange meetings show up when that account is added to Calendar. The text scales with the panel in portrait and landscape, and the days land one after another when it appears.
 
 Turn the phone and the calendar, the weather and the timer glide their parts from the portrait arrangement to the landscape one instead of swapping.
 
@@ -55,6 +55,10 @@ Turn the phone and the calendar, the weather and the timer glide their parts fro
 <p align="center">
   <img src="docs/weather-scenes.gif" width="40%" alt="Animated weather scenes">
 </p>
+
+### Photos
+
+A slideshow of the pictures you choose, as a panel (one or two panels) or as a Summary tile: each picture fades into the next while it drifts slowly. The pictures come from a Photos album (Mac, iPhone, Android) or a folder (Mac, Windows), read where they are, one at a time; nothing is copied, changed or sent anywhere. Up and down (or a swipe) move to the next or last picture.
 
 ### Summary
 
@@ -173,7 +177,7 @@ The same app builds as a Windows program, `Hushdock.exe`. It has been built and 
 | ← → | Previous / next card (like a sideways swipe) |
 | ↑ ↓ | Change the look of the card: clock style, calendar view, weather page, timer style |
 | Shift + ← → | Use the second card, with two panels |
-| Q W E R A held, then ↑ ↓ | On Summary, swipe one tile: Q first clock, W second clock, E calendar, R weather, A timer |
+| Q W E R A Z held, then ↑ ↓ | On Summary, swipe one tile by its place: Q the first card (top left), W the one below it, then E, R, A, Z along the layout. After you rearrange the tiles, the keys follow the new layout |
 | Q W E R A held, then S | On Summary, open that tile's own settings |
 | O / T / D | One card / two cards / switch between them (with two cards, O and D keep the card under the pointer) |
 | S or Enter | Open or close the settings of what the pointer is on |

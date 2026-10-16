@@ -82,7 +82,13 @@ class WorldClockFace extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onCityTap,
-      child: _row('$city$note', other, partTaps: onCityTap == null),
+      child: _row(
+        '$city$note',
+        other,
+        partTaps: onCityTap == null,
+        // how far ahead or behind, as in the Summary's tile
+        pill: hoursAway(time, other),
+      ),
     );
   }
 
@@ -90,7 +96,7 @@ class WorldClockFace extends StatelessWidget {
   String get _localLabel =>
       settings.localCity.isNotEmpty ? settings.localCity : 'Local';
 
-  Widget _row(String label, DateTime t, {bool partTaps = true}) {
+  Widget _row(String label, DateTime t, {bool partTaps = true, String? pill}) {
     final onPartTap = partTaps ? this.onPartTap : null;
     final theme = settings.theme;
     return Column(
@@ -99,14 +105,40 @@ class WorldClockFace extends StatelessWidget {
         tapPart(
           onPartTap,
           ClockPart.label,
-          Text(
-            label,
-            style: TextStyle(
-              color:
-                  settings.labelInk, // pick it under Clock colors > City names
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: settings
+                      .labelInk, // pick it under Clock colors > City names
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (pill != null) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    pill,
+                    style: TextStyle(
+                      color: settings.labelInk.withValues(alpha: 0.85),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         TimeParts(

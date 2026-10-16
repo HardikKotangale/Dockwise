@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../../../core/apple.dart';
@@ -58,6 +59,7 @@ class TransportButton extends StatefulWidget {
     this.playing,
     this.holdLabel,
     this.loadHoldLabel,
+    this.pulse,
   });
 
   final IconData icon;
@@ -80,6 +82,9 @@ class TransportButton extends StatefulWidget {
   final String? holdLabel;
   final Future<String?> Function()? loadHoldLabel;
 
+  /// bumped when this control's key is pressed: it plays its press animation
+  final ValueListenable<int>? pulse;
+
   @override
   State<TransportButton> createState() => _TransportButtonState();
 }
@@ -99,8 +104,25 @@ class _TransportButtonState extends State<TransportButton>
   );
 
   @override
+  void initState() {
+    super.initState();
+    widget.pulse?.addListener(_keyPressed);
+  }
+
+  // its key was pressed: the same bloom and hop as a press
+  void _keyPressed() {
+    if (mounted && !MediaQuery.disableAnimationsOf(context)) {
+      _fx.forward(from: 0);
+    }
+  }
+
+  @override
   void didUpdateWidget(TransportButton old) {
     super.didUpdateWidget(old);
+    if (old.pulse != widget.pulse) {
+      old.pulse?.removeListener(_keyPressed);
+      widget.pulse?.addListener(_keyPressed);
+    }
     final p = widget.playing;
     if (p == null || p == old.playing) return;
     if (MediaQuery.disableAnimationsOf(context)) {
@@ -112,6 +134,7 @@ class _TransportButtonState extends State<TransportButton>
 
   @override
   void dispose() {
+    widget.pulse?.removeListener(_keyPressed);
     _fx.dispose();
     _morph.dispose();
     super.dispose();

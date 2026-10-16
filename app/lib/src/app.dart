@@ -7,6 +7,8 @@ import 'core/screen_fit.dart';
 import 'domain/standby_models.dart';
 import 'features/standby/standby_screen.dart';
 import 'features/standby/widgets/battery_badge.dart' show BatteryMonitor;
+import 'services/calendar_service.dart';
+import 'services/photo_service.dart';
 import 'services/standby_system_service.dart';
 
 class StandbyProApp extends StatelessWidget {
@@ -15,12 +17,16 @@ class StandbyProApp extends StatelessWidget {
     this.initialSettings,
     this.systemService,
     this.battery,
+    this.calendarService,
+    this.photoService,
     this.fitScreen = false,
   });
 
   final StandbySettings? initialSettings;
   final StandbySystemService? systemService; // tests pass a fake
   final BatteryMonitor? battery; // tests pass a fake
+  final CalendarService? calendarService; // tests pass a fake
+  final PhotoService? photoService; // tests pass a fake
 
   /// Scale the whole app to the screen size (see [ScreenFit]). On in the real
   /// app; off by default so tests keep their exact layouts.
@@ -39,6 +45,8 @@ class StandbyProApp extends StatelessWidget {
         initialSettings: initialSettings,
         systemService: systemService,
         battery: battery,
+        calendarService: calendarService,
+        photoService: photoService,
       ),
     );
   }

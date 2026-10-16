@@ -30,6 +30,12 @@
 	<string>NSApplication</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Hushdock uses your location while the app is open to show local weather.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Hushdock shows the pictures of the album you choose as a slideshow. It only reads them: nothing is changed, copied or sent anywhere.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Hushdock shows your upcoming meetings on the Calendar card. It only reads them: nothing is changed, sent anywhere or kept.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Hushdock shows your upcoming meetings on the Calendar card. It only reads them: nothing is changed, sent anywhere or kept.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Hushdock uses your location while the app is open to show local weather.</string>
 	<key>NSAppleEventsUsageDescription</key>

@@ -34,6 +34,18 @@ class MainFlutterWindow: NSWindow {
       self?.handle(call, result)
     }
 
+    let calendar = CalendarBridge()
+    FlutterMethodChannel(
+      name: "standby_pro/calendar",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    ).setMethodCallHandler { call, result in calendar.handle(call, result) }
+
+    let photoFolder = PhotoFolderBridge()
+    FlutterMethodChannel(
+      name: "standby_pro/photos",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    ).setMethodCallHandler { call, result in photoFolder.handle(call, result) }
+
     super.awakeFromNib()
     // once the window is up: offer to move a downloaded copy to Applications
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -212,6 +224,130 @@ class MainFlutterWindow: NSWindow {
     } else {
       IOPMAssertionRelease(keepAwakeId)
       keepingAwake = false
+    }
+  }
+}
+
+// ---- the Calendar card's Meetings tab -------------------------------------
+// Read-only. Only the fields the tab shows leave this file (title, times,
+// all-day, calendar name), only for the next few days, and the title is left
+// out when the tab is set to hide titles. Nothing is written or stored.
+import EventKit
+
+final class CalendarBridge {
+  private let store = EKEventStore()
+
+  // the calendar's own colour as 0xAARRGGBB (0 when it cannot be read)
+  private static func argb(_ c: CGColor) -> Int {
+    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+      let s = c.converted(to: space, intent: .defaultIntent, options: nil),
+      let p = s.components, p.count >= 3
+    else { return 0 }
+    func byte(_ v: CGFloat) -> Int { Int(max(0, min(1, v)) * 255) }
+    return 0xFF00_0000 | (byte(p[0]) << 16) | (byte(p[1]) << 8) | byte(p[2])
+  }
+
+  private static func access() -> String {
+    let s = EKEventStore.authorizationStatus(for: .event)
+    if #available(macOS 14.0, iOS 17.0, *) {
+      if s == .fullAccess { return "granted" }
+      if s == .writeOnly { return "denied" }
+    }
+    switch s {
+    case .notDetermined: return "unknown"
+    case .authorized: return "granted"
+    default: return "denied"
+    }
+  }
+
+  func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    let args = call.arguments as? [String: Any]
+    switch call.method {
+    case "status":
+      result(CalendarBridge.access())
+    case "request":
+      let done: (Bool, Error?) -> Void = { granted, _ in
+        DispatchQueue.main.async { result(granted) }
+      }
+      if #available(macOS 14.0, iOS 17.0, *) {
+        store.requestFullAccessToEvents(completion: done)
+      } else {
+        store.requestAccess(to: .event, completion: done)
+      }
+    case "events":
+      guard CalendarBridge.access() == "granted" else { return result([]) }
+      let days = min(max((args?["days"] as? Int) ?? 3, 1), 14)
+      let titles = (args?["titles"] as? Bool) ?? true
+      let start = Calendar.current.startOfDay(for: Date())
+      guard let end = Calendar.current.date(byAdding: .day, value: days, to: start) else {
+        return result([])
+      }
+      let found = store.events(
+        matching: store.predicateForEvents(withStart: start, end: end, calendars: nil))
+      let list = found
+        .filter { $0.status != .canceled }
+        .sorted { $0.startDate < $1.startDate }
+        .prefix(60)
+        .map { e -> [String: Any] in
+          [
+            "title": titles ? (e.title ?? "") : "",
+            "start": Int(e.startDate.timeIntervalSince1970 * 1000),
+            "end": Int(e.endDate.timeIntervalSince1970 * 1000),
+            "allDay": e.isAllDay,
+            "calendar": e.calendar.title,
+            "color": CalendarBridge.argb(e.calendar.cgColor),
+          ]
+        }
+      result(Array(list))
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+}
+
+// ---- the photo slideshow's folder -----------------------------------------
+// A sandboxed app may read only what the person picked. The picked folder is
+// kept as a read-only security-scoped bookmark, so it can be opened again
+// after a restart; nothing else is readable and nothing is ever written.
+final class PhotoFolderBridge {
+  private var opened: [String: URL] = [:]
+
+  func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    let args = call.arguments as? [String: Any]
+    switch call.method {
+    case "pickFolder":
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = false
+      panel.canChooseDirectories = true
+      panel.allowsMultipleSelection = false
+      panel.prompt = "Choose"
+      panel.message = "Choose the folder with the pictures to show"
+      panel.begin { [weak self] response in
+        guard response == .OK, let url = panel.url else { return result(nil) }
+        _ = url.startAccessingSecurityScopedResource()
+        self?.opened[url.path] = url
+        let data = try? url.bookmarkData(
+          options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+          includingResourceValuesForKeys: nil, relativeTo: nil)
+        result(["path": url.path, "bookmark": data?.base64EncodedString() ?? ""])
+      }
+    case "openFolder":
+      guard let text = args?["bookmark"] as? String,
+        let data = Data(base64Encoded: text)
+      else { return result(nil) }
+      var stale = false
+      guard
+        let url = try? URL(
+          resolvingBookmarkData: data, options: .withSecurityScope,
+          relativeTo: nil, bookmarkDataIsStale: &stale)
+      else { return result(nil) }
+      if opened[url.path] == nil {
+        _ = url.startAccessingSecurityScopedResource()
+        opened[url.path] = url
+      }
+      result(url.path)
+    default:
+      result(FlutterMethodNotImplemented)
     }
   }
 }

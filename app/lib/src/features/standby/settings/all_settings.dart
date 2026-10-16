@@ -12,6 +12,7 @@ import '../widgets/dock.dart';
 import '../widgets/music_sources_sheet.dart';
 import 'clock_settings.dart';
 import 'controls.dart';
+import 'photos_settings.dart';
 import 'simple_settings.dart';
 
 /// What the battery prompt calls the device, and when it speaks, by platform:
@@ -42,12 +43,11 @@ const keyboardShortcuts = <(String, List<KeyShortcut>)>[
       (keys: ['←', '→'], what: 'Previous or next card'),
       (keys: ['↑', '↓'], what: 'Change the look of a card'),
       (
-        keys: ['Q', 'W', 'E', 'R', 'A', '+ ↑ ↓'],
+        keys: ['Q', 'W', 'E', 'R', 'A', 'Z', '+ ↑ ↓'],
         what:
-            'Swipe one tile on Summary\n'
-            // no break inside a pair: "R weather" never splits across lines
-            'Q\u00A0clock\u00A01 · W\u00A0clock\u00A02 · E\u00A0calendar · '
-            'R\u00A0weather · A\u00A0timer',
+            'Swipe one tile on Summary, by place\n'
+            'Q\u00A0first card · W\u00A0the one below · E, R, A, Z\u00A0the next '
+            'ones. After you rearrange, the keys follow the new layout.',
       ),
       (keys: ['Shift', '+ ← →'], what: 'Use the second card'),
     ],
@@ -476,6 +476,15 @@ class AllSettings extends StatelessWidget {
             child: SettingsSection(
               title: 'Calendar',
               child: CalendarBody(controller: controller),
+            ),
+          ),
+          _FocusOnOpen(
+            active: focus == 'Photos',
+            title: 'Photos',
+            child: SettingsSection(
+              title: 'Photos',
+              subtitle: 'A slideshow of the pictures you choose.',
+              child: PhotosBody(controller: controller),
             ),
           ),
           SettingsSection(

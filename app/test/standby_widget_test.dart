@@ -80,7 +80,7 @@ void main() {
     await tester.tap(find.textContaining('Loading weather'));
     await tester.pumpAndSettle();
     expect(find.text('Temperature in °F'), findsOneWidget);
-    await tester.tap(find.text('All settings'));
+    await _openAllSettings(tester);
     await tester.pumpAndSettle();
 
     for (final t in [
@@ -122,7 +122,7 @@ void main() {
       );
       await tester.tap(find.textContaining('Loading weather'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('All settings'));
+      await _openAllSettings(tester);
       await tester.pumpAndSettle();
       expect(find.text('Widget'), findsOneWidget);
       expect(find.text('Left widget'), findsNothing);
@@ -138,7 +138,7 @@ void main() {
     );
     await tester.tap(find.textContaining('Loading weather'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('All settings'));
+    await _openAllSettings(tester);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Animations'),
@@ -227,7 +227,10 @@ void main() {
                   SpotifyDevice('a1', 'iPhone', 'Smartphone', true),
                   SpotifyDevice('m1', 'MacBook Pro', 'Computer', false),
                 ],
-                onDevice: (id) => played = id,
+                onDevice: (id) async {
+                  played = id;
+                  return true;
+                },
               ),
             ),
           ),
@@ -237,15 +240,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('MacBook Pro'), findsOneWidget);
       await tester.tap(find.text('MacBook Pro'));
-      await tester.pumpAndSettle();
+      // not pumpAndSettle: the spinner never settles while it connects
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       expect(played, 'm1');
       expect(source, isNull);
+      // it says it is connecting, and the source cannot be opened meanwhile
+      expect(find.text('Connecting to MacBook Pro…'), findsOneWidget);
+      await tester.tap(find.text('Connecting to MacBook Pro…'));
+      await tester.pump();
+      expect(find.text('Auto'), findsNothing);
+      // then it names the new device for a moment
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('Spotify · MacBook Pro'), findsOneWidget);
 
-      await tester.tap(find.text('Spotify · iPhone'));
+      await tester.tap(find.text('Spotify · MacBook Pro'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Auto'));
       await tester.pumpAndSettle();
       expect(source, 'auto');
+      await tester.pump(const Duration(seconds: 5)); // the label settles
     },
   );
 
@@ -979,6 +993,21 @@ void main() {
         rightWidget: StandbyWidgetType.music,
       ).secondsVisible,
       isFalse,
+    );
+    // the Summary's time tiles (Frame ticks, the dial's second hand) tick too
+    expect(
+      const StandbySettings(
+        leftWidget: StandbyWidgetType.summary,
+        summaryLayout: 'v2:here,there,date,weather,music',
+      ).secondsVisible,
+      isTrue,
+    );
+    expect(
+      const StandbySettings(
+        leftWidget: StandbyWidgetType.summary,
+        summaryLayout: 'v2:date,weather,music',
+      ).secondsVisible,
+      isFalse, // no time tile on the panel
     );
   });
 
@@ -1877,7 +1906,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byType(CalendarCard));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('All settings'));
+    await _openAllSettings(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('Theme'), findsOneWidget);
@@ -2643,4 +2672,18 @@ void main() {
       0.45,
     );
   });
+}
+
+// The settings list builds lazily, so with a longer page the button is below
+// the fold until it is scrolled to.
+Future<void> _openAllSettings(WidgetTester tester) async {
+  final button = find.text('All settings');
+  if (button.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      button,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+  }
+  await tester.tap(button);
 }

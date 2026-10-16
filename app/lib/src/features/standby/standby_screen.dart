@@ -15,6 +15,8 @@ import '../../core/night_mode_policy.dart';
 import '../../core/power_mode.dart';
 import '../../domain/standby_models.dart';
 import '../../domain/summary_layout.dart';
+import '../../services/calendar_service.dart';
+import '../../services/photo_service.dart';
 import '../../services/standby_system_service.dart';
 import '../../state/standby_controller.dart';
 import 'dashboard.dart';
@@ -31,6 +33,8 @@ class StandbyScreen extends StatefulWidget {
     this.initialSettings,
     this.systemService,
     this.battery,
+    this.calendarService,
+    this.photoService,
   });
 
   final StandbySettings? initialSettings;
@@ -38,6 +42,12 @@ class StandbyScreen extends StatefulWidget {
 
   /// Battery source; tests pass a fake one.
   final BatteryMonitor? battery;
+
+  /// Calendar source; tests pass a fake one.
+  final CalendarService? calendarService;
+
+  /// Photo source; tests pass a fake one.
+  final PhotoService? photoService;
 
   @override
   State<StandbyScreen> createState() => _StandbyScreenState();
@@ -83,6 +93,8 @@ class _StandbyScreenState extends State<StandbyScreen> {
     _controller = StandbyController(
       initialSettings: widget.initialSettings,
       systemService: widget.systemService,
+      calendarService: widget.calendarService,
+      photoService: widget.photoService,
       autostartTicker: widget.initialSettings == null,
     );
     _controller.addListener(_flashDots);
@@ -177,30 +189,20 @@ class _StandbyScreenState extends State<StandbyScreen> {
       // still plays or pauses the music (like N and M, and with Settings open)
       LogicalKeyboardKey.space => _do(() {
         if (!_controller.playPauseShown()) {
-          _controller.sendMediaCommand('playPause');
+          _controller.keyMedia('playPause');
         }
       }),
       // the music, from any card: N back 10 s, M forward 10 s
-      LogicalKeyboardKey.keyN => _do(
-        () => _controller.sendMediaCommand('back10'),
-      ),
-      LogicalKeyboardKey.keyM => _do(
-        () => _controller.sendMediaCommand('forward10'),
-      ),
-      LogicalKeyboardKey.period => _do(
-        () => _controller.sendMediaCommand('next'),
-      ),
-      LogicalKeyboardKey.comma => _do(
-        () => _controller.sendMediaCommand('previous'),
-      ),
+      LogicalKeyboardKey.keyN => _do(() => _controller.keyMedia('back10')),
+      LogicalKeyboardKey.keyM => _do(() => _controller.keyMedia('forward10')),
+      LogicalKeyboardKey.period => _do(() => _controller.keyMedia('next')),
+      LogicalKeyboardKey.comma => _do(() => _controller.keyMedia('previous')),
       LogicalKeyboardKey.minus ||
       LogicalKeyboardKey.underscore ||
-      LogicalKeyboardKey.numpadSubtract => _do(
-        () => _controller.nudgeVolume(-5),
-      ),
+      LogicalKeyboardKey.numpadSubtract => _do(() => _controller.keyVolume(-5)),
       LogicalKeyboardKey.equal ||
       LogicalKeyboardKey.add ||
-      LogicalKeyboardKey.numpadAdd => _do(() => _controller.nudgeVolume(5)),
+      LogicalKeyboardKey.numpadAdd => _do(() => _controller.keyVolume(5)),
       // one or two panels (also with Settings or this list open: the cards
       // behind glide to the new layout)
       // O: one card; with two on screen, the one under the pointer stays
@@ -298,6 +300,7 @@ class _StandbyScreenState extends State<StandbyScreen> {
     StandbyWidgetType.weather => 'Weather',
     StandbyWidgetType.calendar => 'Calendar',
     StandbyWidgetType.timer => 'Timer',
+    StandbyWidgetType.photos => 'Photos',
     StandbyWidgetType.summary => 'Settings',
   };
 
@@ -326,7 +329,20 @@ class _StandbyScreenState extends State<StandbyScreen> {
     _following = false;
   }
 
-  SummaryTile? _summaryChord() {
+  // The keys Q W E R A Z are the places on the Summary panel, in the order the
+  // tiles are laid out (the left column from the top, then the next column...),
+  // so after the tiles are rearranged each key follows the new arrangement.
+  static const _chordKeys = [
+    LogicalKeyboardKey.keyQ,
+    LogicalKeyboardKey.keyW,
+    LogicalKeyboardKey.keyE,
+    LogicalKeyboardKey.keyR,
+    LogicalKeyboardKey.keyA,
+    LogicalKeyboardKey.keyZ,
+  ];
+
+  /// The place (0 = Q) whose key is held, when the Summary panel is on screen.
+  int? _chordIndex() {
     final s = _controller.settings;
     final shown =
         s.leftWidget == StandbyWidgetType.summary ||
@@ -334,18 +350,19 @@ class _StandbyScreenState extends State<StandbyScreen> {
             s.rightWidget == StandbyWidgetType.summary);
     if (!shown) return null;
     final kb = HardwareKeyboard.instance;
-    for (final e in {
-      LogicalKeyboardKey.keyQ: SummaryTile.here,
-      LogicalKeyboardKey.keyW: SummaryTile.there,
-      LogicalKeyboardKey.keyE: SummaryTile.date,
-      LogicalKeyboardKey.keyR: SummaryTile.weather,
-      LogicalKeyboardKey.keyA: SummaryTile.timer,
-    }.entries) {
-      if (kb.isLogicalKeyPressed(e.key)) {
-        return e.value;
-      }
+    for (var i = 0; i < _chordKeys.length; i++) {
+      if (kb.isLogicalKeyPressed(_chordKeys[i])) return i;
     }
     return null;
+  }
+
+  /// The tile in the held key's place; null when no key is held or that place
+  /// is empty.
+  SummaryTile? _summaryChord() {
+    final i = _chordIndex();
+    if (i == null) return null;
+    final tiles = SummaryLayout.parse(_controller.settings.summaryLayout).tiles;
+    return i < tiles.length ? tiles[i] : null;
   }
 
   // Arrows: on the first panel; with Shift (two panels) on the second one.
@@ -353,27 +370,20 @@ class _StandbyScreenState extends State<StandbyScreen> {
   // its style), else to the first panel.
   void _step(Axis axis, int step) {
     final s = _controller.settings;
-    // Q, W, E, R or A held: this is a swipe on that Summary tile (Q the first
-    // clock, W the second, E the calendar, R the weather, A the timer)
-    final held = _summaryChord();
-    if (held != null && axis == Axis.vertical) {
-      if (SummaryLayout.parse(s.summaryLayout).tiles.contains(held)) {
-        stepSummaryTile(_controller, held, step);
+    // Q, W, E, R, A or Z held: a swipe on the Summary tile in that place (Q the
+    // first, W the one below it...), in the arrangement as it is now
+    final place = _chordIndex();
+    if (place != null && axis == Axis.vertical) {
+      final tiles = SummaryLayout.parse(s.summaryLayout).tiles;
+      if (place < tiles.length) {
+        stepSummaryTile(_controller, tiles[place], step);
       } else {
-        // that tile is not on the Summary panel: say so instead of nothing
-        final name = switch (held) {
-          SummaryTile.here => 'first clock',
-          SummaryTile.there => 'second clock',
-          SummaryTile.date => 'calendar',
-          SummaryTile.weather => 'weather',
-          SummaryTile.timer => 'timer',
-          SummaryTile.music => 'music',
-        };
+        // nothing is in that place: say so instead of nothing
         ScaffoldMessenger.maybeOf(context)
           ?..hideCurrentSnackBar()
           ..showSnackBar(
             SnackBar(
-              content: Text('No $name in the Summary panel'),
+              content: Text('No card ${place + 1} in the Summary panel'),
               duration: const Duration(seconds: 2),
             ),
           );
